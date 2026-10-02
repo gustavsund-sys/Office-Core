@@ -331,13 +331,52 @@ export class Weapons {
         if (hit?.hit && hit.pickedPoint) {
           const target = hit.pickedMesh?.metadata?.damageable as
             Hittable | undefined;
-          if (target) {
-            if (target.canDamageFrom(rocket.origin)) {
-              const damage = Math.min(WEAPONS.bazooka.damage, target.hp);
-              const before = target.hp;
-              target.damage(WEAPONS.bazooka.damage);
-              if (target.hp < before) this.onHit(target, damage);
-            } else this.onShield();
+          const candidates = new Map<Hittable, Vector3>();
+          for (const mesh of scene.meshes) {
+            const victim = mesh.metadata?.damageable as Hittable | undefined;
+            if (
+              victim &&
+              victim.hp > 0 &&
+              mesh.isEnabled() &&
+              !candidates.has(victim)
+            )
+              candidates.set(
+                victim,
+                (victim as Hittable & { position?: Vector3 }).position ??
+                  mesh.getAbsolutePosition(),
+              );
+          }
+          for (const [victim, position] of candidates) {
+            const distance = Vector3.Distance(hit.pickedPoint, position);
+            if (victim !== target && distance >= 4) continue;
+            if (!victim.canDamageFrom(rocket.origin)) continue;
+            if (victim !== target) {
+              const delta = position.subtract(hit.pickedPoint),
+                length = delta.length();
+              const obstruction =
+                length > 0.15
+                  ? scene.pickWithRay(
+                      new Ray(
+                        hit.pickedPoint.add(delta.normalizeToNew().scale(0.08)),
+                        delta.normalizeToNew(),
+                        length - 0.12,
+                      ),
+                      (mesh) =>
+                        mesh.isEnabled() &&
+                        mesh.metadata?.damageable !== victim &&
+                        (!!mesh.metadata?.solid ||
+                          mesh.metadata?.damageable?.prop?.kind === "coreDoor"),
+                    )
+                  : null;
+              if (obstruction?.hit) continue;
+            }
+            const before = victim.hp;
+            victim.damage(
+              victim === target
+                ? WEAPONS.bazooka.damage
+                : Math.max(1, Math.round(90 * (1 - distance / 4))),
+            );
+            if (victim.hp < before) this.onHit(victim, before - victim.hp);
           }
           this.onImpact(hit.pickedPoint);
           this.player.world.explosions.burst(

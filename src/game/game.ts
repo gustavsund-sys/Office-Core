@@ -13,6 +13,7 @@ import {
   Ray,
   MeshBuilder,
   Quaternion,
+  Matrix,
 } from "@babylonjs/core";
 import { rotatingCameraPose } from "./rotatingCamera";
 import { WEAPONS, type WeaponId } from "../config/weapons";
@@ -44,6 +45,14 @@ export class Game {
   pendingInputs: NetInput[] = [];
   onlinePressed = false;
   shotPrediction = new ShotPrediction();
+  predictedRockets: {
+    mesh: import("@babylonjs/core").Mesh;
+    start: Vector3;
+    direction: Vector3;
+    age: number;
+  }[] = [];
+  pendingPlantAt?: number;
+  damageNumbers: { el: HTMLElement; position: Vector3; life: number }[] = [];
   onlineSpawned = false;
   predictedPosition?: Vector3;
   predictedVelocity = 0;
@@ -454,6 +463,13 @@ export class Game {
           return;
         const position = new Vector3(event.x, event.y, event.z);
         const distance = Vector3.Distance(position, this.player.root.position);
+        if (event.kind === "damage")
+          this.showDamageNumber(position, event.damage ?? 0);
+        if (event.kind === "scream" && this.sound)
+          this.weaponAudio?.playBusterScream(
+            distance,
+            (position.x - this.player.root.position.x) / Math.max(10, distance),
+          );
         if (event.kind === "impact") {
           if (this.sound) this.weaponAudio?.playImpact(distance);
           for (let i = 0; i < 6; i++) {
@@ -727,6 +743,13 @@ export class Game {
     this.networkElapsed += dt;
     const command = this.input.command(this.world, this.player.root.position);
     this.onlinePressed ||= command.pressed;
+    if (
+      command.pressed &&
+      !this.paused &&
+      this.weapons.carryingCoreBuster &&
+      this.player.grounded
+    )
+      this.pendingPlantAt = this.time;
     this.player.root.rotation.y = Math.atan2(
       command.aimX - this.player.root.position.x,
       command.aimZ - this.player.root.position.z,
@@ -760,6 +783,20 @@ export class Game {
       muzzle.material = this.world.mat("#ffe8a1", true);
       muzzle.isPickable = false;
       this.onlineTraces.push({ mesh: muzzle, life: 0.045 });
+      if (this.weapons.id === "bazooka") {
+        const mesh = rocketModel(this.world);
+        const origin = this.player.root.position
+          .add(new Vector3(0, 1.1, 0))
+          .add(this.player.direction.scale(0.45));
+        mesh.position.copyFrom(origin);
+        mesh.isPickable = false;
+        this.predictedRockets.push({
+          mesh,
+          start: origin,
+          direction: this.player.direction.clone(),
+          age: 0,
+        });
+      }
       if (this.weapons.id !== "bazooka") {
         const ray = new Ray(
           start,
@@ -940,17 +977,31 @@ export class Game {
       for (const object of objects) {
         let mesh = this.onlineObjects.get(object.key);
         if (!mesh) {
+          const prediction =
+            object.weapon === "bazooka" &&
+            "owner" in object &&
+            object.owner === net.room?.sessionId
+              ? this.predictedRockets.shift()
+              : undefined;
           mesh =
-            object.weapon === "bazooka"
+            prediction?.mesh ??
+            (object.weapon === "bazooka"
               ? rocketModel(this.world)
-              : heldWeapon(this.world, object.weapon);
+              : heldWeapon(this.world, object.weapon));
           this.onlineObjects.set(object.key, mesh);
         }
         if (object.weapon === "bazooka") {
           const delta = new Vector3(object.x, object.y, object.z).subtract(
             mesh.position,
           );
-          if (delta.length() > 0.01)
+          if (
+            delta.length() > 0.01 &&
+            !(
+              "owner" in object &&
+              object.owner === net.room?.sessionId &&
+              mesh.rotationQuaternion
+            )
+          )
             mesh.rotationQuaternion = Quaternion.FromLookDirectionLH(
               delta.normalize(),
               Vector3.Up(),
@@ -994,23 +1045,53 @@ export class Game {
         !this.paused && this.sound,
         snapshot.bombs.map((b) => ({ id: String(b.id), ...spatial(b) })),
       );
-      this.world.updateAlarm(snapshot.alarm, this.time);
-      const base = office01.bases.find((b) => b.team === snapshot.alarm);
-      this.weaponAudio?.setAlarm(
-        !this.paused && this.sound && !!base,
-        base ? spatial(base) : undefined,
+      const alarmTeams =
+        snapshot.alarms ?? (snapshot.alarm ? [snapshot.alarm] : []);
+      const ownAlarm = alarmTeams.includes(CONFIG.player.team as Team)
+        ? (CONFIG.player.team as Team)
+        : alarmTeams[0];
+      this.world.updateAlarm(ownAlarm, this.time);
+      this.weaponAudio?.setCoreAlarms(
+        !this.paused && this.sound
+          ? alarmTeams.map((team) => {
+              const base = office01.bases.find((b) => b.team === team)!;
+              return { id: team, ...spatial(base) };
+            })
+          : [],
       );
       const timer =
         document.querySelector<HTMLElement>("#network-bomb-timer") ??
         document.createElement("div");
       timer.id = "network-bomb-timer";
       timer.style.cssText =
-        "position:fixed;bottom:100px;left:45%;color:#ffda61";
+        "position:fixed;bottom:170px;left:50%;transform:translateX(-50%);color:#ffda61;background:#14252ee8;padding:12px 18px;border:1px solid #ffda61;border-radius:6px;font-size:20px;font-weight:bold;z-index:75;pointer-events:none";
       document.querySelector("#ui")!.append(timer);
       timer.replaceChildren();
-      for (const bomb of snapshot.bombs) {
+      timer.hidden =
+        !snapshot.bombs.length && this.pendingPlantAt === undefined;
+      const ownBombs = snapshot.bombs.filter(
+        (b) => b.owner === net.room?.sessionId,
+      );
+      if (
+        ownBombs.length ||
+        (this.pendingPlantAt !== undefined &&
+          this.time - this.pendingPlantAt > 1)
+      )
+        this.pendingPlantAt = undefined;
+      const visibleBombs = ownBombs.length ? ownBombs : snapshot.bombs;
+      const timers =
+        this.pendingPlantAt !== undefined
+          ? [
+              {
+                timer: 25 - (this.time - this.pendingPlantAt),
+                owner: net.room?.sessionId,
+              },
+              ...visibleBombs,
+            ]
+          : visibleBombs;
+      for (const bomb of timers) {
         const row = document.createElement("div");
-        row.textContent = `CORE BUSTER ${Math.ceil(bomb.timer)} s `;
+        row.textContent = `${bomb.owner === net.room?.sessionId ? "DIN CORE BUSTER" : "CORE BUSTER"} · ${Math.ceil(bomb.timer)} s `;
         const bar = document.createElement("progress");
         bar.max = 25;
         bar.value = bomb.timer;
@@ -1023,6 +1104,21 @@ export class Game {
           this.onlinePlayers.delete(id);
         }
     }
+    for (const rocket of this.predictedRockets) {
+      rocket.age += dt;
+      const distance = rocket.age * 9.9;
+      rocket.mesh.position.copyFrom(
+        rocket.start.add(rocket.direction.scale(distance)),
+      );
+      rocket.mesh.position.y += Math.sin((distance / 40) * Math.PI) * 0.75;
+      rocket.mesh.rotationQuaternion = Quaternion.FromLookDirectionLH(
+        rocket.direction,
+        Vector3.Up(),
+      );
+      if (rocket.age > 1.5) rocket.mesh.dispose();
+    }
+    this.predictedRockets = this.predictedRockets.filter((r) => r.age <= 1.5);
+    this.updateDamageNumbers(dt);
     for (const trace of this.onlineTraces) trace.life -= dt;
     this.onlineTraces = this.onlineTraces.filter((trace) => {
       if (trace.life > 0) return true;
@@ -1037,6 +1133,35 @@ export class Game {
     this.world.destructibles.forEach((prop) => prop.update(dt));
     this.hud.update(dt, this.cores, this.weapons, this.player);
     this.scene.render();
+  }
+  showDamageNumber(position: Vector3, damage: number) {
+    const el = document.createElement("div");
+    el.textContent = `−${Math.round(damage)}`;
+    el.style.cssText =
+      "position:absolute;color:#ff334b;font-size:24px;font-weight:900;text-shadow:0 2px 4px #000;pointer-events:none;z-index:90;transform:translate(-50%,-50%)";
+    document.querySelector("#ui")!.append(el);
+    this.damageNumbers.push({ el, position: position.clone(), life: 1.2 });
+  }
+  updateDamageNumbers(dt: number) {
+    for (const number of this.damageNumbers) {
+      number.life -= dt;
+      number.position.y += dt * 0.8;
+      const point = Vector3.Project(
+        number.position,
+        Matrix.Identity(),
+        this.scene.getTransformMatrix(),
+        this.camera.viewport.toGlobal(
+          this.engine.getRenderWidth(),
+          this.engine.getRenderHeight(),
+        ),
+      );
+      number.el.style.left = `${point.x}px`;
+      number.el.style.top = `${point.y}px`;
+      number.el.style.opacity = String(Math.min(1, number.life * 2));
+      number.el.hidden = point.z < 0 || point.z > 1;
+      if (number.life <= 0) number.el.remove();
+    }
+    this.damageNumbers = this.damageNumbers.filter((n) => n.life > 0);
   }
   startMatch(team: Team) {
     this.match.start(team);

@@ -186,7 +186,10 @@ test("Core rooms require a destroyed door, while spawn pads stay reachable", () 
     const before = reachable();
     assert.ok(before.seen.has("0,2"), "pickup reachable");
     for (const endpoint of office01.weaponEnds)
-      assert.ok(before.seen.has(key(endpoint.x * 2, endpoint.z * 2)), "exterior weapon reachable");
+      assert.ok(
+        before.seen.has(key(endpoint.x * 2, endpoint.z * 2)),
+        "exterior weapon reachable",
+      );
     assert.ok(before.distances.get("0,2")! > 60, "long corridors remain");
     const doors = s.world.destructibles.filter(
       (d) => d.prop.kind === "coreDoor",
@@ -204,7 +207,9 @@ test("Core rooms require a destroyed door, while spawn pads stay reachable", () 
         `${b.team} spawn reachable`,
       );
       assert.equal(
-        before.seen.has(key((b.x + Math.sign(b.x) * 3) * 2, (b.z + Math.sign(b.z)) * 2)),
+        before.seen.has(
+          key((b.x + Math.sign(b.x) * 3) * 2, (b.z + Math.sign(b.z)) * 2),
+        ),
         false,
         `${b.team} core sealed`,
       );
@@ -225,7 +230,9 @@ test("Core rooms require a destroyed door, while spawn pads stay reachable", () 
     const after = reachable();
     for (const b of office01.bases)
       assert.ok(
-        after.seen.has(key((b.x + Math.sign(b.x) * 3) * 2, (b.z + Math.sign(b.z)) * 2)),
+        after.seen.has(
+          key((b.x + Math.sign(b.x) * 3) * 2, (b.z + Math.sign(b.z)) * 2),
+        ),
         `${b.team} core accessible after breach`,
       );
   } finally {
@@ -238,7 +245,10 @@ test("ordinary shots cannot damage a Core security door", () => {
   try {
     s.world.build();
     const door = s.world.destructibles.find(
-      (d) => d.prop.kind === "coreDoor" && d.team === "BLUE" && d.prop.w! > d.prop.d!,
+      (d) =>
+        d.prop.kind === "coreDoor" &&
+        d.team === "BLUE" &&
+        d.prop.w! > d.prop.d!,
     )!;
     const zDirection = Math.sign(door.prop.z);
     s.player.root.position.set(door.prop.x, 0, door.prop.z - zDirection * 2.5);
@@ -396,11 +406,19 @@ test("rotating top-down preserves original height and 60-degree angle at every h
 
 test("new weapons: burst cadence, bazooka magazine reload, pulse beam and ammo", () => {
   const s = setup();
-  const command = { moveX: 0, moveZ: 0, aimX: 0, aimZ: 10, fire: false, pressed: true };
+  const command = {
+    moveX: 0,
+    moveZ: 0,
+    aimX: 0,
+    aimZ: 10,
+    fire: false,
+    pressed: true,
+  };
   try {
     s.weapon.equip("burstGun");
     s.weapon.update(command, 0.01);
-    for (let i = 0; i < 4; i++) s.weapon.update({ ...command, pressed: false }, 0.081);
+    for (let i = 0; i < 4; i++)
+      s.weapon.update({ ...command, pressed: false }, 0.081);
     assert.equal(s.weapon.ammo, 95);
     s.weapon.update(command, 0.5);
     assert.equal(s.weapon.ammo, 95);
@@ -422,8 +440,11 @@ test("new weapons: burst cadence, bazooka magazine reload, pulse beam and ammo",
     s.weapon.equip("pulseGun");
     s.weapon.update(command, 0.01);
     assert.equal(s.weapon.ammo, 29);
-    assert.ok(s.weapon.effects.some(e => e.mesh.name === "pulse beam"));
-  } finally { s.scene.dispose(); s.engine.dispose(); }
+    assert.ok(s.weapon.effects.some((e) => e.mesh.name === "pulse beam"));
+  } finally {
+    s.scene.dispose();
+    s.engine.dispose();
+  }
 });
 
 test("bazooka travels along an arc and damages only on impact", () => {
@@ -441,15 +462,18 @@ test("bazooka travels along an arc and damages only on impact", () => {
     s.weapon.update(idle, 0.8);
     assert.equal(target.hp, 0);
     assert.equal(s.weapon.rockets.length, 0);
-  } finally { s.scene.dispose(); s.engine.dispose(); }
+  } finally {
+    s.scene.dispose();
+    s.engine.dispose();
+  }
 });
 
 test("ammo crates replenish only their weapon and spawn faster in hotspots", () => {
   const s = setup();
   try {
     const pickup = new Pickup(s.world);
-    assert.equal(new Set(pickup.ammoDrops.map(drop => drop.id)).size, 5);
-    const drop = pickup.ammoDrops.find(drop => drop.id === "pulseGun")!;
+    assert.equal(new Set(pickup.ammoDrops.map((drop) => drop.id)).size, 5);
+    const drop = pickup.ammoDrops.find((drop) => drop.id === "pulseGun")!;
     s.weapon.equip("pistol");
     const pistolAmmo = s.weapon.ammo;
     s.player.root.position.set(drop.root.position.x, 0, drop.root.position.z);
@@ -463,12 +487,18 @@ test("ammo crates replenish only their weapon and spawn faster in hotspots", () 
     assert.equal(s.weapon.ammunition.pulseGun, 45);
     assert.ok(drop.cooldown > 0);
     for (const slot of pickup.singleAmmoSlots) {
-      assert.equal(slot.drops.filter(drop => drop.root.isEnabled()).length, 1);
+      assert.equal(
+        slot.drops.filter((drop) => drop.root.isEnabled()).length,
+        1,
+      );
     }
-    assert.ok(pickup.ammoDrops.some(drop => drop.interval === 8));
-    assert.ok(pickup.ammoDrops.some(drop => drop.interval === 12));
-    assert.ok(pickup.ammoDrops.some(drop => drop.interval === 40));
-  } finally { s.scene.dispose(); s.engine.dispose(); }
+    assert.ok(pickup.ammoDrops.some((drop) => drop.interval === 8));
+    assert.ok(pickup.ammoDrops.some((drop) => drop.interval === 12));
+    assert.ok(pickup.ammoDrops.some((drop) => drop.interval === 40));
+  } finally {
+    s.scene.dispose();
+    s.engine.dispose();
+  }
 });
 
 test("drop zones offer every weapon and inventory holds pistol plus one special", () => {
@@ -476,7 +506,7 @@ test("drop zones offer every weapon and inventory holds pistol plus one special"
   try {
     const pickups = new Pickup(s.world);
     assert.equal(pickups.endpoints.length, 24);
-    const drop = pickups.endpoints.find(drop => drop.id === "bazooka")!;
+    const drop = pickups.endpoints.find((drop) => drop.id === "bazooka")!;
     s.player.root.position.set(drop.root.position.x, 0, drop.root.position.z);
     pickups.update(0.01, 0, s.weapon, () => {});
     assert.equal(s.weapon.id, "pistol", "walking by does not pick a weapon");
@@ -492,7 +522,10 @@ test("drop zones offer every weapon and inventory holds pistol plus one special"
     s.weapon.switchSlot(1);
     s.weapon.switchSlot(2);
     assert.equal(s.weapon.id, "pulseGun");
-  } finally { s.scene.dispose(); s.engine.dispose(); }
+  } finally {
+    s.scene.dispose();
+    s.engine.dispose();
+  }
 });
 
 test("jump leaves the ground, rejects midair jump and lands once", () => {
@@ -503,11 +536,17 @@ test("jump leaves the ground, rejects midair jump and lands once", () => {
     assert.ok(s.player.root.position.y > 0);
     assert.equal(s.player.jump(), false);
     let landings = 0;
-    for (let i = 0; i < 20; i++) { s.player.update(idle, 0.05); if (s.player.landed) landings++; }
+    for (let i = 0; i < 20; i++) {
+      s.player.update(idle, 0.05);
+      if (s.player.landed) landings++;
+    }
     assert.equal(landings, 1);
     assert.equal(s.player.grounded, true);
     assert.equal(s.player.root.position.y, 0);
-  } finally { s.scene.dispose(); s.engine.dispose(); }
+  } finally {
+    s.scene.dispose();
+    s.engine.dispose();
+  }
 });
 
 test("Core buster is exclusive, breaches barriers and persists as a death drop", () => {
@@ -515,8 +554,11 @@ test("Core buster is exclusive, breaches barriers and persists as a death drop",
   try {
     s.world.build();
     const pickups = new Pickup(s.world);
-    s.weapon.onCoreBusterDropped = position => pickups.dropCoreBuster(position);
-    const door = s.world.destructibles.find(wall => wall.prop.kind === "coreDoor")!;
+    s.weapon.onCoreBusterDropped = (position) =>
+      pickups.dropCoreBuster(position);
+    const door = s.world.destructibles.find(
+      (wall) => wall.prop.kind === "coreDoor",
+    )!;
     door.damage(1000);
     assert.equal(door.hp, 100);
     s.weapon.equip("coreBuster");
@@ -533,7 +575,7 @@ test("Core buster is exclusive, breaches barriers and persists as a death drop",
     s.weapon.equip("coreBuster");
     s.player.hp = 0;
     s.weapon.update(idle, 0.01);
-    const dropped = pickups.endpoints.find(drop => drop.dropped)!;
+    const dropped = pickups.endpoints.find((drop) => drop.dropped)!;
     assert.ok(dropped);
     assert.equal(s.weapon.specialWeapon, undefined);
     pickups.update(100, 100, s.weapon, () => {});
@@ -543,7 +585,10 @@ test("Core buster is exclusive, breaches barriers and persists as a death drop",
     pickups.update(0.01, 101, s.weapon, () => {});
     assert.equal(s.weapon.id, "coreBuster");
     assert.ok(!pickups.endpoints.includes(dropped));
-  } finally { s.scene.dispose(); s.engine.dispose(); }
+  } finally {
+    s.scene.dispose();
+    s.engine.dispose();
+  }
 });
 
 test("headless authoritative hits emit traces and impacts without visual allocations", () => {
@@ -552,30 +597,89 @@ test("headless authoritative hits emit traces and impacts without visual allocat
     const target = new Damageable(s.world, "target", 0, 5);
     s.sync();
     s.weapon.visuals = false;
-    let impacts = 0, traces = 0;
-    s.weapon.onImpact = position => { impacts++; assert.ok(position.z > 0); };
+    let impacts = 0,
+      traces = 0;
+    s.weapon.onImpact = (position) => {
+      impacts++;
+      assert.ok(position.z > 0);
+    };
     s.weapon.onTrace = () => traces++;
     const meshes = s.scene.meshes.length;
-    s.weapon.update({...idle, fire: true, pressed: true}, 1 / 30);
+    s.weapon.update({ ...idle, fire: true, pressed: true }, 1 / 30);
     assert.equal(target.hp, 80);
     assert.equal(impacts, 1);
     assert.equal(traces, 1);
     assert.equal(s.scene.meshes.length, meshes);
-  } finally { s.engine.dispose(); }
+  } finally {
+    s.engine.dispose();
+  }
 });
 
 test("replaying unacknowledged movement reproduces position and jumping", () => {
   const s = setup();
   try {
     const server = new Player(s.world);
-    const inputs = Array.from({length: 18}, (_, i) => ({...idle, moveZ: 1, jump: i === 2}));
-    for (const input of inputs) { if (input.jump) s.player.jump(); s.player.update(input, 1 / 30); }
-    for (const input of inputs.slice(0, 7)) { if (input.jump) server.jump(); server.update(input, 1 / 30); }
+    const inputs = Array.from({ length: 18 }, (_, i) => ({
+      ...idle,
+      moveZ: 1,
+      jump: i === 2,
+    }));
+    for (const input of inputs) {
+      if (input.jump) s.player.jump();
+      s.player.update(input, 1 / 30);
+    }
+    for (const input of inputs.slice(0, 7)) {
+      if (input.jump) server.jump();
+      server.update(input, 1 / 30);
+    }
     s.player.root.position.copyFrom(server.root.position);
     s.player.verticalVelocity = server.verticalVelocity;
     for (const input of inputs.slice(7)) s.player.update(input, 1 / 30);
     for (const input of inputs.slice(7)) server.update(input, 1 / 30);
-    assert.ok(Vector3.Distance(s.player.root.position, server.root.position) < 1e-8);
+    assert.ok(
+      Vector3.Distance(s.player.root.position, server.root.position) < 1e-8,
+    );
     assert.equal(s.player.verticalVelocity, server.verticalVelocity);
-  } finally { s.engine.dispose(); }
+  } finally {
+    s.engine.dispose();
+  }
+});
+
+test("bazooka splash damages nearby targets once, falls off and excludes distant targets", () => {
+  const s = setup();
+  try {
+    const direct = new Damageable(s.world, "target", 0, 5);
+    const nearby = new Damageable(s.world, "target", 1.8, 5);
+    const far = new Damageable(s.world, "target", 8, 5);
+    s.sync();
+    s.weapon.equip("bazooka");
+    s.weapon.update({ ...idle, fire: true, pressed: true }, 1 / 30);
+    for (let i = 0; i < 30 && s.weapon.rockets.length; i++)
+      s.weapon.update(idle, 1 / 30);
+    assert.equal(direct.hp, 0);
+    assert.ok(nearby.hp > 0 && nearby.hp < 100);
+    assert.equal(far.hp, 100);
+    const hp = nearby.hp;
+    s.weapon.update(idle, 0.2);
+    assert.equal(nearby.hp, hp);
+  } finally {
+    s.engine.dispose();
+  }
+});
+
+test("solid walls shield nearby targets from bazooka splash", () => {
+  const s = setup();
+  try {
+    new Damageable(s.world, "target", 0, 5);
+    const protectedTarget = new Damageable(s.world, "target", 2.5, 5);
+    s.world.box("blast shield", 1.3, 1, 5, 0.2, 2, 4, "#888888", true);
+    s.sync();
+    s.weapon.equip("bazooka");
+    s.weapon.update({ ...idle, fire: true, pressed: true }, 1 / 30);
+    for (let i = 0; i < 30 && s.weapon.rockets.length; i++)
+      s.weapon.update(idle, 1 / 30);
+    assert.equal(protectedTarget.hp, 100);
+  } finally {
+    s.engine.dispose();
+  }
 });

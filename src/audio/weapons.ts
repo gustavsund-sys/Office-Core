@@ -2,77 +2,162 @@ import { shotAudibility } from "./spatial";
 import { machineGunRegions } from "./machineGun";
 import type { WeaponId } from "../config/weapons";
 export class WeaponAudio {
-  levels: Record<string, number> = { pistol: 1, machineGun: 1, bazooka: 1, burstGun: 1, pulseGun: 1, explosion: 1, bazookaExplosion: 1, ricochet: 1, coreAlarm: 1, footsteps: 1, jump: 1, land: 1, busterScream: 1, busterClock: 1, death: 1, spawn: 1 };
+  levels: Record<string, number> = {
+    pistol: 1,
+    machineGun: 1,
+    bazooka: 1,
+    burstGun: 1,
+    pulseGun: 1,
+    explosion: 1,
+    bazookaExplosion: 1,
+    ricochet: 1,
+    coreAlarm: 1,
+    footsteps: 1,
+    jump: 1,
+    land: 1,
+    busterScream: 1,
+    busterClock: 1,
+    death: 1,
+    spawn: 1,
+  };
   setLevel(name: string, value: number) {
     this.levels[name] = value;
-
   }
   buffers = new Map<string, AudioBuffer>();
-  private footstepVoices = new Map<string, { source: AudioBufferSourceNode; gain: GainNode; pan: StereoPannerNode }>();
-  updateFootsteps(emitters: { id: string; x: number; z: number; moving: boolean }[], listener: { x: number; z: number }, enabled: boolean) {
+  private footstepVoices = new Map<
+    string,
+    { source: AudioBufferSourceNode; gain: GainNode; pan: StereoPannerNode }
+  >();
+  updateFootsteps(
+    emitters: { id: string; x: number; z: number; moving: boolean }[],
+    listener: { x: number; z: number },
+    enabled: boolean,
+  ) {
     const audible = new Set<string>();
     const buffer = this.buffers.get("footsteps");
-    if (enabled && buffer) for (const emitter of emitters) {
-      const distance = Math.hypot(emitter.x - listener.x, emitter.z - listener.z);
-      if (!emitter.moving || distance >= 18 || this.levels.footsteps <= 0) continue;
-      audible.add(emitter.id);
-      let voice = this.footstepVoices.get(emitter.id);
-      if (!voice) {
-        const source = this.context.createBufferSource();
-        const gain = this.context.createGain();
-        const pan = this.context.createStereoPanner();
-        source.buffer = buffer;
-        source.loop = true;
-        gain.gain.value = 0;
-        source.connect(gain).connect(pan).connect(this.master);
-        source.onended = () => { source.disconnect(); gain.disconnect(); pan.disconnect(); };
-        source.start();
-        voice = { source, gain, pan };
-        this.footstepVoices.set(emitter.id, voice);
+    if (enabled && buffer)
+      for (const emitter of emitters) {
+        const distance = Math.hypot(
+          emitter.x - listener.x,
+          emitter.z - listener.z,
+        );
+        if (!emitter.moving || distance >= 18 || this.levels.footsteps <= 0)
+          continue;
+        audible.add(emitter.id);
+        let voice = this.footstepVoices.get(emitter.id);
+        if (!voice) {
+          const source = this.context.createBufferSource();
+          const gain = this.context.createGain();
+          const pan = this.context.createStereoPanner();
+          source.buffer = buffer;
+          source.loop = true;
+          gain.gain.value = 0;
+          source.connect(gain).connect(pan).connect(this.master);
+          source.onended = () => {
+            source.disconnect();
+            gain.disconnect();
+            pan.disconnect();
+          };
+          source.start();
+          voice = { source, gain, pan };
+          this.footstepVoices.set(emitter.id, voice);
+        }
+        const attenuation = Math.pow(1 - distance / 18, 2);
+        voice.gain.gain.setTargetAtTime(
+          0.65 * this.levels.footsteps * attenuation,
+          this.context.currentTime,
+          0.035,
+        );
+        voice.pan.pan.setTargetAtTime(
+          Math.max(-1, Math.min(1, (emitter.x - listener.x) / 12)),
+          this.context.currentTime,
+          0.035,
+        );
       }
-      const attenuation = Math.pow(1 - distance / 18, 2);
-      voice.gain.gain.setTargetAtTime(0.65 * this.levels.footsteps * attenuation, this.context.currentTime, 0.035);
-      voice.pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, (emitter.x - listener.x) / 12)), this.context.currentTime, 0.035);
-    }
-    for (const [id, voice] of this.footstepVoices) if (!audible.has(id)) {
-      this.fadeVoice(voice);
-      this.footstepVoices.delete(id);
-    }
+    for (const [id, voice] of this.footstepVoices)
+      if (!audible.has(id)) {
+        this.fadeVoice(voice);
+        this.footstepVoices.delete(id);
+      }
   }
-  private spatialLoops = new Map<string, { source: AudioBufferSourceNode; gain: GainNode; filter: BiquadFilterNode; pan: StereoPannerNode }>();
-  private updateSpatialLoops(prefix: string, name: string, emitters: { id: string; distance: number; pan: number; blocked: boolean }[], volume: number) {
+  private spatialLoops = new Map<
+    string,
+    {
+      source: AudioBufferSourceNode;
+      gain: GainNode;
+      filter: BiquadFilterNode;
+      pan: StereoPannerNode;
+    }
+  >();
+  private updateSpatialLoops(
+    prefix: string,
+    name: string,
+    emitters: { id: string; distance: number; pan: number; blocked: boolean }[],
+    volume: number,
+  ) {
     const active = new Set<string>();
     const buffer = this.buffers.get(name);
-    if (buffer) for (const emitter of emitters) {
-      const key = `${prefix}:${emitter.id}`;
-      active.add(key);
-      let voice = this.spatialLoops.get(key);
-      if (!voice) {
-        const source = this.context.createBufferSource();
-        const gain = this.context.createGain();
-        const filter = this.context.createBiquadFilter();
-        const pan = this.context.createStereoPanner();
-        source.buffer = buffer;
-        source.loop = true;
-        gain.gain.value = 0;
-        filter.type = "lowpass";
-        source.connect(filter).connect(gain).connect(pan).connect(this.master);
-        source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect(); pan.disconnect(); };
-        source.start();
-        voice = { source, gain, filter, pan };
-        this.spatialLoops.set(key, voice);
+    if (buffer)
+      for (const emitter of emitters) {
+        const key = `${prefix}:${emitter.id}`;
+        active.add(key);
+        let voice = this.spatialLoops.get(key);
+        if (!voice) {
+          const source = this.context.createBufferSource();
+          const gain = this.context.createGain();
+          const filter = this.context.createBiquadFilter();
+          const pan = this.context.createStereoPanner();
+          source.buffer = buffer;
+          source.loop = true;
+          gain.gain.value = 0;
+          filter.type = "lowpass";
+          source
+            .connect(filter)
+            .connect(gain)
+            .connect(pan)
+            .connect(this.master);
+          source.onended = () => {
+            source.disconnect();
+            filter.disconnect();
+            gain.disconnect();
+            pan.disconnect();
+          };
+          source.start();
+          voice = { source, gain, filter, pan };
+          this.spatialLoops.set(key, voice);
+        }
+        const spatial = shotAudibility(emitter.distance, emitter.blocked);
+        voice.gain.gain.setTargetAtTime(
+          volume * this.levels[name] * spatial.gain,
+          this.context.currentTime,
+          0.05,
+        );
+        voice.filter.frequency.setTargetAtTime(
+          spatial.frequency,
+          this.context.currentTime,
+          0.05,
+        );
+        voice.pan.pan.setTargetAtTime(
+          Math.max(-1, Math.min(1, emitter.pan)),
+          this.context.currentTime,
+          0.05,
+        );
       }
-      const spatial = shotAudibility(emitter.distance, emitter.blocked);
-      voice.gain.gain.setTargetAtTime(volume * this.levels[name] * spatial.gain, this.context.currentTime, 0.05);
-      voice.filter.frequency.setTargetAtTime(spatial.frequency, this.context.currentTime, 0.05);
-      voice.pan.pan.setTargetAtTime(Math.max(-1, Math.min(1, emitter.pan)), this.context.currentTime, 0.05);
-    }
-    for (const [key, voice] of this.spatialLoops) if (key.startsWith(prefix + ":") && !active.has(key)) {
-      this.fadeVoice(voice);
-      this.spatialLoops.delete(key);
-    }
+    for (const [key, voice] of this.spatialLoops)
+      if (key.startsWith(prefix + ":") && !active.has(key)) {
+        this.fadeVoice(voice);
+        this.spatialLoops.delete(key);
+      }
   }
-  setBusterClock(active: boolean, emitters: { id: string; distance: number; pan: number; blocked: boolean }[] = []) {
+  setBusterClock(
+    active: boolean,
+    emitters: {
+      id: string;
+      distance: number;
+      pan: number;
+      blocked: boolean;
+    }[] = [],
+  ) {
     this.updateSpatialLoops("clock", "busterClock", active ? emitters : [], 1);
   }
   private tapVoice?: { source: AudioBufferSourceNode; gain: GainNode };
@@ -97,26 +182,59 @@ export class WeaponAudio {
   }
   load() {
     return (this.pending ??= Promise.all(
-      ["pistol", "machineGun", "bazooka", "pulseGun", "burstGun", "explosion", "bazookaExplosion", "coreAlarm", "ricochet", "footsteps", "jump", "land", "busterScream", "busterClock", "death1", "death2", "death3", "spawn"].map(
-        async (name) => {
-          try {
-            const folder = ["explosion", "bazookaExplosion", "coreAlarm", "ricochet", "footsteps", "jump", "land", "busterScream", "busterClock", "death1", "death2", "death3", "spawn"].includes(name)
-              ? "effects"
-              : "weapons";
-            const response = await fetch(`/audio/${folder}/${name}.${name === "bazooka" || name === "burstGun" || name.startsWith("death") ? "wav" : "mp3"}`);
-            if (!response.ok) throw new Error(String(response.status));
-            const decoded = await this.context.decodeAudioData(
-              await response.arrayBuffer(),
-            );
-            if (name === "machineGun") this.prepareMachineGun(decoded);
-            else if (name === "ricochet")
-              this.buffers.set(name, this.trimLeadingSilence(decoded));
-            else this.buffers.set(name, decoded);
-          } catch {
-            /* Synth fallback keeps gameplay audible if a codec or request fails. */
-          }
-        },
-      ),
+      [
+        "pistol",
+        "machineGun",
+        "bazooka",
+        "pulseGun",
+        "burstGun",
+        "explosion",
+        "bazookaExplosion",
+        "coreAlarm",
+        "ricochet",
+        "footsteps",
+        "jump",
+        "land",
+        "busterScream",
+        "busterClock",
+        "death1",
+        "death2",
+        "death3",
+        "spawn",
+      ].map(async (name) => {
+        try {
+          const folder = [
+            "explosion",
+            "bazookaExplosion",
+            "coreAlarm",
+            "ricochet",
+            "footsteps",
+            "jump",
+            "land",
+            "busterScream",
+            "busterClock",
+            "death1",
+            "death2",
+            "death3",
+            "spawn",
+          ].includes(name)
+            ? "effects"
+            : "weapons";
+          const response = await fetch(
+            `/audio/${folder}/${name}.${name === "bazooka" || name === "burstGun" || name.startsWith("death") ? "wav" : "mp3"}`,
+          );
+          if (!response.ok) throw new Error(String(response.status));
+          const decoded = await this.context.decodeAudioData(
+            await response.arrayBuffer(),
+          );
+          if (name === "machineGun") this.prepareMachineGun(decoded);
+          else if (name === "ricochet")
+            this.buffers.set(name, this.trimLeadingSilence(decoded));
+          else this.buffers.set(name, decoded);
+        } catch {
+          /* Synth fallback keeps gameplay audible if a codec or request fails. */
+        }
+      }),
     ).then(() => {}));
   }
   private prepareMachineGun(recording: AudioBuffer) {
@@ -188,7 +306,10 @@ export class WeaponAudio {
     source.buffer = this.buffers.get(name)!;
     source.loop = false;
     gain.gain.setValueAtTime(0, this.context.currentTime);
-    gain.gain.linearRampToValueAtTime(1.4 * this.levels.machineGun, this.context.currentTime + 0.008);
+    gain.gain.linearRampToValueAtTime(
+      1.4 * this.levels.machineGun,
+      this.context.currentTime + 0.008,
+    );
     source.connect(gain).connect(this.master);
     source.onended = () => {
       source.disconnect();
@@ -220,10 +341,40 @@ export class WeaponAudio {
       0.02,
     );
   }
-  playSpawn() { return this.sample("spawn", this.levels.spawn); }
-  playDeath() { return this.sample(`death${1 + Math.floor(Math.random() * 3)}`, this.levels.death); }
-  playBusterScream() { return this.sample("busterScream", 1); }
-  playMovement(name: "jump" | "land") { return this.sample(name, 1); }
+  playSpawn() {
+    return this.sample("spawn", this.levels.spawn);
+  }
+  playDeath() {
+    return this.sample(
+      `death${1 + Math.floor(Math.random() * 3)}`,
+      this.levels.death,
+    );
+  }
+  playBusterScream(distance = 0, pan = 0) {
+    return this.playSpatialSample("busterScream", distance, pan);
+  }
+  playSpatialSample(name: string, distance: number, pan: number) {
+    const buffer = this.buffers.get(name);
+    if (!buffer) return false;
+    const source = this.context.createBufferSource(),
+      gain = this.context.createGain(),
+      stereo = this.context.createStereoPanner();
+    source.buffer = buffer;
+    gain.gain.value =
+      (this.levels[name] ?? 1) * shotAudibility(distance, false).gain;
+    stereo.pan.value = Math.max(-1, Math.min(1, pan));
+    source.connect(gain).connect(stereo).connect(this.master);
+    source.onended = () => {
+      source.disconnect();
+      gain.disconnect();
+      stereo.disconnect();
+    };
+    source.start();
+    return true;
+  }
+  playMovement(name: "jump" | "land") {
+    return this.sample(name, 1);
+  }
   playBazookaExplosion(strength: number) {
     return this.sample("bazookaExplosion", Math.max(0, strength) * 1.6);
   }
@@ -234,10 +385,24 @@ export class WeaponAudio {
     // Keep impacts occasional: a rare metallic ring sells the hit better than
     // a sound on every bullet, especially during automatic fire.
     if (Math.random() >= 0.2) return false;
-    return this.sample("ricochet", 0.85 * shotAudibility(distance, false).gain, 0.9 + Math.random() * 0.2);
+    return this.sample(
+      "ricochet",
+      0.85 * shotAudibility(distance, false).gain,
+      0.9 + Math.random() * 0.2,
+    );
+  }
+  setCoreAlarms(
+    emitters: { id: string; distance: number; pan: number; blocked: boolean }[],
+  ) {
+    this.updateSpatialLoops("alarm", "coreAlarm", emitters, 0.85);
   }
   setAlarm(active: boolean, spatial = { distance: 0, pan: 0, blocked: false }) {
-    this.updateSpatialLoops("alarm", "coreAlarm", active ? [{ id: "core", ...spatial }] : [], 0.85);
+    this.updateSpatialLoops(
+      "alarm",
+      "coreAlarm",
+      active ? [{ id: "core", ...spatial }] : [],
+      0.85,
+    );
   }
   private sample(name: string, volume: number, rate = 1) {
     const buffer = this.buffers.get(name);
@@ -306,7 +471,12 @@ export class WeaponAudio {
     source.start(t);
     source.stop(t + duration);
   }
-  playRemoteShot(id: WeaponId, distance: number, pan: number, blocked: boolean) {
+  playRemoteShot(
+    id: WeaponId,
+    distance: number,
+    pan: number,
+    blocked: boolean,
+  ) {
     const buffer = this.buffers.get(id);
     if (!buffer) return false;
     const source = this.context.createBufferSource();
@@ -315,17 +485,27 @@ export class WeaponAudio {
     const stereo = this.context.createStereoPanner();
     const spatial = shotAudibility(distance, blocked);
     source.buffer = buffer;
-    gain.gain.value = spatial.gain * (this.levels[id] ?? 1) * (id === "machineGun" ? 1.4 : 1);
+    gain.gain.value =
+      spatial.gain * (this.levels[id] ?? 1) * (id === "machineGun" ? 1.4 : 1);
     filter.type = "lowpass";
     filter.frequency.value = spatial.frequency;
     stereo.pan.value = Math.max(-1, Math.min(1, pan));
     source.connect(filter).connect(gain).connect(stereo).connect(this.master);
-    source.onended = () => { source.disconnect(); filter.disconnect(); gain.disconnect(); stereo.disconnect(); };
+    source.onended = () => {
+      source.disconnect();
+      filter.disconnect();
+      gain.disconnect();
+      stereo.disconnect();
+    };
     source.start();
     return true;
   }
   play(id: WeaponId) {
-    if ((id === "bazooka" || id === "pulseGun" || id === "burstGun") && this.sample(id, 1)) return;
+    if (
+      (id === "bazooka" || id === "pulseGun" || id === "burstGun") &&
+      this.sample(id, 1)
+    )
+      return;
     if (id === "bazooka") {
       this.tone(110, 35, 0.35, 0.7 * this.levels.bazooka);
       this.crack(0.2, 0.6 * this.levels.bazooka, 450);

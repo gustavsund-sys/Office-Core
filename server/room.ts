@@ -54,6 +54,7 @@ interface Participant {
   messages: number;
   respawn: number;
   connected: boolean;
+  screamed: boolean;
 }
 export class OfficeRoom extends Room {
   static active = 0;
@@ -245,6 +246,7 @@ export class OfficeRoom extends Room {
       messages: 0,
       respawn: 0,
       connected: true,
+      screamed: false,
     };
     const event = (kind: NetEvent["kind"]) =>
       this.event({
@@ -283,7 +285,10 @@ export class OfficeRoom extends Room {
         endY: end.y,
         endZ: end.z,
       });
-    participant.weapons.onCoreBusterAcquired = () => event("buster");
+    participant.weapons.onCoreBusterAcquired = () => {
+      participant.screamed = false;
+      event("buster");
+    };
     participant.weapons.onCoreBusterDropped = (position) =>
       this.pickup.dropCoreBuster(position);
     const target = {
@@ -293,9 +298,24 @@ export class OfficeRoom extends Room {
       get team() {
         return participant.team;
       },
+      get position() {
+        return player.root.position.add(new Vector3(0, 1, 0));
+      },
       canDamageFrom: () => true,
       damage: (amount: number) => {
-        if (this.started) player.hp = Math.max(0, player.hp - amount);
+        if (this.started) {
+          const damage = Math.min(amount, player.hp);
+          player.hp = Math.max(0, player.hp - amount);
+          if (damage > 0)
+            this.event({
+              kind: "damage",
+              player: client.sessionId,
+              damage,
+              x: player.root.position.x,
+              y: player.root.position.y + 2,
+              z: player.root.position.z,
+            });
+        }
       },
     };
     for (const mesh of player.bodyMeshes) {
@@ -364,6 +384,20 @@ export class OfficeRoom extends Room {
               ? { ...idle(), aimX: p.input.aimX, aimZ: p.input.aimZ }
               : p.input))
           : idle();
+      if (
+        p.weapons.carryingCoreBuster &&
+        !p.screamed &&
+        (input.moveX || input.moveZ)
+      ) {
+        p.screamed = true;
+        this.event({
+          kind: "scream",
+          player: id,
+          x: p.player.root.position.x,
+          y: p.player.root.position.y,
+          z: p.player.root.position.z,
+        });
+      }
       if (input.slot) p.weapons.switchSlot(input.slot);
       if (input.jump && p.player.grounded) {
         p.player.jump();
@@ -469,6 +503,7 @@ export class OfficeRoom extends Room {
         .concat(this.orphanWeapons)
         .flatMap((w) =>
           w.charges.map((c) => ({
+            owner: [...this.participants].find(([, p]) => p.weapons === w)?.[0],
             id: c.mesh.uniqueId,
             x: c.mesh.position.x,
             y: c.mesh.position.y,
@@ -481,12 +516,26 @@ export class OfficeRoom extends Room {
         .concat(this.orphanWeapons)
         .flatMap((w) =>
           w.rockets.map((r) => ({
+            owner: [...this.participants].find(([, p]) => p.weapons === w)?.[0],
             id: r.mesh.uniqueId,
             x: r.mesh.position.x,
             y: r.mesh.position.y,
             z: r.mesh.position.z,
           })),
         ),
+      alarms: office01.bases
+        .filter(
+          (b) =>
+            this.cores.some((c) => c.team === b.team && c.active && c.hp > 0) &&
+            [...this.participants.values()].some(
+              (p) =>
+                p.team !== b.team &&
+                p.player.hp > 0 &&
+                Math.abs(p.player.root.position.x - b.x) < 5.5 &&
+                Math.abs(p.player.root.position.z - b.z) < 5.5,
+            ),
+        )
+        .map((b) => b.team),
       alarm: office01.bases.find(
         (b) =>
           this.cores.some((c) => c.team === b.team && c.active) &&

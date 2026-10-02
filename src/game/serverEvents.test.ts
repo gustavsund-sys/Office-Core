@@ -1,0 +1,59 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { OfficeRoom } from "../../server/room";
+import type { Client } from "@colyseus/core";
+import type { NetEvent } from "../../shared/protocol";
+import { office01 } from "../maps/office01";
+test("server attributes planted bombs, broadcasts one carrier scream and reports actual player damage", async () => {
+  const room = new OfficeRoom();
+  room.roomId = "events-test";
+  const events: NetEvent[] = [];
+  room.event = (event) => events.push(event);
+  room.onCreate({ hosted: true });
+  room.clock.clear();
+  room.setSimulationInterval(undefined as never);
+  room.setPatchRate(null);
+  try {
+    const client = { sessionId: "alice", send: () => {} } as unknown as Client;
+    await room.onJoin(client, { name: "Alice", team: "RED" }, { uid: "alice" });
+    const bob = { sessionId: "bob", send: () => {} } as unknown as Client;
+    await room.onJoin(bob, { name: "Bob", team: "BLUE" }, { uid: "bob" });
+    room.started = true;
+    const p = room.participants.get("alice")!;
+    p.weapons.equip("coreBuster");
+    p.input = {
+      moveX: 0,
+      moveZ: 1,
+      aimX: 0,
+      aimZ: 0,
+      fire: false,
+      pressed: false,
+      jump: false,
+      interact: false,
+      slot: 0,
+    };
+    p.lastInput = Date.now();
+    room.tick(1 / 30);
+    room.tick(1 / 30);
+    assert.equal(events.filter((e) => e.kind === "scream").length, 1);
+    p.input.pressed = true;
+    room.tick(1 / 30);
+    const bomb = room.snapshot().bombs[0];
+    assert.equal(bomb.owner, "alice");
+    assert.ok(bomb.timer > 24);
+    const target =
+      room.participants.get("bob")!.player.bodyMeshes[0].metadata.damageable;
+    target.damage(25);
+    const hit = events.find((e) => e.kind === "damage")!;
+    assert.equal(hit.player, "bob");
+    assert.equal(hit.damage, 25);
+    const red = office01.bases.find((b) => b.team === "RED")!;
+    room.participants.get("bob")!.player.root.position.set(red.x, 0, red.z);
+    const blue = office01.bases.find((b) => b.team === "BLUE")!;
+    p.player.root.position.set(blue.x, 0, blue.z);
+    assert.deepEqual(new Set(room.snapshot().alarms), new Set(["RED", "BLUE"]));
+  } finally {
+    room.clock.clear();
+    room.onDispose();
+  }
+});

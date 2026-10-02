@@ -59,13 +59,22 @@ export interface Snapshot {
     type: "ammo" | "weapon";
     dropped: boolean;
   }[];
-  bombs: { id: number; x: number; y: number; z: number; timer: number }[];
-  rockets: { id: number; x: number; y: number; z: number }[];
+  bombs: {
+    owner?: string;
+    id: number;
+    x: number;
+    y: number;
+    z: number;
+    timer: number;
+  }[];
+  rockets: { owner?: string; id: number; x: number; y: number; z: number }[];
+  alarms?: Team[];
   alarm?: Team;
   started: boolean;
   winner?: Team;
 }
 export interface NetEvent {
+  damage?: number;
   inputSeq?: number;
   kind:
     | "trace"
@@ -76,7 +85,9 @@ export interface NetEvent {
     | "explosion"
     | "impact"
     | "jump"
-    | "land";
+    | "land"
+    | "damage"
+    | "scream";
   player?: string;
   team?: Team;
   weapon?: WeaponId;
