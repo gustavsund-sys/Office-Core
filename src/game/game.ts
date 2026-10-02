@@ -93,6 +93,28 @@ export class Game {
   audio?: AudioContext;
   weaponAudio?: WeaponAudio;
   sound = true;
+  lobbyMusic = new Audio("/audio/music/office-groove.mp3");
+  lobbyMusicBlocked = false;
+  lobbyMusicPending = false;
+  updateLobbyMusic(unlock = false) {
+    if (unlock) this.lobbyMusicBlocked = false;
+    this.lobbyMusic.loop = true;
+    this.lobbyMusic.volume = 0.35;
+    const inLobby = !this.match.started && !this.match.winner && this.sound;
+    if (!inLobby) {
+      this.lobbyMusic.pause();
+      if (this.match.started) this.lobbyMusic.currentTime = 0;
+      return;
+    }
+    if (!this.lobbyMusic.paused || this.lobbyMusicBlocked || this.lobbyMusicPending) return;
+    this.lobbyMusicPending = true;
+    void this.lobbyMusic.play().catch(() => {
+      this.lobbyMusicBlocked = true;
+    }).finally(() => {
+      this.lobbyMusicPending = false;
+      if (this.match.started || this.match.winner || !this.sound) this.lobbyMusic.pause();
+    });
+  }
   cameraTarget = new Vector3();
   shake = 0;
   intrudedTeam?: Team;
@@ -360,10 +382,12 @@ export class Game {
     this.resize();
     window.addEventListener("resize", () => this.resize());
     window.addEventListener("pointerdown", () => {
+      this.updateLobbyMusic(true);
       if (this.sound && this.audio?.state === "suspended")
         void this.audio.resume();
     });
     window.addEventListener("keydown", () => {
+      this.updateLobbyMusic(true);
       if (this.sound && this.audio?.state === "suspended")
         void this.audio.resume();
     });
@@ -722,6 +746,7 @@ export class Game {
     }
     if (snapshot.started && !this.match.started) {
       this.match.started = true;
+      this.updateLobbyMusic();
       this.setPaused(false);
       this.lobby.el.disabled = true;
     }
@@ -1437,6 +1462,7 @@ export class Game {
     }
   }
   tick() {
+    this.updateLobbyMusic();
     const dt = Math.min(this.engine.getDeltaTime() / 1000, 0.05);
     if (this.multiplayer?.room) {
       this.tickOnline(dt);
