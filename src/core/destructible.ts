@@ -55,9 +55,9 @@ export class Destructible implements Hittable {
     if (obstacle) {
       const hitbox = world.box(
         "breakable hitbox",
-        prop.x,
+        obstacle.x,
         0.85,
-        prop.z,
+        obstacle.z,
         obstacle.w,
         1.7,
         obstacle.d,

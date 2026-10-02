@@ -60,7 +60,7 @@ export interface Snapshot {
     z: number;
     id: WeaponId;
     active: boolean;
-    type: "ammo" | "weapon";
+    type: "ammo" | "weapon" | "medkit" | "superMedkit";
     dropped: boolean;
   }[];
   bombs: {

@@ -1,3 +1,11 @@
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { activeMap, applyMap, parseMap } from "../src/maps/layout";
+const mapPath = process.env.OFFICE_MAP_FILE ?? "server/map.json";
+if (existsSync(mapPath)) {
+  if (statSync(mapPath).size > 200000)
+    throw new Error("Map file exceeds 200 KB");
+  applyMap(parseMap(JSON.parse(readFileSync(mapPath, "utf8"))));
+}
 import { createServer } from "node:http";
 import { Server, matchMaker } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
@@ -22,6 +30,22 @@ async function ensureLobby() {
   await preparing;
 }
 const http = createServer(async (req, res) => {
+  if (req.url === "/map" && req.method === "GET") {
+    const origin = req.headers.origin;
+    if (origin && !origins.includes(origin)) {
+      res.writeHead(403);
+      res.end();
+      return;
+    }
+    res.writeHead(200, {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": origin ?? origins[0],
+      Vary: "Origin",
+      "Cache-Control": "no-store",
+    });
+    res.end(JSON.stringify(activeMap));
+    return;
+  }
   if (req.url === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ status: "ok", activeRooms: OfficeRoom.active }));

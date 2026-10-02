@@ -67,3 +67,46 @@ Servern kör befintlig gameplay med Babylon NullEngine och återanvänder karta/
 Källor: [Colyseus Rooms](https://0-16-x.docs.colyseus.io/room), [Colyseus client](https://0-16-x.docs.colyseus.io/client), [Cloud Run WebSockets](https://docs.cloud.google.com/run/docs/triggering/websockets).
 
 Endast matchmaker-metoderna joinById och reconnect exponeras. Create/joinOrCreate nekas även om en klient försöker anropa dem direkt. Firebase-identitet behövs för att ansluta; rumslistan innehåller endast offentliga namn och lag, inga Firebase UID eller tokens.
+
+## Kartbyggare
+
+Öppna **ÖPPNA KARTBYGGAREN** i välkomst-/pausmenyn eller `/?builder=1`.
+Välj ett objekt, vapenspawn eller ammospawn och klicka på golvet. Välj/flytta
+låter dig dra ett objekt; egenskapspanelen kan också ange exakta koordinater,
+storlek och rotation. R roterar 90°, Delete tar bort, Ctrl/Cmd-Z ångrar och
+Ctrl/Cmd-Shift-Z gör om. Scroll zoomar; verktyget Panorera flyttar vyn.
+
+Varje spawnplats har ett specifikt vapen/ammunition eller en egen slumplista,
+exakt återkomsttid efter upplockning och fördröjning vid matchstart. Ammo kan ha
+ett eget antal patroner; 0 använder vapnets standardmängd. Slumpval sker vid
+varje återkomst. Vapen försvinner från sin plats efter upplockning och återkommer
+efter platsens intervall, även i multiplayer.
+
+Spara/Ladda använder webbläsarens lokala lagring. Exportera/Importera använder
+validerad version 1 JSON. Provspela sparar och öppnar ett lokalt spel med en
+stillastående testspelare, utan att ändra den publika multiplayerkartan. 3D-vy
+visar objektens riktiga modeller. Kartkontrollen varnar för blockerade spawn-
+och pickupplatser, trasiga vägar mellan lagen och objekt nära core-rum.
+Golvet, väggarna, cores och lagens spawnplatser är fasta i denna version.
+Nya objekt är färdiga procedurmodeller; uppladdning av egna 3D-modeller ingår inte.
+
+För att använda en exporterad karta i multiplayer: lägg den som
+`server/map.json` och starta om spelservern, eller sätt `OFFICE_MAP_FILE` till
+filens sökväg. Standardkartan används om filen saknas. Servern validerar filen
+innan den startar och delar den via GET `/map`. Klienterna laddar serverns
+karta före anslutning; lokalt sparade kartor används bara i byggaren/provspelet.
+Kartfilen följer med Cloud Run-deployment om den finns under `server/`.
+Ingen anonym klient kan ändra serverkartan. Kartor med okänd version, ogiltiga
+värden eller mer än 240 objekt/128 spawnplatser nekas.
+
+### Grundkarta med baser på kortsidorna
+
+Röd och blå core ligger vid x=-82 respektive x=82, z=0, och spelarna
+spawnar nio meter in mot atrium. De övre vapenzonerna är kvar. Speglade
+norra, centrala och södra korridorer ger flera tillfarter till varje bas.
+Tidigare nordliga core-rum är nu transitytor. De nya nedre korridorerna är
+omöblerade så att de kan fyllas i kartbyggaren. Befintliga sparade kartfiler
+behåller sina objekt och spawninställningar; den fasta grundplattan och
+lagbasernas placering uppdateras med spelet.
+
+Kartbyggaren har också Med-kit (+50 HP, högst 100) och Super Med-kit (fyller till 100 HP). Vita sjukvårdsväskor har grönt kors respektive större guldfärgad markering. Placera dem som spawnplatser och ange återkomstintervall och startfördröjning per plats. Skadade, levande spelare plockar upp dem automatiskt; fullhälsade spelare förbrukar inget kit. Servern avgör läkning och synkroniserar HP och tillgänglighet i multiplayer.

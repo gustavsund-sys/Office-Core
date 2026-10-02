@@ -15,7 +15,12 @@ import { Weapons } from "../src/weapons/system";
 import { Pickup } from "../src/pickups/pickup";
 import { Damageable } from "../src/core/damageable";
 import { office01 } from "../src/maps/office01";
-import { TEAMS, MAX_PLAYERS, MAX_PLAYERS_PER_TEAM, type Team } from "../src/config/game";
+import {
+  TEAMS,
+  MAX_PLAYERS,
+  MAX_PLAYERS_PER_TEAM,
+  type Team,
+} from "../src/config/game";
 import {
   MSG,
   validInput,
@@ -232,9 +237,14 @@ export class OfficeRoom extends Room {
   ) {
     if ([...this.participants.values()].some((p) => p.uid === auth.uid))
       throw new ServerError(409, "Already in match");
-    const requestedTeam = Object.hasOwn(TEAMS, options.team ?? "") ? options.team! : "RED";
-    const team = this.teamHasSpace(requestedTeam) ? requestedTeam
-      : (Object.keys(TEAMS) as Team[]).find((candidate) => this.teamHasSpace(candidate));
+    const requestedTeam = Object.hasOwn(TEAMS, options.team ?? "")
+      ? options.team!
+      : "RED";
+    const team = this.teamHasSpace(requestedTeam)
+      ? requestedTeam
+      : (Object.keys(TEAMS) as Team[]).find((candidate) =>
+          this.teamHasSpace(candidate),
+        );
     if (!team) throw new ServerError(409, "Both teams are full");
     const player = new Player(this.world);
     const participant: Participant = {
@@ -296,10 +306,14 @@ export class OfficeRoom extends Room {
     participant.weapons.onCoreBusterAcquired = () => {
       event("buster");
     };
-    participant.weapons.onWarcry = () => this.event({
-      kind: "scream", player: client.sessionId,
-      x: player.root.position.x, y: player.root.position.y, z: player.root.position.z,
-    });
+    participant.weapons.onWarcry = () =>
+      this.event({
+        kind: "scream",
+        player: client.sessionId,
+        x: player.root.position.x,
+        y: player.root.position.y,
+        z: player.root.position.z,
+      });
     participant.weapons.onCoreBusterDropped = (position) =>
       this.pickup.dropCoreBuster(position);
     const target = {
@@ -342,11 +356,15 @@ export class OfficeRoom extends Room {
     console.info("player joined", this.roomId);
   }
   teamHasSpace(team: Team, exceptId?: string) {
-    return [...this.participants.entries()].filter(([id, p]) => id !== exceptId && p.team === team).length < MAX_PLAYERS_PER_TEAM;
+    return (
+      [...this.participants.entries()].filter(
+        ([id, p]) => id !== exceptId && p.team === team,
+      ).length < MAX_PLAYERS_PER_TEAM
+    );
   }
   spawn(p: Participant) {
     const base = office01.bases.find((base) => base.team === p.team)!;
-    p.player.root.position.set(base.x, 0, base.z - Math.sign(base.z) * 9);
+    p.player.root.position.set(base.spawn.x, 0, base.spawn.z);
     p.player.hp = 100;
     p.player.verticalVelocity = 0;
     p.player.root.setEnabled(true);
@@ -362,6 +380,7 @@ export class OfficeRoom extends Room {
   tick(dt: number) {
     this.time += dt;
     if (!this.started || this.winner) return;
+    this.pickup.tickTimers(dt);
     for (const [id, p] of this.participants) {
       if (p.player.hp <= 0 && p.respawn === 0) {
         p.weapons.dropCoreBuster();
@@ -434,19 +453,6 @@ export class OfficeRoom extends Room {
       w.player.root.dispose();
       return false;
     });
-    // Advance shared pickup timers once per server tick, with an off-map probe.
-    for (const drop of this.pickup.ammoDrops)
-      drop.cooldown = Math.max(0, drop.cooldown - dt);
-    for (const slot of this.pickup.singleAmmoSlots) {
-      const before = slot.cooldown;
-      slot.cooldown = Math.max(0, before - dt);
-      if (before > 0 && !slot.cooldown) {
-        slot.selected = Math.floor(Math.random() * slot.drops.length);
-        slot.drops.forEach((drop) => (drop.cooldown = 0));
-      }
-    }
-    for (const pickup of this.pickup.endpoints)
-      pickup.cooldown = Math.max(0, pickup.cooldown - dt);
     this.world.explosions.update(dt);
     const alive = this.cores.filter((core) => core.active && core.hp > 0);
     if (alive.length === 1) {
@@ -483,6 +489,10 @@ export class OfficeRoom extends Room {
       })),
       props: this.world.destructibles.map((prop) => prop.hp),
       pickups: [
+        ...this.pickup.healthDrops.map((p) => ({
+          x: p.root.position.x, y: p.root.position.y, z: p.root.position.z,
+          id: "pistol" as const, active: p.root.isEnabled(), type: p.type, dropped: false,
+        })),
         ...this.pickup.ammoDrops.map((p) => ({
           x: p.root.position.x,
           y: p.root.position.y,
@@ -497,7 +507,7 @@ export class OfficeRoom extends Room {
           y: p.root.position.y,
           z: p.root.position.z,
           id: p.id,
-          active: p.cooldown === 0,
+          active: p.root.isEnabled(),
           type: "weapon" as const,
           dropped: !!p.dropped,
         })),

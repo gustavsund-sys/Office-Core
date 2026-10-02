@@ -9,6 +9,7 @@ import {
   Vector3,
   ShadowGenerator,
 } from "@babylonjs/core";
+import { OBJECTS } from "../maps/layout";
 import { office01 } from "../maps/office01";
 import { Explosions } from "../effects/explosions";
 import { Destructible } from "../core/destructible";
@@ -110,7 +111,16 @@ export class World {
     }
   }
   build() {
-    this.box("foundation", 0, -0.3, office01.centerZ, office01.width + 1, 0.6, office01.depth + 1, "#13232e");
+    this.box(
+      "foundation",
+      0,
+      -0.3,
+      office01.centerZ,
+      office01.width + 1,
+      0.6,
+      office01.depth + 1,
+      "#13232e",
+    );
     for (const r of office01.footprint)
       this.box("walkable floor", r.x, -0.045, r.z, r.w, 0.08, r.d, "#617577");
     for (const r of office01.corridors) {
@@ -127,14 +137,54 @@ export class World {
     }
     for (const sx of [-1, 1])
       for (const sz of [1]) {
-        this.label("ATRIUM >", sx * 18 * office01.stretch, sz * 26, "#edcb89", 4);
-        this.label("TRANSIT / 01", sx * 24 * office01.stretch, sz * 33, "#b5d5d4", 3.5);
-        this.label("Weapon drop zone", sx * 49 * office01.stretch, sz * 30, "#ffdc66", 6);
+        this.label(
+          "ATRIUM >",
+          sx * 18 * office01.stretch,
+          sz * 26,
+          "#edcb89",
+          4,
+        );
+        this.label(
+          "TRANSIT / 01",
+          sx * 24 * office01.stretch,
+          sz * 33,
+          "#b5d5d4",
+          3.5,
+        );
+        this.label(
+          "Weapon drop zone",
+          sx * 49 * office01.stretch,
+          sz * 30,
+          "#ffdc66",
+          6,
+        );
         // Ground arrow points away from the office into the exterior passage.
-        this.box("drop zone arrow shaft", sx * 53 * office01.stretch, 0.065, sz * 30, 2.2, 0.035, 0.22, "#ffdc66", false, true);
+        this.box(
+          "drop zone arrow shaft",
+          sx * 53 * office01.stretch,
+          0.065,
+          sz * 30,
+          2.2,
+          0.035,
+          0.22,
+          "#ffdc66",
+          false,
+          true,
+        );
         for (const direction of [-1, 1]) {
-          const wing = this.box("drop zone arrow head", sx * 53.75 * office01.stretch, 0.065, sz * 30 + direction * 0.35, 1.05, 0.035, 0.22, "#ffdc66", false, true);
-          wing.rotation.y = sx * direction * Math.PI / 4;
+          const wing = this.box(
+            "drop zone arrow head",
+            sx * 53.75 * office01.stretch,
+            0.065,
+            sz * 30 + direction * 0.35,
+            1.05,
+            0.035,
+            0.22,
+            "#ffdc66",
+            false,
+            true,
+          );
+          wing.rotation.y = (sx * direction * Math.PI) / 4;
         }
       }
     for (const zone of office01.weaponEnds) {
@@ -146,10 +196,54 @@ export class World {
             const color = stripe % 2 === 0 ? "#ffce32" : "#172029";
             const x = zone.x + dx * 9.78;
             const z = zone.z + dz * 9.78;
-            this.box("drop zone wall tape", x - dx * distance, 1.35, z, 0.4, 0.3, 0.055, color, false, true);
-            this.box("drop zone wall tape", x, 1.35, z - dz * distance, 0.055, 0.3, 0.4, color, false, true);
-            this.box("drop zone floor tape", x - dx * distance, 0.065, z - dz * 0.2, 0.4, 0.025, 0.28, color, false, true);
-            this.box("drop zone floor tape", x - dx * 0.2, 0.065, z - dz * distance, 0.28, 0.025, 0.4, color, false, true);
+            this.box(
+              "drop zone wall tape",
+              x - dx * distance,
+              1.35,
+              z,
+              0.4,
+              0.3,
+              0.055,
+              color,
+              false,
+              true,
+            );
+            this.box(
+              "drop zone wall tape",
+              x,
+              1.35,
+              z - dz * distance,
+              0.055,
+              0.3,
+              0.4,
+              color,
+              false,
+              true,
+            );
+            this.box(
+              "drop zone floor tape",
+              x - dx * distance,
+              0.065,
+              z - dz * 0.2,
+              0.4,
+              0.025,
+              0.28,
+              color,
+              false,
+              true,
+            );
+            this.box(
+              "drop zone floor tape",
+              x - dx * 0.2,
+              0.065,
+              z - dz * distance,
+              0.28,
+              0.025,
+              0.4,
+              color,
+              false,
+              true,
+            );
           }
     }
     for (const r of office01.rooms) {
@@ -208,61 +302,71 @@ export class World {
       light.range = 18;
       light.intensity = 0;
       this.alarmLights.set(b.team, { light, lens, material });
+      const sx = Math.sign(b.x);
       this.box(
         "team stripe",
-        b.x,
+        b.x - sx * 4.25,
         0.04,
-        b.z - 4.25,
-        8.5,
-        0.03,
+        b.z,
         0.12,
+        0.03,
+        8.5,
         c,
         false,
         true,
       );
-      this.label(b.team + " / CORE", b.x, b.z + 3, c, 5);
-      // Two front entrances and one side entrance, with internal sightline baffles.
-      const sx = Math.sign(b.x),
-        sz = Math.sign(b.z);
-      // Close the entire room perimeter; outer map walls sit further away.
+      this.label(b.team + " / CORE", b.x, b.z - 3, c, 5);
+      // Side bases face the atrium. Two inward doors and one north door
+      // stay fully sealed until breached; sightline baffles protect the core.
       this.wall(b.x + sx * 4.5, b.z, 0.4, 9.4);
-      this.wall(b.x, b.z + sz * 4.5, 9.4, 0.4);
-      // Exterior passages must not open a route around the security doors.
-      this.wall(b.x + sx * 5.25, b.z - sz * 4.5, 1.5, 0.4);
-      this.wall(b.x - sx * 4.5, b.z + sz * 2, 0.4, 5);
-      this.wall(b.x - sx * 4.5, b.z - sz * 3.5, 0.4, 2);
+      this.wall(b.x, b.z - 4.5, 9.4, 0.4);
+      this.wall(b.x + sx * 2, b.z + 4.5, 5, 0.4);
+      this.wall(b.x - sx * 3.5, b.z + 4.5, 2, 0.4);
       for (const offset of [-3.5, 3.5])
-        this.wall(b.x + offset, b.z - sz * 4.5, 2, 0.4);
-      this.wall(b.x, b.z - sz * 4.5, 1.4, 0.4);
-      this.wall(b.x - sx * 2.7, b.z + sz * 0.1, 0.4, 2.5);
-      this.wall(b.x - sx * 1.4, b.z - sz * 2.1, 3.5, 0.4);
-      this.coreDoor(b.team, b.x - sx * 4.5, b.z - sz * 1.6, 0.48, 2.2);
+        this.wall(b.x - sx * 4.5, b.z + offset, 0.4, 2);
+      this.wall(b.x - sx * 4.5, b.z, 0.4, 1.4);
+      this.wall(b.x + sx * 0.1, b.z + 2.7, 2.5, 0.4);
+      this.wall(b.x - sx * 2.1, b.z + 1.4, 0.4, 3.5);
+      this.coreDoor(b.team, b.x - sx * 1.6, b.z + 4.5, 2.2, 0.48);
       for (const offset of [-1.9, 1.9])
-        this.coreDoor(b.team, b.x + offset, b.z - sz * 4.5, 2.1, 0.48);
+        this.coreDoor(b.team, b.x - sx * 4.5, b.z + offset, 0.48, 2.1);
       this.box(
         "door marker",
         b.x - sx * 4.5,
         0.06,
-        b.z - sz * 1.6,
+        b.z,
         0.7,
         0.08,
-        1.6,
+        5.5,
         c,
         false,
         true,
       );
-      const spawnZ = b.z - sz * 9;
-      this.box("spawn pad", b.x, 0.04, spawnZ, 4.3, 0.05, 2.4, "#365b61");
-      this.label(b.team + " SPAWN", b.x, spawnZ, c, 3.5);
+      this.box(
+        "spawn pad",
+        b.spawn.x,
+        0.04,
+        b.spawn.z,
+        2.4,
+        0.05,
+        4.3,
+        "#365b61",
+      );
+      this.label(b.team + " SPAWN", b.spawn.x, b.spawn.z, c, 3.5);
     }
     office01.walls.forEach((b) => this.wall(b.x, b.z, b.w, b.d));
     for (const p of office01.props) {
       const meshStart = this.scene.meshes.length;
       const obstacleStart = this.obstacles.length;
       const { x, z } = p;
-      let w = p.w ?? 2,
-        d = p.d ?? 1;
-      if (p.kind === "desk" || p.kind === "counter") {
+      const spec = OBJECTS[p.kind as keyof typeof OBJECTS];
+      let w = p.w ?? spec?.[1] ?? 2,
+        d = p.d ?? spec?.[2] ?? 1;
+      if (
+        p.kind === "desk" ||
+        p.kind === "counter" ||
+        p.kind === "meetingTable"
+      ) {
         this.box(p.kind, x, 0.95, z, w, 0.18, d, "#b5a58b", true);
         this.box("pedestal", x, 0.44, z, w * 0.72, 0.85, d * 0.65, "#405561");
         if (p.kind === "desk") {
@@ -284,12 +388,12 @@ export class World {
           this.box("chair back", x, 0.85, z - 1.3, 0.75, 0.7, 0.14, "#314753");
         }
       } else if (p.kind === "sofa") {
-        this.box("sofa", x, 0.4, z, 2.7, 0.8, 1.1, "#b27a59", true);
+        this.box("sofa", x, 0.4, z, w, 0.8, d, "#b27a59", true);
         this.box("sofa back", x, 0.85, z + 0.45, 2.7, 0.65, 0.22, "#c5926b");
         for (const dx of [-1.25, 1.25])
           this.box("arm", x + dx, 0.7, z, 0.2, 0.45, 1.1, "#c5926b");
       } else if (p.kind === "plant") {
-        this.box("planter", x, 0.35, z, 1, 0.7, 1, "#c2b6a1", true);
+        this.box("planter", x, 0.35, z, w, 0.7, d, "#c2b6a1", true);
         for (let i = 0; i < 5; i++) {
           const m = MeshBuilder.CreateSphere(
             "leaves",
@@ -313,17 +417,34 @@ export class World {
         m.material = mat;
         this.box("frame", x, 2, z, w, 0.07, 0.1, "#394f5e");
       } else if (p.kind === "pillar") {
-        this.box("column", x, 1.3, z, 0.65, 2.6, 0.65, "#d0cbb7", true);
+        this.box("column", x, 1.3, z, w, 2.6, d, "#d0cbb7", true);
         this.box("column foot", x, 0.12, z, 0.9, 0.24, 0.9, "#344d58");
+      } else if (
+        [
+          "partition",
+          "bookshelf",
+          "whiteboard",
+          "boxes",
+          "pallet",
+          "coffee",
+          "waterCooler",
+          "vending",
+          "chair",
+          "bin",
+          "recycling",
+          "reception",
+        ].includes(p.kind)
+      ) {
+        this.officeObject(p.kind, x, z, w, d);
       } else {
         this.box(
           p.kind,
           x,
           0.9,
           z,
-          1.3,
+          w,
           1.8,
-          1.1,
+          d,
           p.kind === "server" ? "#243c4c" : "#9daaaa",
           true,
         );
@@ -344,6 +465,26 @@ export class World {
             );
           }
       }
+      if (p.rotation) {
+        const angle = (p.rotation * Math.PI) / 180,
+          c = Math.round(Math.cos(angle)),
+          s = Math.round(Math.sin(angle));
+        for (const mesh of this.scene.meshes.slice(meshStart)) {
+          const dx = mesh.position.x - x,
+            dz = mesh.position.z - z;
+          mesh.position.x = x + dx * c + dz * s;
+          mesh.position.z = z - dx * s + dz * c;
+          mesh.rotation.y += angle;
+        }
+        for (const obstacle of this.obstacles.slice(obstacleStart)) {
+          const dx = obstacle.x - x,
+            dz = obstacle.z - z;
+          obstacle.x = x + dx * c + dz * s;
+          obstacle.z = z - dx * s + dz * c;
+          if (p.rotation % 180)
+            [obstacle.w, obstacle.d] = [obstacle.d, obstacle.w];
+        }
+      }
       if (p.destructible)
         this.destructibles.push(
           new Destructible(
@@ -357,6 +498,144 @@ export class World {
     }
     this.label("COMBAT ATRIUM", 0, 14, "#d3d8c6", 7);
     this.label("BREAKABLE COVER", 0, 10, "#edcb89", 4);
+  }
+  officeObject(kind: string, x: number, z: number, w: number, d: number) {
+    const box = (
+      name: string,
+      dx: number,
+      y: number,
+      dz: number,
+      width: number,
+      height: number,
+      depth: number,
+      color: string,
+      solid = false,
+    ) => this.box(name, x + dx, y, z + dz, width, height, depth, color, solid);
+    if (kind === "partition") {
+      box("fabric partition", 0, 0.95, 0, w, 1.9, d, "#537b83", true);
+      box("partition trim", 0, 1.93, 0, w + 0.05, 0.08, d + 0.05, "#b9c9c7");
+    } else if (kind === "bookshelf") {
+      box("archive shelf", 0, 1.1, 0, w, 2.2, d, "#806747", true);
+      for (const y of [0.35, 0.95, 1.55]) {
+        box("shelf ledge", 0, y, -d / 2 - 0.04, w, 0.08, 0.15, "#baa78a");
+        for (let i = 0; i < 6; i++)
+          box(
+            "archive binder",
+            -w * 0.4 + i * w * 0.16,
+            y + 0.25,
+            -d / 2 - 0.03,
+            w * 0.12,
+            0.42,
+            0.12,
+            i % 2 ? "#5ba5b0" : "#dba45e",
+          );
+      }
+    } else if (kind === "whiteboard") {
+      box("whiteboard frame", 0, 1.25, 0, w, 1.3, d * 0.25, "#d9dfd3", true);
+      box(
+        "board writing",
+        -w * 0.12,
+        1.45,
+        -d * 0.13,
+        w * 0.55,
+        0.045,
+        0.02,
+        "#42809e",
+      );
+      for (const dx of [-w * 0.4, w * 0.4]) {
+        box("board leg", dx, 0.45, 0, 0.08, 0.9, 0.08, "#40535b");
+        box("board foot", dx, 0.1, 0, 0.3, 0.2, d, "#344b56");
+      }
+    } else if (kind === "boxes" || kind === "pallet") {
+      box("stack collision", 0, 0.7, 0, w, 1.4, d, "#a67b4a", true);
+      for (const dx of [-w * 0.25, w * 0.25]) {
+        box("packing carton", dx, 1.5, 0, w * 0.45, 0.7, d * 0.85, "#bd965d");
+        box("packing tape", dx, 1.86, 0, 0.1, 0.025, d * 0.86, "#e6cca0");
+      }
+      if (kind === "pallet")
+        box("wood pallet", 0, 0.08, 0, w + 0.15, 0.16, d + 0.15, "#76543b");
+    } else if (kind === "chair") {
+      box("chair seat", 0, 0.5, 0, w, 0.2, d, "#477c91", true);
+      box("chair back", 0, 0.95, d * 0.4, w, 0.8, 0.15, "#477c91");
+      box("chair pedestal", 0, 0.25, 0, 0.14, 0.5, 0.14, "#344753");
+    } else if (kind === "reception") {
+      box(
+        "reception front",
+        0,
+        0.6,
+        d * 0.32,
+        w,
+        1.2,
+        d * 0.35,
+        "#b3a184",
+        true,
+      );
+      box(
+        "reception return",
+        -w * 0.4,
+        0.6,
+        0,
+        w * 0.2,
+        1.2,
+        d,
+        "#b3a184",
+        true,
+      );
+      box(
+        "reception top",
+        0,
+        1.25,
+        d * 0.32,
+        w + 0.1,
+        0.12,
+        d * 0.4,
+        "#d9c9ac",
+      );
+    } else if (kind === "bin" || kind === "recycling") {
+      box(
+        "waste station",
+        0,
+        0.45,
+        0,
+        w,
+        0.9,
+        d,
+        kind === "bin" ? "#50616b" : "#548e7d",
+        true,
+      );
+      box("waste opening", 0, 0.91, 0, w * 0.65, 0.03, d * 0.5, "#182c34");
+    } else {
+      const height = kind === "vending" ? 2.3 : 1.5;
+      box(
+        kind,
+        0,
+        height / 2,
+        0,
+        w,
+        height,
+        d,
+        kind === "waterCooler" ? "#c9ddd9" : "#35546b",
+        true,
+      );
+      box(
+        "machine front",
+        0,
+        height * 0.58,
+        -d / 2 - 0.02,
+        w * 0.7,
+        height * 0.55,
+        0.04,
+        "#182f3c",
+      );
+      if (kind === "vending")
+        for (const y of [0.7, 1.1, 1.5])
+          for (const dx of [-w * 0.23, 0, w * 0.23])
+            box("snack", dx, y, -d / 2 - 0.05, w * 0.15, 0.24, 0.05, "#dcb664");
+      else if (kind === "waterCooler")
+        box("water bottle", 0, 1.75, 0, w * 0.6, 0.5, d * 0.6, "#70b8c9");
+      else
+        box("coffee cup", 0, 0.85, -d / 2 - 0.13, 0.22, 0.27, 0.24, "#e6dbbe");
+    }
   }
   wall(x: number, z: number, w: number, d: number) {
     this.box("wall", x, 0.95, z, w, 1.9, d, "#adbaaf", true);

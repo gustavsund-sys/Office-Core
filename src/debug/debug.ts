@@ -34,7 +34,7 @@ export class Debug {
         player.root.position.set(0, 0, 1);
       if (this.enabled && /^Digit[2-3]$/.test(e.code)) {
         const b = office01.bases[Number(e.code.slice(-1)) - 2];
-        player.root.position.set(b.x, 0, b.z - Math.sign(b.z) * 9);
+        player.root.position.set(b.spawn.x, 0, b.spawn.z);
       }
       if (e.code === "F2" && !e.repeat) {
         this.enabled = !this.enabled;

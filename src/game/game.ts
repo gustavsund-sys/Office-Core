@@ -39,7 +39,8 @@ import { Multiplayer } from "../network/client";
 import { MSG, type Snapshot, type NetInput } from "../../shared/protocol";
 export class Game {
   testToolsEnabled =
-    new URLSearchParams(location.search).get("devtools") === "1";
+    new URLSearchParams(location.search).get("devtools") === "1" ||
+    new URLSearchParams(location.search).get("playtest") === "1";
   multiplayer?: Multiplayer;
   inputSequence = 0;
   pendingInputs: NetInput[] = [];
@@ -64,7 +65,12 @@ export class Game {
   onlineTraces: { mesh: import("@babylonjs/core").Mesh; life: number }[] = [];
   onlineModels = new Map<string, string>();
   onlineObjects = new Map<string, import("@babylonjs/core").Mesh>();
-  onlineInput = { warcry: false, jump: false, interact: false, slot: 0 as 0 | 1 | 2 };
+  onlineInput = {
+    warcry: false,
+    jump: false,
+    interact: false,
+    slot: 0 as 0 | 1 | 2,
+  };
   networkElapsed = 0;
   nameTimer = 0;
   lobby!: Lobby;
@@ -106,14 +112,23 @@ export class Game {
       if (this.match.started) this.lobbyMusic.currentTime = 0;
       return;
     }
-    if (!this.lobbyMusic.paused || this.lobbyMusicBlocked || this.lobbyMusicPending) return;
+    if (
+      !this.lobbyMusic.paused ||
+      this.lobbyMusicBlocked ||
+      this.lobbyMusicPending
+    )
+      return;
     this.lobbyMusicPending = true;
-    void this.lobbyMusic.play().catch(() => {
-      this.lobbyMusicBlocked = true;
-    }).finally(() => {
-      this.lobbyMusicPending = false;
-      if (this.match.started || this.match.winner || !this.sound) this.lobbyMusic.pause();
-    });
+    void this.lobbyMusic
+      .play()
+      .catch(() => {
+        this.lobbyMusicBlocked = true;
+      })
+      .finally(() => {
+        this.lobbyMusicPending = false;
+        if (this.match.started || this.match.winner || !this.sound)
+          this.lobbyMusic.pause();
+      });
   }
   cameraTarget = new Vector3();
   shake = 0;
@@ -259,12 +274,20 @@ export class Game {
     this.match.selectTeam("RED");
     lobby.update(this.match.members, "RED");
     document.querySelector(".brief")!.after(lobby.el);
-    this.installMultiplayer();
+    if (new URLSearchParams(location.search).get("playtest") !== "1")
+      this.installMultiplayer();
+    const builderLink = document.createElement("a");
+    builderLink.href = "/?builder=1";
+    builderLink.className = "map-builder-link";
+    builderLink.textContent = "ÖPPNA KARTBYGGAREN";
+    document.querySelector(".pause-card")!.append(builderLink);
     document.querySelector("#play")!.innerHTML = "STARTA MATCH <span>↗</span>";
     this.pickup = new Pickup(this.world);
     this.weapons.onCoreBusterDropped = (position) =>
       this.pickup.dropCoreBuster(position);
-    this.weapons.onWarcry = () => { if (this.sound) this.weaponAudio?.playBusterScream(); };
+    this.weapons.onWarcry = () => {
+      if (this.sound) this.weaponAudio?.playBusterScream();
+    };
     this.weapons.onCoreBusterAcquired = () => {
       this.busterScreamPlayed = false;
       this.hud.toast("Active Core buster! protect him at all costs!");
@@ -784,6 +807,8 @@ export class Game {
       const prop = this.world.destructibles[index];
       if (prop && prop.hp > hp) prop.damage(prop.hp - hp, "coreBuster", false);
     });
+    const health = snapshot.pickups.filter((p) => p.type === "medkit" || p.type === "superMedkit");
+    this.pickup.healthDrops.forEach((drop, index) => drop.root.setEnabled(health[index]?.active ?? false));
     const ammo = snapshot.pickups.filter((p) => p.type === "ammo");
     this.pickup.ammoDrops.forEach((drop, index) =>
       drop.root.setEnabled(ammo[index]?.active ?? false),
@@ -931,7 +956,12 @@ export class Game {
         this.player.update(input, 1 / 30);
       }
       this.onlinePressed = false;
-      this.onlineInput = { warcry: false, jump: false, interact: false, slot: 0 };
+      this.onlineInput = {
+        warcry: false,
+        jump: false,
+        interact: false,
+        slot: 0,
+      };
     }
     this.predictedPosition = this.player.root.position.clone();
     this.predictedVelocity = this.player.verticalVelocity;
@@ -1296,7 +1326,7 @@ export class Game {
     this.match.start(team);
     CONFIG.player.team = team;
     const base = office01.bases.find((base) => base.team === team)!;
-    this.player.root.position.set(base.x, 0, base.z - Math.sign(base.z) * 9);
+    this.player.root.position.set(base.spawn.x, 0, base.spawn.z);
     this.player.torso.material = this.world.mat(TEAMS[team]);
     this.world.explosions.playerSpawn(this.player.root.position, TEAMS[team]);
     this.cores.forEach((core) =>
@@ -1309,9 +1339,9 @@ export class Game {
       )!;
       this.testPlayer = new Player(this.world);
       this.testPlayer.root.position.set(
-        otherBase.x,
+        otherBase.spawn.x,
         0,
-        otherBase.z - Math.sign(otherBase.z) * 9,
+        otherBase.spawn.z,
       );
       this.testPlayer.torso.material = this.world.mat(TEAMS[other.team]);
       this.testWeapons = new Weapons(
@@ -1349,8 +1379,8 @@ export class Game {
       this.testWeapons.ammo = Infinity;
       this.world.label(
         "TEST PLAYER",
-        otherBase.x,
-        otherBase.z - Math.sign(otherBase.z) * 11,
+        otherBase.spawn.x,
+        otherBase.spawn.z - 2,
         TEAMS[other.team],
         3,
       );
@@ -1486,11 +1516,7 @@ export class Game {
           const base = office01.bases.find(
             (base) => base.team === CONFIG.player.team,
           )!;
-          this.player.root.position.set(
-            base.x,
-            0,
-            base.z - Math.sign(base.z) * 9,
-          );
+          this.player.root.position.set(base.spawn.x, 0, base.spawn.z);
           this.player.verticalVelocity = 0;
           this.player.hp = CONFIG.player.hp;
           this.player.root.setEnabled(true);

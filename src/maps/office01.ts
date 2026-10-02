@@ -1,6 +1,19 @@
 import type { Team } from "../config/game";
 export interface Prop {
   kind:
+    | "partition"
+    | "bookshelf"
+    | "whiteboard"
+    | "meetingTable"
+    | "boxes"
+    | "pallet"
+    | "coffee"
+    | "waterCooler"
+    | "vending"
+    | "chair"
+    | "bin"
+    | "recycling"
+    | "reception"
     | "coreDoor"
     | "desk"
     | "sofa"
@@ -17,6 +30,7 @@ export interface Prop {
   d?: number;
   destructible?: boolean;
   team?: Team;
+  rotation?: number;
 }
 export interface Wall {
   x: number;
@@ -30,9 +44,9 @@ export interface Room extends Wall {
 const size = 220;
 const stretch = 1.25;
 const bases = [
-  { team: "RED", x: -40, z: 40 },
-  { team: "BLUE", x: 40, z: 40 },
-] as { team: Team; x: number; z: number }[];
+  { team: "RED", x: -82, z: 0, spawn: { x: -73, z: 0 } },
+  { team: "BLUE", x: 82, z: 0, spawn: { x: 73, z: 0 } },
+] as { team: Team; x: number; z: number; spawn: { x: number; z: number } }[];
 const rooms: Room[] = [
   { name: "RECEPTION / COMBAT ATRIUM", x: 0, z: 0, w: 32, d: 32 },
   { name: "OPEN OFFICE", x: -36, z: 10, w: 16, d: 12 },
@@ -62,20 +76,39 @@ for (const sx of [-1, 1])
   for (const sz of [1]) {
     corridors.push(
       { x: sx * 54, z: sz * 30, w: 30, d: 6 },
-      { x: sx * 66, z: sz * 49, w: 6, d: 44 },
-      { x: sx * 66, z: sz * 70, w: 20, d: 20 },
+      { x: sx * 66, z: sz * 37, w: 6, d: 20 },
+      { x: sx * 66, z: sz * 46, w: 20, d: 20 },
     );
-    weaponEnds.push({ x: sx * 66, z: sz * 70 });
+    weaponEnds.push({ x: sx * 66, z: sz * 46 });
   }
 // Stretch the surviving north wing horizontally, keeping core rooms and drop
 // arenas at their original dimensions. Furniture keeps its physical size.
-for (const base of bases) base.x *= stretch;
-for (const room of rooms) { room.x *= stretch; room.w *= stretch; }
+for (const room of rooms) {
+  room.x *= stretch;
+  room.w *= stretch;
+}
 for (const corridor of corridors) {
   corridor.x *= stretch;
   if (corridor.d !== 20 || corridor.w !== 20) corridor.w *= stretch;
 }
 for (const endpoint of weaponEnds) endpoint.x *= stretch;
+// North transit hubs replace the former core rooms. Three mirrored lanes
+// approach each new side base: north access, office access and the south loop.
+for (const sx of [-1, 1])
+  corridors.push(
+    { x: sx * 50, z: 40, w: 12, d: 12 },
+    { x: sx * 82, z: 17, w: 8, d: 40 },
+    { x: sx * 64, z: 8, w: 40, d: 6 },
+    { x: sx * 74, z: -2, w: 8, d: 24 },
+    { x: sx * 64, z: -8, w: 40, d: 6 },
+    { x: sx * 32.5, z: -12, w: 7.5, d: 36 },
+    { x: sx * 45, z: -20, w: 28, d: 6 },
+    { x: sx * 58, z: -16, w: 8, d: 32 },
+    { x: sx * 38, z: -32, w: 54, d: 6 },
+    { x: sx * 15, z: -28, w: 8, d: 36 },
+    { x: sx * 65, z: -22, w: 8, d: 42 },
+  );
+corridors.push({ x: 0, z: -46, w: 138, d: 6 });
 const footprint: Wall[] = [
   ...rooms,
   ...corridors,
@@ -169,10 +202,10 @@ export const office01 = {
   name: "Office01",
   size,
   width: 220,
-  depth: 112,
-  centerZ: 32,
+  depth: 144,
+  centerZ: 16,
   stretch,
-  spawn: { x: -50, z: 31 },
+  spawn: bases[0].spawn,
   bases,
   rooms,
   corridors,
@@ -181,8 +214,9 @@ export const office01 = {
     ...boundaryWalls(),
     // Permanent cover breaks long shots without dividing the open arena.
     { x: -6.25, z: 2, w: 3, d: 0.5 },
-    { x: 6.25, z: -2, w: 3, d: 0.5 },
+    { x: 6.25, z: 2, w: 3, d: 0.5 },
     { x: -2, z: 40, w: 0.5, d: 3 },
+    { x: 2, z: 40, w: 0.5, d: 3 },
   ],
   props,
   targets: [

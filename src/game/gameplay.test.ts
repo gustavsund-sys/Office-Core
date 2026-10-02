@@ -196,14 +196,14 @@ test("Core rooms require a destroyed door, while spawn pads stay reachable", () 
     );
     assert.equal(doors.length, 6, "three doors for each of two cores");
     for (const b of office01.bases) {
-      const spawnZ = b.z - Math.sign(b.z) * 9;
+      const spawnZ = b.spawn.z;
       assert.equal(
-        blocked(b.x, spawnZ, 0.36, s.world.obstacles),
+        blocked(b.spawn.x, spawnZ, 0.36, s.world.obstacles),
         false,
         `${b.team} spawn clear`,
       );
       assert.ok(
-        before.seen.has(key(b.x * 2, spawnZ * 2)),
+        before.seen.has(key(b.spawn.x * 2, spawnZ * 2)),
         `${b.team} spawn reachable`,
       );
       assert.equal(
@@ -732,18 +732,39 @@ test("Core buster deals 500 Core damage, lethal close damage and falling splash"
     assert.ok(distant.hp > 0 && distant.hp < 100);
     assert.equal(outside.hp, 100);
     assert.equal(s.player.hp, 0);
-  } finally { s.engine.dispose(); }
+  } finally {
+    s.engine.dispose();
+  }
 });
 test("walls and office furniture protect targets from Core buster splash", () => {
   for (const furniture of [false, true]) {
     const s = setup();
     try {
       const target = new Damageable(s.world, "target", 2.5, 0);
-      const cover = s.world.box("blast cover", 1.3, 1, 0, 0.2, 2, 4, "#888888", !furniture);
-      if (furniture) new Destructible(s.world, {kind: "server", x: 1.3, z: 0} as never, [cover], [], s.world.explosions);
+      const cover = s.world.box(
+        "blast cover",
+        1.3,
+        1,
+        0,
+        0.2,
+        2,
+        4,
+        "#888888",
+        !furniture,
+      );
+      if (furniture)
+        new Destructible(
+          s.world,
+          { kind: "server", x: 1.3, z: 0 } as never,
+          [cover],
+          [],
+          s.world.explosions,
+        );
       detonateBuster(s);
       assert.equal(target.hp, 100);
-    } finally { s.engine.dispose(); }
+    } finally {
+      s.engine.dispose();
+    }
   }
 });
 
@@ -769,5 +790,7 @@ test("warcry requires a carried buster, lasts four seconds and resets only on ac
     s.weapon.dropCoreBuster();
     s.weapon.equip("coreBuster");
     assert.equal(s.weapon.activateWarcry(), false);
-  } finally { s.engine.dispose(); }
+  } finally {
+    s.engine.dispose();
+  }
 });

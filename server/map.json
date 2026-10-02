@@ -1,0 +1,1977 @@
+{
+  "version": 1,
+  "name": "Office01",
+  "objects": [
+    {
+      "id": "object-1",
+      "kind": "sofa",
+      "x": -8.75,
+      "z": -5,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-2",
+      "kind": "sofa",
+      "x": 8.75,
+      "z": -5,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-3",
+      "kind": "glass",
+      "x": 0,
+      "z": -11,
+      "rotation": 0,
+      "destructible": true,
+      "w": 5,
+      "d": 0.15
+    },
+    {
+      "id": "object-4",
+      "kind": "pillar",
+      "x": -15,
+      "z": -12,
+      "rotation": 0,
+      "destructible": false
+    },
+    {
+      "id": "object-5",
+      "kind": "pillar",
+      "x": -15,
+      "z": 12,
+      "rotation": 0,
+      "destructible": false
+    },
+    {
+      "id": "object-6",
+      "kind": "pillar",
+      "x": 15,
+      "z": -12,
+      "rotation": 0,
+      "destructible": false
+    },
+    {
+      "id": "object-7",
+      "kind": "pillar",
+      "x": 15,
+      "z": 12,
+      "rotation": 0,
+      "destructible": false
+    },
+    {
+      "id": "object-8",
+      "kind": "plant",
+      "x": -8.75,
+      "z": -10,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-9",
+      "kind": "plant",
+      "x": -8.75,
+      "z": 9,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-10",
+      "kind": "plant",
+      "x": 8.75,
+      "z": -10,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-11",
+      "kind": "plant",
+      "x": 8.75,
+      "z": 9,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-12",
+      "kind": "desk",
+      "x": -48.75,
+      "z": 8,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-13",
+      "kind": "desk",
+      "x": -48.75,
+      "z": 13,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-14",
+      "kind": "desk",
+      "x": -41.25,
+      "z": 8,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-15",
+      "kind": "desk",
+      "x": -41.25,
+      "z": 13,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-16",
+      "kind": "desk",
+      "x": 45,
+      "z": 10,
+      "rotation": 0,
+      "destructible": true,
+      "w": 6,
+      "d": 2.5
+    },
+    {
+      "id": "object-17",
+      "kind": "cabinet",
+      "x": -5,
+      "z": 36,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-18",
+      "kind": "cabinet",
+      "x": 0,
+      "z": 36,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-19",
+      "kind": "cabinet",
+      "x": 5,
+      "z": 36,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-20",
+      "kind": "copier",
+      "x": -40,
+      "z": 41.5,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-21",
+      "kind": "cabinet",
+      "x": -31.875,
+      "z": 33,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-22",
+      "kind": "plant",
+      "x": -48.75,
+      "z": 28,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-23",
+      "kind": "server",
+      "x": -27.5,
+      "z": 25,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-24",
+      "kind": "desk",
+      "x": -15,
+      "z": 22,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-25",
+      "kind": "copier",
+      "x": -12.5,
+      "z": 5,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-26",
+      "kind": "cabinet",
+      "x": -12.5,
+      "z": 3,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-27",
+      "kind": "copier",
+      "x": 40,
+      "z": 41.5,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-28",
+      "kind": "cabinet",
+      "x": 31.875,
+      "z": 33,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-29",
+      "kind": "plant",
+      "x": 48.75,
+      "z": 28,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-30",
+      "kind": "server",
+      "x": 27.5,
+      "z": 25,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-31",
+      "kind": "desk",
+      "x": 15,
+      "z": 22,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-32",
+      "kind": "copier",
+      "x": 12.5,
+      "z": 5,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-33",
+      "kind": "cabinet",
+      "x": 12.5,
+      "z": 3,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-34",
+      "kind": "desk",
+      "x": -49,
+      "z": 5.5,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-35",
+      "kind": "desk",
+      "x": -41,
+      "z": 5.5,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-36",
+      "kind": "plant",
+      "x": -8,
+      "z": 43,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-37",
+      "kind": "plant",
+      "x": 8,
+      "z": 43,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-38",
+      "kind": "cabinet",
+      "x": 49,
+      "z": 13,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "object-39",
+      "kind": "copier",
+      "x": 41,
+      "z": 5.5,
+      "rotation": 0,
+      "destructible": true
+    },
+    {
+      "id": "355f9fb9-0f4f-4eb0-bde6-25e4c5e9024b",
+      "kind": "vending",
+      "x": -1,
+      "z": 45,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1.6,
+      "d": 1
+    },
+    {
+      "id": "b81de2ad-2a16-418f-a6ff-75fdfb479aa6",
+      "kind": "vending",
+      "x": -1,
+      "z": 45,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1.6,
+      "d": 1
+    },
+    {
+      "id": "5899e690-f4d1-416d-9a76-f96aff2b60e3",
+      "kind": "coffee",
+      "x": 0,
+      "z": -10,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1.2,
+      "d": 0.8
+    },
+    {
+      "id": "719895d4-e0c1-430e-8fca-09a98b14d972",
+      "kind": "coffee",
+      "x": 0,
+      "z": -10,
+      "rotation": 180,
+      "destructible": true,
+      "w": 1.2,
+      "d": 0.8
+    },
+    {
+      "id": "0c777d72-0040-433b-98d1-a6173e9002b3",
+      "kind": "plant",
+      "x": -10,
+      "z": 15,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "e8c04f0a-8308-465d-87ac-0eeb20b28f5b",
+      "kind": "plant",
+      "x": -5,
+      "z": 15,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "715ad796-81af-41fa-852d-7b1386ed518f",
+      "kind": "plant",
+      "x": -1,
+      "z": 15,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "2e863e8b-47ca-40c7-9214-c33ce1cf9898",
+      "kind": "plant",
+      "x": 4,
+      "z": 15,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "5f43be44-6618-4251-bf61-c2fb2dc8d208",
+      "kind": "plant",
+      "x": 9,
+      "z": 15,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "affea733-8405-4cc1-a0d1-b3b719052da7",
+      "kind": "plant",
+      "x": -9,
+      "z": -44,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "5c36c973-3be1-47eb-83c5-b1204f54ed9a",
+      "kind": "plant",
+      "x": 10,
+      "z": -44,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "73b35649-29b8-418c-93a0-10be6b74b96b",
+      "kind": "plant",
+      "x": -55,
+      "z": -26,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "7b9e8f7e-0dca-4c6e-a0aa-fc4b06c85721",
+      "kind": "plant",
+      "x": -56,
+      "z": -14,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "1dde82bd-b588-4a69-a283-6eb624e80d2f",
+      "kind": "plant",
+      "x": -56,
+      "z": -2,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "a5f25b61-a4f4-43e4-9da6-1364fac7d338",
+      "kind": "plant",
+      "x": 56,
+      "z": -26,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "f98dc7a3-611c-439c-b81f-b33218654a95",
+      "kind": "plant",
+      "x": 56,
+      "z": -14,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "6677f3f9-0a73-4f33-921b-dbe3fe052e6c",
+      "kind": "plant",
+      "x": 55,
+      "z": -2,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "aff29f73-0f58-4642-b23a-6e204d326471",
+      "kind": "chair",
+      "x": 15,
+      "z": 23,
+      "rotation": 0,
+      "destructible": true,
+      "w": 0.8,
+      "d": 0.8
+    },
+    {
+      "id": "d1168a7d-cb0f-4d8f-8f73-d5d4b5588955",
+      "kind": "chair",
+      "x": -15,
+      "z": 23,
+      "rotation": 0,
+      "destructible": true,
+      "w": 0.8,
+      "d": 0.8
+    },
+    {
+      "id": "3ff84a49-94a4-4fea-b319-e1b7b7201f24",
+      "kind": "server",
+      "x": -7,
+      "z": -44,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1.3,
+      "d": 1.1
+    },
+    {
+      "id": "e309a2a9-6bf0-46f6-bdf6-61edb7e90503",
+      "kind": "server",
+      "x": -4,
+      "z": -44,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1.3,
+      "d": 1.1
+    },
+    {
+      "id": "f7b9e307-159e-49c8-a564-abd209e63ba7",
+      "kind": "server",
+      "x": -1,
+      "z": -44,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1.3,
+      "d": 1.1
+    },
+    {
+      "id": "3141b092-7615-4bf6-af53-b720a4e1ffb8",
+      "kind": "server",
+      "x": 2,
+      "z": -44,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1.3,
+      "d": 1.1
+    },
+    {
+      "id": "1547b5f4-3206-453b-ae89-9bcc758dffcf",
+      "kind": "server",
+      "x": 5,
+      "z": -44,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1.3,
+      "d": 1.1
+    },
+    {
+      "id": "02c8a883-062f-4f79-a37a-0690533a286e",
+      "kind": "server",
+      "x": 8,
+      "z": -44,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1.3,
+      "d": 1.1
+    },
+    {
+      "id": "b96287b4-9c0f-4ea7-8eaa-5462779cbd4d",
+      "kind": "pillar",
+      "x": -15,
+      "z": -21,
+      "rotation": 0,
+      "destructible": false,
+      "w": 0.65,
+      "d": 0.65
+    },
+    {
+      "id": "1eedc4eb-179b-4ce5-bd59-ac7b109b84f5",
+      "kind": "pillar",
+      "x": -15,
+      "z": -38,
+      "rotation": 0,
+      "destructible": false,
+      "w": 0.65,
+      "d": 0.65
+    },
+    {
+      "id": "afe02b59-34ed-41f9-b49a-a05170ed53ac",
+      "kind": "pillar",
+      "x": 15,
+      "z": -22,
+      "rotation": 0,
+      "destructible": false,
+      "w": 0.65,
+      "d": 0.65
+    },
+    {
+      "id": "804702dc-9281-4991-bd20-50e763d2bc85",
+      "kind": "pillar",
+      "x": 15,
+      "z": -39,
+      "rotation": 0,
+      "destructible": false,
+      "w": 0.65,
+      "d": 0.65
+    },
+    {
+      "id": "042ed58c-ac4b-4240-a0bb-b1cbf8a1a4b4",
+      "kind": "plant",
+      "x": -35,
+      "z": -26,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "21627bbd-3a63-4b94-a191-4332f8b6d062",
+      "kind": "plant",
+      "x": -35,
+      "z": -14,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "e5513a25-581d-4105-8dee-c43c6ed25200",
+      "kind": "plant",
+      "x": 35,
+      "z": -26,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "ad46caf8-0de4-4fd4-a1a9-f1e5e77b6e0a",
+      "kind": "plant",
+      "x": 35,
+      "z": -15,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "db2b6e8a-8c5c-44be-be59-64a9360ee399",
+      "kind": "sofa",
+      "x": -2,
+      "z": 8,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2.7,
+      "d": 1.1
+    },
+    {
+      "id": "1e0997ca-eca4-493e-aa4f-9344f7ab3034",
+      "kind": "sofa",
+      "x": 1,
+      "z": 8,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2.7,
+      "d": 1.1
+    },
+    {
+      "id": "f377de2c-479a-41de-8762-aa7bd84748cd",
+      "kind": "sofa",
+      "x": 4,
+      "z": 8,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2.7,
+      "d": 1.1
+    },
+    {
+      "id": "dae15b92-c4ad-4d15-8794-d40ee5dca23b",
+      "kind": "sofa",
+      "x": -5,
+      "z": 8,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2.7,
+      "d": 1.1
+    },
+    {
+      "id": "a8a7fb0b-0cbc-4ce4-9128-e0d494d1deb2",
+      "kind": "sofa",
+      "x": -2,
+      "z": 4,
+      "rotation": 180,
+      "destructible": true,
+      "w": 2.7,
+      "d": 1.1
+    },
+    {
+      "id": "63585ad8-6c4c-4566-8ba7-7c38895c5aac",
+      "kind": "sofa",
+      "x": 1,
+      "z": 2,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2.7,
+      "d": 1.1
+    },
+    {
+      "id": "bf530c68-f18a-40fd-b580-d7ac5182fb65",
+      "kind": "sofa",
+      "x": 4,
+      "z": 4,
+      "rotation": 180,
+      "destructible": true,
+      "w": 2.7,
+      "d": 1.1
+    },
+    {
+      "id": "18b1df2a-8d90-4a3f-9592-1cc1fc397d71",
+      "kind": "sofa",
+      "x": 1,
+      "z": 4,
+      "rotation": 180,
+      "destructible": true,
+      "w": 2.7,
+      "d": 1.1
+    },
+    {
+      "id": "ba1d7dcc-b366-40ea-9912-b10233c8cbd5",
+      "kind": "meetingTable",
+      "x": -1,
+      "z": 6,
+      "rotation": 0,
+      "destructible": true,
+      "w": 6,
+      "d": 2.5
+    },
+    {
+      "id": "cfc79013-c6f4-4e5c-a34a-b59d4a53bfdf",
+      "kind": "sofa",
+      "x": -5,
+      "z": 4,
+      "rotation": 180,
+      "destructible": true,
+      "w": 2.7,
+      "d": 1.1
+    },
+    {
+      "id": "a210fa47-b8ca-437b-ba11-e64b33319e1a",
+      "kind": "sofa",
+      "x": -2,
+      "z": 2,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2.7,
+      "d": 1.1
+    },
+    {
+      "id": "c87d8465-d266-48db-9e85-274a7536f193",
+      "kind": "boxes",
+      "x": -53,
+      "z": -31,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2,
+      "d": 1.5
+    },
+    {
+      "id": "0690231c-1308-4b78-8aa7-0fa13cee1c77",
+      "kind": "boxes",
+      "x": -50,
+      "z": -33,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2,
+      "d": 1.5
+    },
+    {
+      "id": "aa86d936-e515-49fb-b2f6-4dc485436322",
+      "kind": "boxes",
+      "x": -44,
+      "z": -31,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2,
+      "d": 1.5
+    },
+    {
+      "id": "355aa04f-6ba5-4255-b77d-956a0afdf148",
+      "kind": "boxes",
+      "x": -40,
+      "z": -32,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2,
+      "d": 1.5
+    },
+    {
+      "id": "90d78adf-b5c9-4140-a444-4daf68ab7ba4",
+      "kind": "boxes",
+      "x": -35,
+      "z": -33,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2,
+      "d": 1.5
+    },
+    {
+      "id": "4c7032bb-ca62-4e45-9aab-96f0c770c66b",
+      "kind": "boxes",
+      "x": 38,
+      "z": -31,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2,
+      "d": 1.5
+    },
+    {
+      "id": "f79d5260-a664-461f-9e1c-2452e59c6f08",
+      "kind": "boxes",
+      "x": 43,
+      "z": -33,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2,
+      "d": 1.5
+    },
+    {
+      "id": "e222149f-0c35-4b73-aa50-a325524fea95",
+      "kind": "boxes",
+      "x": 50,
+      "z": -31,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2,
+      "d": 1.5
+    },
+    {
+      "id": "5fbeec87-cdc0-47f6-aac5-b34912170e29",
+      "kind": "boxes",
+      "x": 57,
+      "z": -33,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2,
+      "d": 1.5
+    },
+    {
+      "id": "98e186c2-6854-498a-b409-42a1a55960d1",
+      "kind": "chair",
+      "x": 46,
+      "z": -8,
+      "rotation": 270,
+      "destructible": true,
+      "w": 0.8,
+      "d": 0.8
+    },
+    {
+      "id": "f9570bc7-c775-45b4-98d3-d2fd42d99eab",
+      "kind": "desk",
+      "x": 48,
+      "z": -8,
+      "rotation": 270,
+      "destructible": true,
+      "w": 2,
+      "d": 1
+    },
+    {
+      "id": "c44a2557-e9ba-4eb8-82e4-52afbe876036",
+      "kind": "cabinet",
+      "x": 45,
+      "z": -5,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1.3,
+      "d": 1.1
+    },
+    {
+      "id": "2a32d45f-b438-4911-800f-3d2cdc56f3f0",
+      "kind": "cabinet",
+      "x": 47,
+      "z": -5,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1.3,
+      "d": 1.1
+    },
+    {
+      "id": "4cdc09e2-14da-4ad8-8e9e-fb6d89eb8565",
+      "kind": "plant",
+      "x": 45,
+      "z": -11,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "d952a326-34d0-449b-a8a0-bd5928a904c3",
+      "kind": "chair",
+      "x": -46,
+      "z": -8,
+      "rotation": 90,
+      "destructible": true,
+      "w": 0.8,
+      "d": 0.8
+    },
+    {
+      "id": "4ed14e63-252f-4fa5-885c-f37820a74a73",
+      "kind": "desk",
+      "x": -47,
+      "z": -8,
+      "rotation": 90,
+      "destructible": true,
+      "w": 2,
+      "d": 1
+    },
+    {
+      "id": "e92e3f5b-48bc-4d39-bbde-d9eaecdfc0f7",
+      "kind": "waterCooler",
+      "x": -68,
+      "z": -23,
+      "rotation": 0,
+      "destructible": true,
+      "w": 0.8,
+      "d": 0.8
+    },
+    {
+      "id": "04f485b5-4a4d-4e24-b1ff-e4f0840f20b2",
+      "kind": "waterCooler",
+      "x": -68,
+      "z": -27,
+      "rotation": 0,
+      "destructible": true,
+      "w": 0.8,
+      "d": 0.8
+    },
+    {
+      "id": "c52608dc-d0d3-4d65-81f0-f13a5b0aaf17",
+      "kind": "waterCooler",
+      "x": 68,
+      "z": -20,
+      "rotation": 0,
+      "destructible": true,
+      "w": 0.8,
+      "d": 0.8
+    },
+    {
+      "id": "7bf07a43-97b6-485a-adbf-72939e5f3fb5",
+      "kind": "waterCooler",
+      "x": 68,
+      "z": -25,
+      "rotation": 0,
+      "destructible": true,
+      "w": 0.8,
+      "d": 0.8
+    },
+    {
+      "id": "ab734122-8d76-4bf7-b1a1-2919c8e7f8f5",
+      "kind": "pillar",
+      "x": -70,
+      "z": -2,
+      "rotation": 0,
+      "destructible": false,
+      "w": 0.65,
+      "d": 0.65
+    },
+    {
+      "id": "f15590e9-8ddb-41f9-a522-22cfdb99898a",
+      "kind": "pillar",
+      "x": -70,
+      "z": -4,
+      "rotation": 0,
+      "destructible": false,
+      "w": 0.65,
+      "d": 0.65
+    },
+    {
+      "id": "3f57e687-00a8-4d6a-a9f3-4a09a49b7d38",
+      "kind": "pillar",
+      "x": -70,
+      "z": -12,
+      "rotation": 0,
+      "destructible": false,
+      "w": 0.65,
+      "d": 0.65
+    },
+    {
+      "id": "899cb2d7-10bc-46aa-b9cc-382c60e773d8",
+      "kind": "pillar",
+      "x": 69,
+      "z": -2,
+      "rotation": 0,
+      "destructible": false,
+      "w": 0.65,
+      "d": 0.65
+    },
+    {
+      "id": "6e615b9a-87c3-4eac-ae01-145d4db35c3b",
+      "kind": "pillar",
+      "x": 69,
+      "z": -4,
+      "rotation": 0,
+      "destructible": false,
+      "w": 0.65,
+      "d": 0.65
+    },
+    {
+      "id": "3d4975b9-c179-4a65-a84c-9a46cc40be67",
+      "kind": "pillar",
+      "x": 69,
+      "z": -13,
+      "rotation": 0,
+      "destructible": false,
+      "w": 0.65,
+      "d": 0.65
+    },
+    {
+      "id": "f03ed04c-75c2-46cd-b626-7556aba8fb94",
+      "kind": "bin",
+      "x": -19,
+      "z": -5,
+      "rotation": 0,
+      "destructible": true,
+      "w": 0.7,
+      "d": 0.7
+    },
+    {
+      "id": "f12ec186-08c6-4199-acec-614ee7585c68",
+      "kind": "bin",
+      "x": 19,
+      "z": -5,
+      "rotation": 0,
+      "destructible": true,
+      "w": 0.7,
+      "d": 0.7
+    },
+    {
+      "id": "115a2d5b-0ce1-4f87-b9f8-2ceffc77b695",
+      "kind": "bin",
+      "x": 47,
+      "z": -10,
+      "rotation": 0,
+      "destructible": true,
+      "w": 0.7,
+      "d": 0.7
+    },
+    {
+      "id": "7b215f0c-65e1-4270-9c1b-277f0ce0f8f7",
+      "kind": "bin",
+      "x": -46,
+      "z": -10,
+      "rotation": 0,
+      "destructible": true,
+      "w": 0.7,
+      "d": 0.7
+    },
+    {
+      "id": "670701c3-0e0c-40d3-a814-a4278d34190b",
+      "kind": "plant",
+      "x": -54,
+      "z": -6,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "e2eb409e-7f2a-4fb6-b353-b269fe42151e",
+      "kind": "plant",
+      "x": -54,
+      "z": -10,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "ccc42286-d661-47e6-b17d-96aec12c9ce9",
+      "kind": "plant",
+      "x": 54,
+      "z": -6,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "6706ec0b-2a90-47f5-8cdf-06d9cd103cd4",
+      "kind": "plant",
+      "x": 54,
+      "z": -10,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1,
+      "d": 1
+    },
+    {
+      "id": "53a53ede-2fff-4d5b-9b0d-4cf586e70f71",
+      "kind": "copier",
+      "x": 51,
+      "z": -6,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1.3,
+      "d": 1.1
+    },
+    {
+      "id": "c70583b9-86fc-467a-86f2-3293971e8d86",
+      "kind": "copier",
+      "x": -49,
+      "z": -6,
+      "rotation": 0,
+      "destructible": true,
+      "w": 1.3,
+      "d": 1.1
+    },
+    {
+      "id": "17431a85-c302-4805-9924-27983d91c0b6",
+      "kind": "boxes",
+      "x": -28,
+      "z": -45,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2,
+      "d": 1.5
+    },
+    {
+      "id": "63677ce9-8934-4f9f-8150-d90a2772dc64",
+      "kind": "boxes",
+      "x": -24,
+      "z": -48,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2,
+      "d": 1.5
+    },
+    {
+      "id": "13f0a199-c005-4d2e-a3c3-a09bce6974e8",
+      "kind": "boxes",
+      "x": 22,
+      "z": -45,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2,
+      "d": 1.5
+    },
+    {
+      "id": "5bcbc0b0-fc88-4704-9b41-3f51049e58de",
+      "kind": "boxes",
+      "x": 28,
+      "z": -47,
+      "rotation": 0,
+      "destructible": true,
+      "w": 2,
+      "d": 1.5
+    }
+  ],
+  "spawns": [
+    {
+      "id": "spawn-0",
+      "type": "ammo",
+      "x": -88.5,
+      "z": 40.400000000000006,
+      "weapon": "pistol",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 8,
+      "initialDelay": 0,
+      "amount": 30
+    },
+    {
+      "id": "spawn-1",
+      "type": "ammo",
+      "x": -88.5,
+      "z": 43.2,
+      "weapon": "bazooka",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 8,
+      "initialDelay": 0,
+      "amount": 3
+    },
+    {
+      "id": "spawn-2",
+      "type": "ammo",
+      "x": -88.5,
+      "z": 46,
+      "weapon": "burstGun",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 8,
+      "initialDelay": 0,
+      "amount": 25
+    },
+    {
+      "id": "spawn-3",
+      "type": "ammo",
+      "x": -88.5,
+      "z": 48.8,
+      "weapon": "pulseGun",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 8,
+      "initialDelay": 0,
+      "amount": 15
+    },
+    {
+      "id": "spawn-4",
+      "type": "ammo",
+      "x": -88.5,
+      "z": 51.599999999999994,
+      "weapon": "machineGun",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 8,
+      "initialDelay": 0,
+      "amount": 50
+    },
+    {
+      "id": "spawn-5",
+      "type": "weapon",
+      "x": -76.5,
+      "z": 40.400000000000006,
+      "weapon": "pistol",
+      "pool": [
+        "pistol",
+        "coreBuster",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 20,
+      "initialDelay": 0,
+      "amount": 30
+    },
+    {
+      "id": "spawn-6",
+      "type": "weapon",
+      "x": -76.5,
+      "z": 43.2,
+      "weapon": "bazooka",
+      "pool": [
+        "pistol",
+        "coreBuster",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 20,
+      "initialDelay": 0,
+      "amount": 3
+    },
+    {
+      "id": "spawn-7",
+      "type": "weapon",
+      "x": -76.5,
+      "z": 46,
+      "weapon": "burstGun",
+      "pool": [
+        "pistol",
+        "coreBuster",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 20,
+      "initialDelay": 0,
+      "amount": 25
+    },
+    {
+      "id": "spawn-8",
+      "type": "weapon",
+      "x": -76.5,
+      "z": 48.8,
+      "weapon": "pulseGun",
+      "pool": [
+        "pistol",
+        "coreBuster",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 20,
+      "initialDelay": 0,
+      "amount": 15
+    },
+    {
+      "id": "spawn-9",
+      "type": "weapon",
+      "x": -76.5,
+      "z": 51.599999999999994,
+      "weapon": "machineGun",
+      "pool": [
+        "pistol",
+        "coreBuster",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 20,
+      "initialDelay": 0,
+      "amount": 50
+    },
+    {
+      "id": "spawn-10",
+      "type": "weapon",
+      "x": -76.5,
+      "z": 54.400000000000006,
+      "weapon": "coreBuster",
+      "pool": [
+        "pistol",
+        "coreBuster",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 20,
+      "initialDelay": 0,
+      "amount": 0
+    },
+    {
+      "id": "spawn-11",
+      "type": "ammo",
+      "x": 76.5,
+      "z": 40.400000000000006,
+      "weapon": "pistol",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 8,
+      "initialDelay": 0,
+      "amount": 30
+    },
+    {
+      "id": "spawn-12",
+      "type": "ammo",
+      "x": 76.5,
+      "z": 43.2,
+      "weapon": "bazooka",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 8,
+      "initialDelay": 0,
+      "amount": 3
+    },
+    {
+      "id": "spawn-13",
+      "type": "ammo",
+      "x": 76.5,
+      "z": 46,
+      "weapon": "burstGun",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 8,
+      "initialDelay": 0,
+      "amount": 25
+    },
+    {
+      "id": "spawn-14",
+      "type": "ammo",
+      "x": 76.5,
+      "z": 48.8,
+      "weapon": "pulseGun",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 8,
+      "initialDelay": 0,
+      "amount": 15
+    },
+    {
+      "id": "spawn-15",
+      "type": "ammo",
+      "x": 76.5,
+      "z": 51.599999999999994,
+      "weapon": "machineGun",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 8,
+      "initialDelay": 0,
+      "amount": 50
+    },
+    {
+      "id": "spawn-16",
+      "type": "weapon",
+      "x": 88.5,
+      "z": 40.400000000000006,
+      "weapon": "pistol",
+      "pool": [
+        "pistol",
+        "coreBuster",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 20,
+      "initialDelay": 0,
+      "amount": 30
+    },
+    {
+      "id": "spawn-17",
+      "type": "weapon",
+      "x": 88.5,
+      "z": 43.2,
+      "weapon": "bazooka",
+      "pool": [
+        "pistol",
+        "coreBuster",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 20,
+      "initialDelay": 0,
+      "amount": 3
+    },
+    {
+      "id": "spawn-18",
+      "type": "weapon",
+      "x": 88.5,
+      "z": 46,
+      "weapon": "burstGun",
+      "pool": [
+        "pistol",
+        "coreBuster",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 20,
+      "initialDelay": 0,
+      "amount": 25
+    },
+    {
+      "id": "spawn-19",
+      "type": "weapon",
+      "x": 88.5,
+      "z": 48.8,
+      "weapon": "pulseGun",
+      "pool": [
+        "pistol",
+        "coreBuster",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 20,
+      "initialDelay": 0,
+      "amount": 15
+    },
+    {
+      "id": "spawn-20",
+      "type": "weapon",
+      "x": 88.5,
+      "z": 51.599999999999994,
+      "weapon": "machineGun",
+      "pool": [
+        "pistol",
+        "coreBuster",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 20,
+      "initialDelay": 0,
+      "amount": 50
+    },
+    {
+      "id": "spawn-21",
+      "type": "weapon",
+      "x": 88.5,
+      "z": 54.400000000000006,
+      "weapon": "coreBuster",
+      "pool": [
+        "pistol",
+        "coreBuster",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 20,
+      "initialDelay": 0,
+      "amount": 0
+    },
+    {
+      "id": "spawn-22",
+      "type": "ammo",
+      "x": -9,
+      "z": -2,
+      "weapon": "random",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 30,
+      "initialDelay": 0,
+      "amount": 0
+    },
+    {
+      "id": "spawn-23",
+      "type": "ammo",
+      "x": 9,
+      "z": -2,
+      "weapon": "random",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 12,
+      "initialDelay": 0,
+      "amount": 0
+    },
+    {
+      "id": "spawn-24",
+      "type": "ammo",
+      "x": -47.6,
+      "z": 15,
+      "weapon": "pistol",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 40,
+      "initialDelay": 0,
+      "amount": 30
+    },
+    {
+      "id": "spawn-25",
+      "type": "ammo",
+      "x": -46.3,
+      "z": 15,
+      "weapon": "bazooka",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 40,
+      "initialDelay": 0,
+      "amount": 3
+    },
+    {
+      "id": "spawn-26",
+      "type": "ammo",
+      "x": -45,
+      "z": 15,
+      "weapon": "burstGun",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 40,
+      "initialDelay": 0,
+      "amount": 25
+    },
+    {
+      "id": "spawn-27",
+      "type": "ammo",
+      "x": -43.7,
+      "z": 15,
+      "weapon": "pulseGun",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 40,
+      "initialDelay": 0,
+      "amount": 15
+    },
+    {
+      "id": "spawn-28",
+      "type": "ammo",
+      "x": -42.4,
+      "z": 15,
+      "weapon": "machineGun",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 40,
+      "initialDelay": 0,
+      "amount": 50
+    },
+    {
+      "id": "spawn-29",
+      "type": "ammo",
+      "x": 42.4,
+      "z": 15,
+      "weapon": "pistol",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 40,
+      "initialDelay": 0,
+      "amount": 30
+    },
+    {
+      "id": "spawn-30",
+      "type": "ammo",
+      "x": 43.7,
+      "z": 15,
+      "weapon": "bazooka",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 40,
+      "initialDelay": 0,
+      "amount": 3
+    },
+    {
+      "id": "spawn-31",
+      "type": "ammo",
+      "x": 45,
+      "z": 15,
+      "weapon": "burstGun",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 40,
+      "initialDelay": 0,
+      "amount": 25
+    },
+    {
+      "id": "spawn-32",
+      "type": "ammo",
+      "x": 46.3,
+      "z": 15,
+      "weapon": "pulseGun",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 40,
+      "initialDelay": 0,
+      "amount": 15
+    },
+    {
+      "id": "spawn-33",
+      "type": "ammo",
+      "x": 47.6,
+      "z": 15,
+      "weapon": "machineGun",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 40,
+      "initialDelay": 0,
+      "amount": 50
+    },
+    {
+      "id": "3fcebadb-b5b6-4232-8e6b-38d422452cdb",
+      "type": "weapon",
+      "x": -65,
+      "z": -45,
+      "weapon": "random",
+      "pool": [
+        "pistol",
+        "coreBuster",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 30,
+      "initialDelay": 0,
+      "amount": 0
+    },
+    {
+      "id": "e4cb5e1a-e266-4b9f-98f3-97ed7c59d8e4",
+      "type": "weapon",
+      "x": 65,
+      "z": -45,
+      "weapon": "random",
+      "pool": [
+        "pistol",
+        "coreBuster",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 30,
+      "initialDelay": 0,
+      "amount": 0
+    },
+    {
+      "id": "7de44470-254f-45d2-93ff-dd77e7bf89f1",
+      "type": "superMedkit",
+      "x": -41,
+      "z": -46,
+      "weapon": "pistol",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 15,
+      "initialDelay": 0,
+      "amount": 0
+    },
+    {
+      "id": "52a00326-ce5d-4b64-94c9-7a4bb7d571c6",
+      "type": "superMedkit",
+      "x": 42,
+      "z": -46,
+      "weapon": "pistol",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 15,
+      "initialDelay": 0,
+      "amount": 0
+    },
+    {
+      "id": "5d812d0b-309e-4053-9b92-4e8734934630",
+      "type": "medkit",
+      "x": -8,
+      "z": -14,
+      "weapon": "pistol",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 15,
+      "initialDelay": 0,
+      "amount": 0
+    },
+    {
+      "id": "c45f4600-7579-4806-b35d-9ba1fbb96293",
+      "type": "medkit",
+      "x": 9,
+      "z": -14,
+      "weapon": "pistol",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 15,
+      "initialDelay": 0,
+      "amount": 0
+    },
+    {
+      "id": "fc368e8d-3f7e-479b-bee1-0344898c613a",
+      "type": "medkit",
+      "x": -9,
+      "z": 35,
+      "weapon": "pistol",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 15,
+      "initialDelay": 0,
+      "amount": 0
+    },
+    {
+      "id": "650b3d54-9511-445e-ae4d-06e646c39341",
+      "type": "medkit",
+      "x": 9,
+      "z": 35,
+      "weapon": "pistol",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 60,
+      "initialDelay": 0,
+      "amount": 0
+    },
+    {
+      "id": "666f288a-12e0-41aa-a9d6-aea047cbe282",
+      "type": "medkit",
+      "x": -9,
+      "z": 35,
+      "weapon": "pistol",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 60,
+      "initialDelay": 0,
+      "amount": 0
+    },
+    {
+      "id": "9718d1aa-5f83-4592-9dcd-d768429c1fdf",
+      "type": "medkit",
+      "x": -8,
+      "z": -14,
+      "weapon": "pistol",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 60,
+      "initialDelay": 0,
+      "amount": 0
+    },
+    {
+      "id": "9bbba9b9-3c3b-4e7e-af12-9fdb47a0d537",
+      "type": "medkit",
+      "x": 9,
+      "z": -14,
+      "weapon": "pistol",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 60,
+      "initialDelay": 0,
+      "amount": 0
+    },
+    {
+      "id": "1f9a8910-d509-49b4-99cb-020a90e84699",
+      "type": "medkit",
+      "x": -41,
+      "z": -46,
+      "weapon": "pistol",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 120,
+      "initialDelay": 0,
+      "amount": 0
+    },
+    {
+      "id": "ede8cdf5-49cb-49c0-b00f-1fc97d107458",
+      "type": "medkit",
+      "x": 42,
+      "z": -46,
+      "weapon": "pistol",
+      "pool": [
+        "pistol",
+        "bazooka",
+        "burstGun",
+        "pulseGun",
+        "machineGun"
+      ],
+      "interval": 120,
+      "initialDelay": 0,
+      "amount": 0
+    }
+  ]
+}
