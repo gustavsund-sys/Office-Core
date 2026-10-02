@@ -710,3 +710,37 @@ test("four bazooka direct hits destroy an active Core even when fired outside it
     s.engine.dispose();
   }
 });
+
+function detonateBuster(s: ReturnType<typeof setup>) {
+  s.weapon.equip("coreBuster");
+  s.weapon.update({ ...idle, pressed: true }, 0.01);
+  s.sync();
+  s.weapon.update(idle, 25);
+}
+test("Core buster deals 500 Core damage, lethal close damage and falling splash", () => {
+  const s = setup();
+  try {
+    const core = new Damageable(s.world, "core", 0, 2.5, "BLUE");
+    const close = new Damageable(s.world, "target", 0.6, 0);
+    const distant = new Damageable(s.world, "target", -2.5, 0);
+    const outside = new Damageable(s.world, "target", -5, 0);
+    detonateBuster(s);
+    assert.equal(core.hp, 500);
+    assert.equal(close.hp, 0);
+    assert.ok(distant.hp > 0 && distant.hp < 100);
+    assert.equal(outside.hp, 100);
+    assert.equal(s.player.hp, 0);
+  } finally { s.engine.dispose(); }
+});
+test("walls and office furniture protect targets from Core buster splash", () => {
+  for (const furniture of [false, true]) {
+    const s = setup();
+    try {
+      const target = new Damageable(s.world, "target", 2.5, 0);
+      const cover = s.world.box("blast cover", 1.3, 1, 0, 0.2, 2, 4, "#888888", !furniture);
+      if (furniture) new Destructible(s.world, {kind: "server", x: 1.3, z: 0} as never, [cover], [], s.world.explosions);
+      detonateBuster(s);
+      assert.equal(target.hp, 100);
+    } finally { s.engine.dispose(); }
+  }
+});

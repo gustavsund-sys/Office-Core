@@ -98,6 +98,7 @@ export class Weapons {
       charge.timer -= dt;
       if (charge.timer <= 0) {
         const position = charge.mesh.position;
+        this.coreBusterBlast(position);
         for (const wall of this.player.world.destructibles) {
           if (
             wall.prop.kind === "coreDoor" &&
@@ -295,6 +296,75 @@ export class Weapons {
     if (this.id !== "burstGun" || this.burstRemaining === 4) this.onShot();
     this.ammo--;
   }
+  private blastBlocked(origin: Vector3, position: Vector3, victim: Hittable) {
+    const delta = position.subtract(origin),
+      length = delta.length();
+    if (length <= 0.15) return false;
+    return !!this.player.world.scene.pickWithRay(
+      new Ray(
+        origin.add(delta.normalizeToNew().scale(0.08)),
+        delta.normalizeToNew(),
+        length - 0.12,
+      ),
+      (mesh) =>
+        mesh.isEnabled() &&
+        mesh.metadata?.damageable !== victim &&
+        (!!mesh.metadata?.solid ||
+          mesh.metadata?.damageable instanceof Destructible),
+    )?.hit;
+  }
+  private coreBusterBlast(position: Vector3) {
+    const origin = position.add(new Vector3(0, 0.62, 0));
+    const victims = new Map<Hittable, Vector3>();
+    for (const mesh of this.player.world.scene.meshes) {
+      const victim = mesh.metadata?.damageable as Hittable | undefined;
+      if (victim && victim.hp > 0 && mesh.isEnabled() && !victims.has(victim))
+        victims.set(
+          victim,
+          (victim as Hittable & { position?: Vector3 }).position ??
+            mesh.getAbsolutePosition(),
+        );
+    }
+    if (!this.player.bodyMeshes.some((mesh) => mesh.metadata?.damageable)) {
+      const player = this.player;
+      const self: Hittable = {
+        get hp() {
+          return player.hp;
+        },
+        canDamageFrom: () => true,
+        damage: (amount) => {
+          player.hp = Math.max(0, player.hp - amount);
+        },
+      };
+      victims.set(self, player.root.position.add(new Vector3(0, 1.1, 0)));
+    }
+    const hits: { victim: Hittable; damage: number }[] = [];
+    for (const [victim, target] of victims) {
+      if (victim instanceof Destructible) continue;
+      const distance = Math.hypot(target.x - origin.x, target.z - origin.z);
+      if (distance >= 4) continue;
+      const aim = target.clone();
+      aim.y = Math.max(aim.y, 1.1);
+      if (this.blastBlocked(origin, aim, victim)) continue;
+      if (victim.kind === "core") {
+        if ((victim as Hittable & { active?: boolean }).active === false)
+          continue;
+        hits.push({ victim, damage: 500 });
+      } else {
+        // Lethal within one metre, then the same linear falloff as bazooka splash.
+        hits.push({
+          victim,
+          damage: Math.max(1, Math.round(140 * (1 - distance / 4))),
+        });
+      }
+    }
+    // Resolve cover for everyone before any explosion damage can remove it.
+    for (const { victim, damage } of hits) {
+      const before = victim.hp;
+      victim.damage(damage);
+      if (victim.hp < before) this.onHit(victim, before - victim.hp);
+    }
+  }
   private updateRockets(dt: number) {
     const scene = this.player.world.scene;
     for (const rocket of [...this.rockets]) {
@@ -356,24 +426,8 @@ export class Weapons {
             )
               continue;
             if (victim !== target) {
-              const delta = position.subtract(hit.pickedPoint),
-                length = delta.length();
-              const obstruction =
-                length > 0.15
-                  ? scene.pickWithRay(
-                      new Ray(
-                        hit.pickedPoint.add(delta.normalizeToNew().scale(0.08)),
-                        delta.normalizeToNew(),
-                        length - 0.12,
-                      ),
-                      (mesh) =>
-                        mesh.isEnabled() &&
-                        mesh.metadata?.damageable !== victim &&
-                        (!!mesh.metadata?.solid ||
-                          mesh.metadata?.damageable?.prop?.kind === "coreDoor"),
-                    )
-                  : null;
-              if (obstruction?.hit) continue;
+              if (this.blastBlocked(hit.pickedPoint, position, victim))
+                continue;
             }
             const before = victim.hp;
             victim.damage(
