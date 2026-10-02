@@ -683,3 +683,23 @@ test("solid walls shield nearby targets from bazooka splash", () => {
     s.engine.dispose();
   }
 });
+
+test("four bazooka direct hits destroy an active Core even when fired outside its proximity shield", () => {
+  const s = setup();
+  try {
+    const core = new Damageable(s.world, "core", 0, 8, "BLUE");
+    assert.equal(core.canDamageFrom(s.player.root.position), false);
+    s.sync();
+    s.weapon.equip("bazooka");
+    s.weapon.ammo = 4;
+    for (let shot = 0; shot < 4; shot++) {
+      s.weapon.cooldown = 0;
+      s.weapon.update({ ...idle, fire: true, pressed: true }, 1 / 30);
+      for (let i = 0; i < 50 && s.weapon.rockets.length; i++)
+        s.weapon.update(idle, 1 / 30);
+      assert.equal(core.hp, 1000 - 250 * (shot + 1));
+    }
+  } finally {
+    s.engine.dispose();
+  }
+});

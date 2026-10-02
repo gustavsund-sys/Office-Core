@@ -349,7 +349,12 @@ export class Weapons {
           for (const [victim, position] of candidates) {
             const distance = Vector3.Distance(hit.pickedPoint, position);
             if (victim !== target && distance >= 4) continue;
-            if (!victim.canDamageFrom(rocket.origin)) continue;
+            if (
+              !(victim === target && victim.kind === "core"
+                ? (victim as Hittable & { active?: boolean }).active !== false
+                : victim.canDamageFrom(rocket.origin))
+            )
+              continue;
             if (victim !== target) {
               const delta = position.subtract(hit.pickedPoint),
                 length = delta.length();
@@ -373,7 +378,9 @@ export class Weapons {
             const before = victim.hp;
             victim.damage(
               victim === target
-                ? WEAPONS.bazooka.damage
+                ? victim.kind === "core"
+                  ? 250
+                  : WEAPONS.bazooka.damage
                 : Math.max(1, Math.round(90 * (1 - distance / 4))),
             );
             if (victim.hp < before) this.onHit(victim, before - victim.hp);
