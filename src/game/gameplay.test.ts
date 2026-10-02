@@ -194,7 +194,7 @@ test("Core rooms require a destroyed door, while spawn pads stay reachable", () 
     const doors = s.world.destructibles.filter(
       (d) => d.prop.kind === "coreDoor",
     );
-    assert.equal(doors.length, 12, "three doors for each of four cores");
+    assert.equal(doors.length, 6, "three doors for each of two cores");
     for (const b of office01.bases) {
       const spawnZ = b.z - Math.sign(b.z) * 9;
       assert.equal(
@@ -512,7 +512,9 @@ test("drop zones offer every weapon and inventory holds pistol plus one special"
   const s = setup();
   try {
     const pickups = new Pickup(s.world);
-    assert.equal(pickups.endpoints.length, 24);
+    assert.equal(pickups.endpoints.length, 12);
+    assert.equal(office01.weaponEnds.length, 2);
+    assert.ok(office01.weaponEnds.every((zone) => zone.z > 0));
     const drop = pickups.endpoints.find((drop) => drop.id === "bazooka")!;
     s.player.root.position.set(drop.root.position.x, 0, drop.root.position.z);
     pickups.update(0.01, 0, s.weapon, () => {});

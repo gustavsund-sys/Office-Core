@@ -2,6 +2,10 @@
 
 Babylon.js/Vite-klient och en authoritative Colyseus-server. Servern tillhandahåller ett enda OFFICE01-rum med spelare, pickups och cores. Spelarna kan inte skapa rum. Firebase Anonymous Auth identifierar spelare; servern verifierar ID-token med Firebase Admin. Matchdata sparas i serverminne, inte Firebase. Den befintliga gameplay-koden återanvänds.
 
+## Speldesign
+
+Två lag, RED och BLUE, med högst fyra spelare per lag. Den norra kartdelen och hela atrium behålls; södra baser, rum och vapenzoner är borttagna. Den kvarvarande kartan är 25 % längre i sidled, med anpassade korridorer och möbler.
+
 ## Lokal utveckling
 
 Node 22.12+ och pnpm. Kör `pnpm install`. Aktivera Anonymous Authentication i Firebase-projektet officecore-ad307.
@@ -44,7 +48,7 @@ pnpm deploy:server
 VITE_GAME_SERVER_URL=wss://<cloud-run-host> pnpm deploy:web
 ```
 
-Server-scriptet använder Cloud Run `europe-north1` (Finland, nära Sverige), 1 CPU, 1 GiB, min 0/max 1 instans, timeout 3600 sekunder, session affinity och ett enda rum med högst 16 spelare. Dockerfile kör TypeScript med tsx. Produktionsklienten byggs med HTTPS/WSS-adressen. Ingen emulator eller lokal guest används i production. Cloud Run använder service identity/default credentials.
+Server-scriptet använder Cloud Run `europe-north1` (Finland, nära Sverige), 1 CPU, 1 GiB, min 0/max 1 instans, timeout 3600 sekunder, session affinity och ett enda rum med högst 8 spelare. Dockerfile kör TypeScript med tsx. Produktionsklienten byggs med HTTPS/WSS-adressen. Ingen emulator eller lokal guest används i production. Cloud Run använder service identity/default credentials.
 
 Cloud Run, Cloud Build och Artifact Registry krävs för source deployment. Om de saknas behöver de aktiveras i projektet. Deployment använder byggkontot office-core-builder med rollen roles/run.builder. Cloud Build, Cloud Run och Artifact Registry aktiverades i projektet. Kontrollera IAM innan första deployment i ett annat projekt. Hosting deploy-scriptet publicerar endast hosting och skriver inte över existerande databasregler. Medföljande Firestore/Storage-regler nekar all åtkomst eftersom spelet inte använder databaserna; granska befintliga resurser innan dessa regler deployas.
 

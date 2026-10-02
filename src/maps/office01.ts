@@ -27,27 +27,23 @@ export interface Wall {
 export interface Room extends Wall {
   name: string;
 }
-const size = 176;
+const size = 220;
+const stretch = 1.25;
 const bases = [
   { team: "RED", x: -40, z: 40 },
   { team: "BLUE", x: 40, z: 40 },
-  { team: "GREEN", x: -40, z: -40 },
-  { team: "YELLOW", x: 40, z: -40 },
 ] as { team: Team; x: number; z: number }[];
 const rooms: Room[] = [
   { name: "RECEPTION / COMBAT ATRIUM", x: 0, z: 0, w: 32, d: 32 },
   { name: "OPEN OFFICE", x: -36, z: 10, w: 16, d: 12 },
   { name: "MEETING ROOM", x: 36, z: 10, w: 16, d: 12 },
-  { name: "KITCHEN", x: -36, z: -10, w: 16, d: 12 },
-  { name: "SERVER ROOM", x: 36, z: -10, w: 16, d: 12 },
   { name: "NORTH LOGISTICS", x: 0, z: 40, w: 16, d: 12 },
-  { name: "SOUTH ARCHIVE", x: 0, z: -40, w: 16, d: 12 },
 ];
 // Rectangles define the walkable footprint. Their union is rasterised into 2 m
 // cells; merged boundary segments produce real walls, not decorative lines.
 const corridors: Wall[] = [];
 for (const sx of [-1, 1])
-  for (const sz of [-1, 1]) {
+  for (const sz of [1]) {
     corridors.push(
       { x: sx * 32, z: sz * 40, w: 20, d: 6 },
       { x: sx * 24, z: sz * 33, w: 6, d: 20 },
@@ -59,11 +55,11 @@ for (const sx of [-1, 1])
       { x: sx * 20, z: sz * 8, w: 14, d: 6 },
     );
   }
-corridors.push({ x: 0, z: 40, w: 52, d: 6 }, { x: 0, z: -40, w: 52, d: 6 });
-// Four exterior dog-leg corridors, connected outside the core rooms.
+corridors.push({ x: 0, z: 40, w: 52, d: 6 });
+// Two exterior dog-leg corridors, connected outside the core rooms.
 const weaponEnds: { x: number; z: number }[] = [];
 for (const sx of [-1, 1])
-  for (const sz of [-1, 1]) {
+  for (const sz of [1]) {
     corridors.push(
       { x: sx * 54, z: sz * 30, w: 30, d: 6 },
       { x: sx * 66, z: sz * 49, w: 6, d: 44 },
@@ -71,6 +67,15 @@ for (const sx of [-1, 1])
     );
     weaponEnds.push({ x: sx * 66, z: sz * 70 });
   }
+// Stretch the surviving north wing horizontally, keeping core rooms and drop
+// arenas at their original dimensions. Furniture keeps its physical size.
+for (const base of bases) base.x *= stretch;
+for (const room of rooms) { room.x *= stretch; room.w *= stretch; }
+for (const corridor of corridors) {
+  corridor.x *= stretch;
+  if (corridor.d !== 20 || corridor.w !== 20) corridor.w *= stretch;
+}
+for (const endpoint of weaponEnds) endpoint.x *= stretch;
 const footprint: Wall[] = [
   ...rooms,
   ...corridors,
@@ -129,16 +134,8 @@ const props: Prop[] = [
     [8, 13].map((z) => ({ kind: "desk" as const, x, z, destructible: true })),
   ),
   { kind: "desk", x: 36, z: 10, w: 6, d: 2.5, destructible: true },
-  { kind: "counter", x: -36, z: -12, w: 7, d: 1.5, destructible: true },
-  { kind: "copier", x: -33, z: -7, destructible: true },
-  ...[32, 36, 40].map((x) => ({
-    kind: "server" as const,
-    x,
-    z: -10,
-    destructible: true,
-  })),
   ...[-4, 0, 4].flatMap((x) =>
-    [37, -37].map((z) => ({
+    [37].map((z) => ({
       kind: "cabinet" as const,
       x,
       z,
@@ -147,7 +144,7 @@ const props: Prop[] = [
   ),
 ];
 for (const sx of [-1, 1])
-  for (const sz of [-1, 1]) {
+  for (const sz of [1]) {
     props.push(
       { kind: "copier", x: sx * 32, z: sz * 41.5, destructible: true },
       { kind: "cabinet", x: sx * 25.5, z: sz * 33, destructible: true },
@@ -158,10 +155,24 @@ for (const sx of [-1, 1])
       { kind: "cabinet", x: sx * 10, z: sz * 3, destructible: true },
     );
   }
+for (const prop of props) prop.x *= stretch;
+// Additional workstations fill the enlarged office without blocking its centre.
+for (const x of [-49, -41])
+  props.push({ kind: "desk", x, z: 5.5, destructible: true });
+for (const x of [-8, 8])
+  props.push({ kind: "plant", x, z: 43, destructible: true });
+props.push(
+  { kind: "cabinet", x: 49, z: 13, destructible: true },
+  { kind: "copier", x: 41, z: 5.5, destructible: true },
+);
 export const office01 = {
   name: "Office01",
   size,
-  spawn: { x: -40, z: 31 },
+  width: 220,
+  depth: 112,
+  centerZ: 32,
+  stretch,
+  spawn: { x: -50, z: 31 },
   bases,
   rooms,
   corridors,
@@ -169,10 +180,9 @@ export const office01 = {
   walls: [
     ...boundaryWalls(),
     // Permanent cover breaks long shots without dividing the open arena.
-    { x: -5, z: 2, w: 3, d: 0.5 },
-    { x: 5, z: -2, w: 3, d: 0.5 },
+    { x: -6.25, z: 2, w: 3, d: 0.5 },
+    { x: 6.25, z: -2, w: 3, d: 0.5 },
     { x: -2, z: 40, w: 0.5, d: 3 },
-    { x: 2, z: -40, w: 0.5, d: 3 },
   ],
   props,
   targets: [
@@ -181,7 +191,7 @@ export const office01 = {
     { x: 12, z: -8 },
     { x: -12, z: -8 },
     { x: 0, z: -13 },
-    { x: -24, z: 36 },
+    { x: -30, z: 36 },
   ],
   weaponEnds,
   pickup: { x: 0, z: 1 },

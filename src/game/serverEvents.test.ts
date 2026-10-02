@@ -83,3 +83,29 @@ test("New match closes a finished room but cannot interrupt a running match", as
   await room.restartFinishedMatch();
   assert.equal(closed, 1);
 });
+
+
+test("server limits teams to four players and refuses a ninth participant", () => {
+  const room = new OfficeRoom();
+  room.roomId = "capacity-test";
+  room.onCreate({ hosted: true });
+  room.clock.clear();
+  room.setSimulationInterval(undefined as never);
+  room.setPatchRate(null);
+  const join = (id: string) => room.onJoin(
+    { sessionId: id, send: () => {} } as unknown as Client,
+    { team: "RED" }, { uid: id },
+  );
+  try {
+    assert.equal(room.maxClients, 8);
+    for (let i = 0; i < 8; i++) join(`player-${i}`);
+    for (const team of ["RED", "BLUE"] as const)
+      assert.equal([...room.participants.values()].filter((p) => p.team === team).length, 4);
+    assert.equal(room.teamHasSpace("RED"), false);
+    assert.equal(room.teamHasSpace("RED", "player-0"), true);
+    assert.throws(() => join("player-8"), /Both teams are full/);
+    assert.equal(room.participants.size, 8);
+  } finally {
+    room.onDispose();
+  }
+});

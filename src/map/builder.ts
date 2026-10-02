@@ -110,8 +110,7 @@ export class World {
     }
   }
   build() {
-    const size = office01.size;
-    this.box("foundation", 0, -0.3, 0, size + 1, 0.6, size + 1, "#13232e");
+    this.box("foundation", 0, -0.3, office01.centerZ, office01.width + 1, 0.6, office01.depth + 1, "#13232e");
     for (const r of office01.footprint)
       this.box("walkable floor", r.x, -0.045, r.z, r.w, 0.08, r.d, "#617577");
     for (const r of office01.corridors) {
@@ -127,14 +126,14 @@ export class World {
       );
     }
     for (const sx of [-1, 1])
-      for (const sz of [-1, 1]) {
-        this.label("ATRIUM >", sx * 18, sz * 26, "#edcb89", 4);
-        this.label("TRANSIT / 01", sx * 24, sz * 33, "#b5d5d4", 3.5);
-        this.label("Weapon drop zone", sx * 49, sz * 30, "#ffdc66", 6);
+      for (const sz of [1]) {
+        this.label("ATRIUM >", sx * 18 * office01.stretch, sz * 26, "#edcb89", 4);
+        this.label("TRANSIT / 01", sx * 24 * office01.stretch, sz * 33, "#b5d5d4", 3.5);
+        this.label("Weapon drop zone", sx * 49 * office01.stretch, sz * 30, "#ffdc66", 6);
         // Ground arrow points away from the office into the exterior passage.
-        this.box("drop zone arrow shaft", sx * 53, 0.065, sz * 30, 2.2, 0.035, 0.22, "#ffdc66", false, true);
+        this.box("drop zone arrow shaft", sx * 53 * office01.stretch, 0.065, sz * 30, 2.2, 0.035, 0.22, "#ffdc66", false, true);
         for (const direction of [-1, 1]) {
-          const wing = this.box("drop zone arrow head", sx * 53.75, 0.065, sz * 30 + direction * 0.35, 1.05, 0.035, 0.22, "#ffdc66", false, true);
+          const wing = this.box("drop zone arrow head", sx * 53.75 * office01.stretch, 0.065, sz * 30 + direction * 0.35, 1.05, 0.035, 0.22, "#ffdc66", false, true);
           wing.rotation.y = sx * direction * Math.PI / 4;
         }
       }

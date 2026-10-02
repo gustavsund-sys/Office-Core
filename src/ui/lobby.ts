@@ -1,4 +1,4 @@
-import { TEAMS, type Team } from "../config/game";
+import { TEAMS, MAX_PLAYERS_PER_TEAM, type Team } from "../config/game";
 import type { MatchMember } from "../game/match";
 
 export class Lobby {
@@ -23,8 +23,11 @@ export class Lobby {
       const team = card.dataset.team as Team;
       const players = members.filter(member => member.team === team);
       card.classList.toggle("selected", team === selected);
-      card.querySelector<HTMLInputElement>("input")!.checked = team === selected;
-      card.querySelector(".lobby-core-status")!.textContent = players.length ? `AKTIV CORE · ${players.length} SPELARE` : "INAKTIV CORE · INGA SPELARE";
+      const input = card.querySelector<HTMLInputElement>("input")!;
+      input.checked = team === selected;
+      input.disabled = players.length >= MAX_PLAYERS_PER_TEAM && team !== selected;
+      card.querySelector(".lobby-join")!.textContent = input.disabled ? "LAGET ÄR FULLT" : "VÄLJ DETTA LAG →";
+      card.querySelector(".lobby-core-status")!.textContent = players.length ? `AKTIV CORE · ${players.length}/${MAX_PLAYERS_PER_TEAM} SPELARE` : "INAKTIV CORE · 0/4 SPELARE";
       const list = card.querySelector("ul")!;
       list.replaceChildren();
       for (const player of players) {

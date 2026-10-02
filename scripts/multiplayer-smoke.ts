@@ -76,8 +76,10 @@ try {
     s.players.some((p) => p.name === "Bobby"),
   );
   assert.equal(renamed.players.length, 2);
-  b.send(MSG.team, "GREEN");
-  await wait(a, (s) => s.players.some((p) => p.team === "GREEN"));
+  b.send(MSG.team, "RED");
+  await wait(a, (s) => s.players.every((p) => p.team === "RED"));
+  b.send(MSG.team, "BLUE");
+  await wait(a, (s) => s.players.some((p) => p.team === "BLUE"));
   a.send(MSG.start);
   const started = await wait(a, (s) => s.started);
   a.send(MSG.input, {

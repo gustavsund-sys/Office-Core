@@ -32,7 +32,7 @@ export class Debug {
     window.addEventListener("keydown", (e) => {
       if (this.enabled && e.code === "Digit1")
         player.root.position.set(0, 0, 1);
-      if (this.enabled && /^Digit[2-5]$/.test(e.code)) {
+      if (this.enabled && /^Digit[2-3]$/.test(e.code)) {
         const b = office01.bases[Number(e.code.slice(-1)) - 2];
         player.root.position.set(b.x, 0, b.z - Math.sign(b.z) * 9);
       }
@@ -59,6 +59,6 @@ export class Debug {
       m.setEnabled(this.world.obstacles.includes(this.obstacles[i])),
     );
     const v = player.root.position;
-    this.el.textContent = `DEBUG / F2\nFPS ${fps.toFixed(0)}\nPLAYER ${v.x.toFixed(2)}, ${v.z.toFixed(2)} / HP ${player.hp}\nCAMERA ${JSON.stringify(CONFIG.camera)}\nWEAPON ${w.id} / AMMO ${w.ammo}\nWEAPON DROPS ${p.endpoints.length} / AMMO DROPS ${p.ammoDrops.length}\n${cores.map((c) => `${c.team} ${c.hp}`).join(" · ")}\nPINK = COLLISION BOUNDS\nTELEPORT: 1 Reception / 2 Red / 3 Blue / 4 Green / 5 Yellow`;
+    this.el.textContent = `DEBUG / F2\nFPS ${fps.toFixed(0)}\nPLAYER ${v.x.toFixed(2)}, ${v.z.toFixed(2)} / HP ${player.hp}\nCAMERA ${JSON.stringify(CONFIG.camera)}\nWEAPON ${w.id} / AMMO ${w.ammo}\nWEAPON DROPS ${p.endpoints.length} / AMMO DROPS ${p.ammoDrops.length}\n${cores.map((c) => `${c.team} ${c.hp}`).join(" · ")}\nPINK = COLLISION BOUNDS\nTELEPORT: 1 Reception / 2 Red / 3 Blue`;
   }
 }

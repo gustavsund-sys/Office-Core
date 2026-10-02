@@ -15,7 +15,7 @@ import { Weapons } from "../src/weapons/system";
 import { Pickup } from "../src/pickups/pickup";
 import { Damageable } from "../src/core/damageable";
 import { office01 } from "../src/maps/office01";
-import { TEAMS, type Team } from "../src/config/game";
+import { TEAMS, MAX_PLAYERS, MAX_PLAYERS_PER_TEAM, type Team } from "../src/config/game";
 import {
   MSG,
   validInput,
@@ -78,7 +78,7 @@ export class OfficeRoom extends Room {
     OfficeRoom.active++;
     this.counted = true;
     OfficeRoom.rooms.set(this.roomId, this);
-    this.maxClients = Number(process.env.MAX_PLAYERS_PER_ROOM ?? 16);
+    this.maxClients = MAX_PLAYERS;
     this.engine = new NullEngine();
     this.scene = new Scene(this.engine);
     new FreeCamera("server", new Vector3(0, 30, -20), this.scene);
@@ -151,7 +151,8 @@ export class OfficeRoom extends Room {
         p &&
         !this.started &&
         typeof team === "string" &&
-        Object.hasOwn(TEAMS, team)
+        Object.hasOwn(TEAMS, team) &&
+        this.teamHasSpace(team as Team, client.sessionId)
       ) {
         p.team = team as Team;
         this.spawn(p);
@@ -231,6 +232,10 @@ export class OfficeRoom extends Room {
   ) {
     if ([...this.participants.values()].some((p) => p.uid === auth.uid))
       throw new ServerError(409, "Already in match");
+    const requestedTeam = Object.hasOwn(TEAMS, options.team ?? "") ? options.team! : "RED";
+    const team = this.teamHasSpace(requestedTeam) ? requestedTeam
+      : (Object.keys(TEAMS) as Team[]).find((candidate) => this.teamHasSpace(candidate));
+    if (!team) throw new ServerError(409, "Both teams are full");
     const player = new Player(this.world);
     const participant: Participant = {
       uid: auth.uid,
@@ -238,7 +243,7 @@ export class OfficeRoom extends Room {
         typeof options.name === "string"
           ? options.name.trim().slice(0, 24) || "Player"
           : "Player",
-      team: Object.hasOwn(TEAMS, options.team ?? "") ? options.team! : "RED",
+      team,
       player,
       weapons: undefined!,
       input: idle(),
@@ -335,6 +340,9 @@ export class OfficeRoom extends Room {
     this.scene.render();
     client.send(MSG.snapshot, this.snapshot());
     console.info("player joined", this.roomId);
+  }
+  teamHasSpace(team: Team, exceptId?: string) {
+    return [...this.participants.entries()].filter(([id, p]) => id !== exceptId && p.team === team).length < MAX_PLAYERS_PER_TEAM;
   }
   spawn(p: Participant) {
     const base = office01.bases.find((base) => base.team === p.team)!;

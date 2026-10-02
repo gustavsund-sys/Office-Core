@@ -22,7 +22,7 @@ export const CONFIG = {
 export const TEAMS = {
   RED: "#fa675f",
   BLUE: "#55b6ff",
-  GREEN: "#62d69a",
-  YELLOW: "#f4ce65",
 } as const;
+export const MAX_PLAYERS_PER_TEAM = 4;
+export const MAX_PLAYERS = MAX_PLAYERS_PER_TEAM * Object.keys(TEAMS).length;
 export type Team = keyof typeof TEAMS;
