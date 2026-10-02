@@ -158,6 +158,10 @@ export class OfficeRoom extends Room {
         this.refreshCores();
       }
     });
+    this.onMessage(MSG.restart, async (client) => {
+      if (!this.permit(client)) return;
+      await this.restartFinishedMatch();
+    });
     this.onMessage(MSG.start, (client) => {
       if (!this.permit(client)) return;
       if (
@@ -550,6 +554,10 @@ export class OfficeRoom extends Room {
       started: this.started,
       winner: this.winner,
     };
+  }
+  async restartFinishedMatch() {
+    if (!this.winner) return;
+    await this.disconnect();
   }
   event(event: NetEvent) {
     this.broadcast(MSG.event, event);

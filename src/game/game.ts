@@ -455,11 +455,19 @@ export class Game {
       const button = panel.querySelector<HTMLButtonElement>("#leave-room")!;
       button.disabled = true;
       try {
-        this.multiplayer?.clearResume();
-        await this.multiplayer?.room?.leave();
+        await this.multiplayer?.leave();
       } finally {
         location.reload();
       }
+    });
+    const leaveInGame = document.createElement("button");
+    leaveInGame.id = "leave-game";
+    leaveInGame.textContent = "LÄMNA LOBBY";
+    leaveInGame.hidden = true;
+    this.hud.el.querySelector("header")!.append(leaveInGame);
+    leaveInGame.addEventListener("click", () => {
+      leaveInGame.disabled = true;
+      panel.querySelector<HTMLButtonElement>("#leave-room")!.click();
     });
     const connect = async (id: string) => {
       if (this.multiplayer?.room || busy) return;
@@ -591,6 +599,7 @@ export class Game {
           .forEach((button) => (button.disabled = true));
         const leave = panel.querySelector<HTMLButtonElement>("#leave-room")!;
         leave.hidden = false;
+        leaveInGame.hidden = false;
         leave.disabled = false;
         panel.querySelector<HTMLElement>("#available-rooms")!.hidden = true;
         panel.querySelector("h3")!.textContent = "SPELLOBBY · OFFICE01";
@@ -756,6 +765,7 @@ export class Game {
       showVictory(
         snapshot.winner,
         this.match.members.filter((m) => m.team === snapshot.winner),
+        () => this.multiplayer?.room?.send(MSG.restart),
       );
     }
   }

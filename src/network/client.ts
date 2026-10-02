@@ -21,6 +21,7 @@ if (import.meta.env.VITE_AUTH_EMULATOR_URL)
   connectAuthEmulator(auth, import.meta.env.VITE_AUTH_EMULATOR_URL);
 export class Multiplayer {
   sequence = 0;
+  leaving = false;
   constructor() {
     window.addEventListener("pagehide", () => this.saveResume());
   }
@@ -45,8 +46,14 @@ export class Multiplayer {
       sessionStorage.removeItem("officeCore.resume");
     } catch {}
   }
+  async leave() {
+    this.leaving = true;
+    this.connected = false;
+    this.clearResume();
+    await this.room?.leave();
+  }
   saveResume() {
-    if (!this.room || !this.connected) return;
+    if (this.leaving || !this.room || !this.connected) return;
     try {
       sessionStorage.setItem(
         "officeCore.resume",
@@ -118,8 +125,10 @@ export class Multiplayer {
     );
     room.onLeave(async (code) => {
       this.connected = false;
-      if (code === 1000) {
+      if (this.leaving) return;
+      if (code === 1000 || code === 4000) {
         this.clearResume();
+        if (this.snapshot?.winner) location.reload();
         return;
       }
       this.onStatus("Anslutningen bröts. Återansluter…");

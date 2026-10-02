@@ -661,3 +661,6 @@ kbd {
 .network-lobby{margin:12px 0;padding:12px;border:1px solid #5c9297;background:#132a34}.network-lobby button,.network-lobby input{padding:8px;max-width:160px}.build-panel[hidden]{display:none}
 
 .team-choice[hidden],#available-rooms[hidden],#play[hidden],#leave-room[hidden]{display:none!important}.available-room{padding:16px;margin:12px 0;border:1px solid #66838b;background:#19323e}.available-room ul{padding:0;list-style:none;line-height:1.8}.available-room button{max-width:none}.network-lobby h3{color:#ffdc94;letter-spacing:2px}
+
+#leave-game { pointer-events: auto; cursor: pointer; padding: 10px 14px; background: #19323e; border: 1px solid #66838b; color: #edf2ec; }
+#leave-game[hidden] { display: none; }

@@ -4,7 +4,7 @@ import type { MatchMember } from "../game/match";
 import { World } from "../map/builder";
 import { Player } from "../player/player";
 
-export function showVictory(team: Team, members: MatchMember[]) {
+export function showVictory(team: Team, members: MatchMember[], newMatch: () => void = () => location.reload()) {
   if (document.querySelector("#victory")) return;
   const overlay = document.createElement("section");
   overlay.id = "victory";
@@ -15,7 +15,12 @@ export function showVictory(team: Team, members: MatchMember[]) {
     name.textContent = member.name;
     overlay.querySelector(".winner-names")!.append(name);
   });
-  overlay.querySelector("button")!.addEventListener("click", () => location.reload());
+  overlay.querySelector("button")!.addEventListener("click", () => {
+    const button = overlay.querySelector("button")!;
+    button.disabled = true;
+    button.textContent = "RETURNING TO LOBBY…";
+    newMatch();
+  });
   document.body.append(overlay);
   const engine = new Engine(overlay.querySelector("canvas")!, true);
   const scene = new Scene(engine);

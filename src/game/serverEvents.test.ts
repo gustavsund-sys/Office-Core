@@ -57,3 +57,15 @@ test("server attributes planted bombs, broadcasts one carrier scream and reports
     room.onDispose();
   }
 });
+
+test("New match closes a finished room but cannot interrupt a running match", async () => {
+  const room = new OfficeRoom();
+  let closed = 0;
+  room.disconnect = async () => { closed++; };
+  room.started = true;
+  await room.restartFinishedMatch();
+  assert.equal(closed, 0);
+  room.winner = "RED";
+  await room.restartFinishedMatch();
+  assert.equal(closed, 1);
+});

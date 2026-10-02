@@ -4,6 +4,7 @@ export const MSG = {
   input: "input",
   ping: "ping",
   start: "start",
+  restart: "restart",
   team: "team",
   profile: "profile",
   snapshot: "snapshot",
