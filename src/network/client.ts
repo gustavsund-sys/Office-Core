@@ -20,6 +20,44 @@ const auth = getAuth(app);
 if (import.meta.env.VITE_AUTH_EMULATOR_URL)
   connectAuthEmulator(auth, import.meta.env.VITE_AUTH_EMULATOR_URL);
 export class Multiplayer {
+  sequence = 0;
+  constructor() {
+    window.addEventListener("pagehide", () => this.saveResume());
+  }
+  resumeInfo(): { id: string; token: string; seq: number } | undefined {
+    try {
+      const saved = JSON.parse(
+        sessionStorage.getItem("officeCore.resume") ?? "null",
+      );
+      return saved &&
+        typeof saved.id === "string" &&
+        typeof saved.token === "string" &&
+        Number.isSafeInteger(saved.seq) &&
+        saved.seq >= 0
+        ? saved
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  clearResume() {
+    try {
+      sessionStorage.removeItem("officeCore.resume");
+    } catch {}
+  }
+  saveResume() {
+    if (!this.room || !this.connected) return;
+    try {
+      sessionStorage.setItem(
+        "officeCore.resume",
+        JSON.stringify({
+          id: this.room.roomId,
+          token: this.room.reconnectionToken,
+          seq: this.sequence,
+        }),
+      );
+    } catch {}
+  }
   endpoint = import.meta.env.VITE_GAME_SERVER_URL || "ws://127.0.0.1:2567";
   client = new Client(this.endpoint);
   async rooms(): Promise<AvailableRoom[]> {
@@ -41,6 +79,19 @@ export class Multiplayer {
   onStatus: (text: string) => void = () => {};
   async connect(name: string, team: string, id: string) {
     this.onStatus("Ansluter…");
+    const resume = this.resumeInfo();
+    if (resume?.id === id && resume.token) {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          this.sequence = resume.seq;
+          this.bind(await this.client.reconnect(resume.token));
+          return;
+        } catch {
+          await new Promise((resolve) => setTimeout(resolve, 250));
+        }
+      }
+    }
+    this.clearResume();
     const user = auth.currentUser ?? (await signInAnonymously(auth)).user;
     const options = { token: await user.getIdToken(), name, team };
     const room = await this.client.joinById(id, options);
@@ -50,6 +101,7 @@ export class Multiplayer {
     this.history = [];
     this.room = room;
     this.connected = true;
+    this.saveResume();
     this.onStatus("ANSLUTEN TILL OFFICE01");
     room.onMessage(MSG.snapshot, (snapshot: Snapshot) => {
       this.history.push({ at: performance.now(), snapshot });
@@ -66,7 +118,10 @@ export class Multiplayer {
     );
     room.onLeave(async (code) => {
       this.connected = false;
-      if (code === 1000) return;
+      if (code === 1000) {
+        this.clearResume();
+        return;
+      }
       this.onStatus("Anslutningen bröts. Återansluter…");
       for (let attempt = 0; attempt < 8; attempt++) {
         await new Promise((resolve) =>
@@ -86,6 +141,7 @@ export class Multiplayer {
   }
   send(input: NetInput) {
     if (this.connected) {
+      this.sequence = Math.max(this.sequence, input.seq ?? 0);
       this.room?.send(MSG.input, input);
       if (Date.now() >= this.nextPing) {
         this.nextPing = Date.now() + 3000;

@@ -5,6 +5,7 @@ import { runInNewContext } from "node:vm";
 test("versioned cache reuses unchanged content, fetches revisions and retains two versions", async () => {
   const stores = new Map<string, Map<string, Response>>();
   let downloads = 0;
+  let reloads = 0;
   const caches = {
     keys: async () => [...stores.keys()],
     delete: async (name: string) => stores.delete(name),
@@ -35,7 +36,18 @@ test("versioned cache reuses unchanged content, fetches revisions and retains tw
         handlers[name] = fn;
       },
       skipWaiting: async () => {},
-      clients: { claim: async () => {}, matchAll: async () => [] },
+      clients: {
+        claim: async () => {},
+        matchAll: async () => [
+          {
+            url: "https://game.test/",
+            postMessage: () => {},
+            navigate: async () => {
+              reloads++;
+            },
+          },
+        ],
+      },
     };
     runInNewContext(
       `const VERSION=${JSON.stringify(version)};const FILES={"/assets/map.js":${JSON.stringify(hash)}};\n` +
@@ -63,10 +75,13 @@ test("versioned cache reuses unchanged content, fetches revisions and retains tw
   };
   await install("one", "same");
   assert.equal(downloads, 1);
+  assert.equal(reloads, 0);
   await install("two", "same");
   assert.equal(downloads, 1);
+  assert.equal(reloads, 1);
   await install("three", "changed");
   assert.equal(downloads, 2);
+  assert.equal(reloads, 2);
   assert.deepEqual(
     [...stores.keys()],
     ["office-core-two", "office-core-three"],

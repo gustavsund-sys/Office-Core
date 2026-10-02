@@ -64,8 +64,12 @@ self.addEventListener("activate", (event) => {
         previous.slice(0, -1).map((name) => caches.delete(name)),
       );
       await self.clients.claim();
-      for (const client of await self.clients.matchAll())
+      for (const client of await self.clients.matchAll()) {
         client.postMessage({ type: "office-core-version", version: VERSION });
+        // Installation has finished caching the new bundle before activation.
+        if (previous.length && client.navigate)
+          void client.navigate(client.url).catch(() => {});
+      }
     })(),
   );
 });

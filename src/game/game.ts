@@ -52,6 +52,10 @@ export class Game {
     age: number;
   }[] = [];
   pendingPlantAt?: number;
+  hitHealthBars = new Map<
+    string,
+    { el: HTMLElement; fill: HTMLElement; hp: number; until: number }
+  >();
   damageNumbers: { el: HTMLElement; position: Vector3; life: number }[] = [];
   onlineSpawned = false;
   predictedPosition?: Vector3;
@@ -340,6 +344,14 @@ export class Game {
     this.updateCamera(10);
     this.resize();
     window.addEventListener("resize", () => this.resize());
+    window.addEventListener("pointerdown", () => {
+      if (this.sound && this.audio?.state === "suspended")
+        void this.audio.resume();
+    });
+    window.addEventListener("keydown", () => {
+      if (this.sound && this.audio?.state === "suspended")
+        void this.audio.resume();
+    });
     document.querySelector("#play")!.addEventListener("click", () => {
       if (this.multiplayer?.room) {
         this.prepareAudio();
@@ -438,6 +450,7 @@ export class Game {
       const button = panel.querySelector<HTMLButtonElement>("#leave-room")!;
       button.disabled = true;
       try {
+        this.multiplayer?.clearResume();
         await this.multiplayer?.room?.leave();
       } finally {
         location.reload();
@@ -463,8 +476,10 @@ export class Game {
           return;
         const position = new Vector3(event.x, event.y, event.z);
         const distance = Vector3.Distance(position, this.player.root.position);
-        if (event.kind === "damage")
+        if (event.kind === "damage") {
           this.showDamageNumber(position, event.damage ?? 0);
+          if (event.player) this.showHitHealth(event.player, event.damage ?? 0);
+        }
         if (event.kind === "scream" && this.sound)
           this.weaponAudio?.playBusterScream(
             distance,
@@ -565,6 +580,7 @@ export class Game {
           )!.value,
           id,
         );
+        this.inputSequence = Math.max(this.inputSequence, net.sequence + 1);
         panel
           .querySelectorAll<HTMLButtonElement>("button")
           .forEach((button) => (button.disabled = true));
@@ -634,7 +650,9 @@ export class Game {
           connectionError(error);
       }
     };
-    void refresh();
+    const resume = net.resumeInfo();
+    if (resume?.id) void connect(resume.id);
+    else void refresh();
     window.setInterval(() => void refresh(), 5000);
   }
   applyOnline(snapshot: Snapshot) {
@@ -642,6 +660,10 @@ export class Game {
       (p) => p.id === this.multiplayer?.room?.sessionId,
     );
     if (!own) return;
+    for (const state of snapshot.players) {
+      const bar = this.hitHealthBars.get(state.id);
+      if (bar) bar.hp = state.hp;
+    }
     CONFIG.player.team = own.team;
     this.hud.el.querySelector(".brand small")!.textContent =
       "ALPHA 0.1 · MULTIPLAYER";
@@ -1119,6 +1141,7 @@ export class Game {
     }
     this.predictedRockets = this.predictedRockets.filter((r) => r.age <= 1.5);
     this.updateDamageNumbers(dt);
+    this.updateHitHealthBars();
     for (const trace of this.onlineTraces) trace.life -= dt;
     this.onlineTraces = this.onlineTraces.filter((trace) => {
       if (trace.life > 0) return true;
@@ -1133,6 +1156,57 @@ export class Game {
     this.world.destructibles.forEach((prop) => prop.update(dt));
     this.hud.update(dt, this.cores, this.weapons, this.player);
     this.scene.render();
+  }
+  showHitHealth(id: string, damage: number) {
+    let bar = this.hitHealthBars.get(id);
+    if (!bar) {
+      const el = document.createElement("div"),
+        fill = document.createElement("div");
+      el.style.cssText =
+        "position:absolute;width:64px;height:8px;background:#4f1724;border:1px solid #f0ece5;border-radius:3px;overflow:hidden;pointer-events:none;z-index:85;transform:translate(-50%,-50%);box-shadow:0 1px 4px #000";
+      fill.style.cssText = "height:100%;background:#65dc7b";
+      el.append(fill);
+      document.querySelector("#ui")!.append(el);
+      bar = {
+        el,
+        fill,
+        hp:
+          this.multiplayer?.snapshot?.players.find((p) => p.id === id)?.hp ??
+          100,
+        until: 0,
+      };
+      this.hitHealthBars.set(id, bar);
+    }
+    bar.hp = Math.max(0, bar.hp - damage);
+    bar.until = this.time + 2;
+  }
+  updateHitHealthBars() {
+    for (const [id, bar] of this.hitHealthBars) {
+      const player =
+        id === this.multiplayer?.room?.sessionId
+          ? this.player
+          : this.onlinePlayers.get(id);
+      if (this.time >= bar.until || !player) {
+        bar.el.remove();
+        this.hitHealthBars.delete(id);
+        continue;
+      }
+      const position = player.root.position.add(new Vector3(0, 2.3, 0));
+      const point = Vector3.Project(
+        position,
+        Matrix.Identity(),
+        this.scene.getTransformMatrix(),
+        this.camera.viewport.toGlobal(
+          this.engine.getRenderWidth(),
+          this.engine.getRenderHeight(),
+        ),
+      );
+      bar.el.style.left = `${point.x}px`;
+      bar.el.style.top = `${point.y}px`;
+      bar.el.hidden = point.z < 0 || point.z > 1 || bar.hp <= 0;
+      bar.fill.style.width = `${Math.max(0, Math.min(100, bar.hp))}%`;
+      bar.fill.style.background = bar.hp > 30 ? "#65dc7b" : "#ff334b";
+    }
   }
   showDamageNumber(position: Vector3, damage: number) {
     const el = document.createElement("div");
