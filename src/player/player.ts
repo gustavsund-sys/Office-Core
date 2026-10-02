@@ -1,5 +1,7 @@
 import {
   MeshBuilder,
+  StandardMaterial,
+  Color3,
   TransformNode,
   Vector3,
   Matrix,
@@ -182,6 +184,23 @@ export class Input {
 }
 export class Player {
   root: TransformNode;
+  invulnerable = 0;
+  barrier?: Mesh;
+  setBarrier(active: boolean) {
+    if (active && !this.barrier) {
+      this.barrier = MeshBuilder.CreateSphere("warcry shield", { diameter: 2.8, segments: 16 }, this.world.scene);
+      this.barrier.parent = this.root;
+      this.barrier.position.y = 1.1;
+      this.barrier.isPickable = false;
+      const material = new StandardMaterial("warcry shield", this.world.scene);
+      material.diffuseColor = Color3.FromHexString("#66eaff");
+      material.emissiveColor = Color3.FromHexString("#229fba");
+      material.alpha = 0.25;
+      material.backFaceCulling = false;
+      this.barrier.material = material;
+    }
+    this.barrier?.setEnabled(active);
+  }
   hp = CONFIG.player.hp;
   recoil = 0;
   verticalVelocity = 0;

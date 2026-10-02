@@ -35,7 +35,21 @@ test("server attributes planted bombs, broadcasts one carrier scream and reports
     p.lastInput = Date.now();
     room.tick(1 / 30);
     room.tick(1 / 30);
+    assert.equal(events.filter((e) => e.kind === "scream").length, 0);
+    p.input.warcry = true;
+    room.tick(1 / 30);
     assert.equal(events.filter((e) => e.kind === "scream").length, 1);
+    const carrierTarget = p.player.bodyMeshes[0].metadata.damageable;
+    carrierTarget.damage(500);
+    assert.equal(p.player.hp, 100);
+    p.input.warcry = true;
+    room.tick(1 / 30);
+    assert.equal(events.filter((e) => e.kind === "scream").length, 1);
+    assert.equal(room.snapshot().players.find(player => player.id === "alice")!.warcryAvailable, false);
+
+    p.weapons.update({ moveX: 0, moveZ: 0, aimX: 0, aimZ: 0, fire: false, pressed: false }, 4);
+    carrierTarget.damage(25);
+    assert.equal(p.player.hp, 75);
     p.input.pressed = true;
     room.tick(1 / 30);
     const bomb = room.snapshot().bombs[0];
@@ -44,7 +58,7 @@ test("server attributes planted bombs, broadcasts one carrier scream and reports
     const target =
       room.participants.get("bob")!.player.bodyMeshes[0].metadata.damageable;
     target.damage(25);
-    const hit = events.find((e) => e.kind === "damage")!;
+    const hit = events.find((e) => e.kind === "damage" && e.player === "bob")!;
     assert.equal(hit.player, "bob");
     assert.equal(hit.damage, 25);
     const red = office01.bases.find((b) => b.team === "RED")!;

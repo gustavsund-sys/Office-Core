@@ -51,6 +51,12 @@ export class HUD {
     e.classList.add("hit");
   }
   update(dt: number, cores: Damageable[], weapons: Weapons, player: Player) {
+    const warcry = this.el.querySelector<HTMLButtonElement>("#warcry");
+    if (warcry) {
+      warcry.hidden = !weapons.carryingCoreBuster;
+      warcry.disabled = !weapons.warcryAvailable || player.hp <= 0;
+      warcry.textContent = player.invulnerable > 0 ? `SHIELD · ${player.invulnerable.toFixed(1)}s` : weapons.warcryAvailable ? "Q · CORE BUSTER WARCRY" : "WARCRY ANVÄNT";
+    }
     let bombs = this.el.querySelector<HTMLElement>("#buster-countdowns");
     if (!bombs) { bombs = document.createElement("section"); bombs.id = "buster-countdowns"; this.el.append(bombs); }
     bombs.hidden = weapons.charges.length === 0;

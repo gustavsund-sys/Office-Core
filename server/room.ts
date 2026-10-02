@@ -54,7 +54,6 @@ interface Participant {
   messages: number;
   respawn: number;
   connected: boolean;
-  screamed: boolean;
 }
 export class OfficeRoom extends Room {
   static active = 0;
@@ -130,6 +129,7 @@ export class OfficeRoom extends Room {
         pressed: p.input.pressed || payload.pressed,
         jump: p.input.jump || payload.jump,
         interact: p.input.interact || payload.interact,
+        warcry: p.input.warcry || payload.warcry,
       };
       p.lastInput = now;
     });
@@ -250,7 +250,6 @@ export class OfficeRoom extends Room {
       messages: 0,
       respawn: 0,
       connected: true,
-      screamed: false,
     };
     const event = (kind: NetEvent["kind"]) =>
       this.event({
@@ -290,9 +289,12 @@ export class OfficeRoom extends Room {
         endZ: end.z,
       });
     participant.weapons.onCoreBusterAcquired = () => {
-      participant.screamed = false;
       event("buster");
     };
+    participant.weapons.onWarcry = () => this.event({
+      kind: "scream", player: client.sessionId,
+      x: player.root.position.x, y: player.root.position.y, z: player.root.position.z,
+    });
     participant.weapons.onCoreBusterDropped = (position) =>
       this.pickup.dropCoreBuster(position);
     const target = {
@@ -307,7 +309,7 @@ export class OfficeRoom extends Room {
       },
       canDamageFrom: () => true,
       damage: (amount: number) => {
-        if (this.started) {
+        if (this.started && player.invulnerable <= 0) {
           const damage = Math.min(amount, player.hp);
           player.hp = Math.max(0, player.hp - amount);
           if (damage > 0)
@@ -388,20 +390,7 @@ export class OfficeRoom extends Room {
               ? { ...idle(), aimX: p.input.aimX, aimZ: p.input.aimZ }
               : p.input))
           : idle();
-      if (
-        p.weapons.carryingCoreBuster &&
-        !p.screamed &&
-        (input.moveX || input.moveZ)
-      ) {
-        p.screamed = true;
-        this.event({
-          kind: "scream",
-          player: id,
-          x: p.player.root.position.x,
-          y: p.player.root.position.y,
-          z: p.player.root.position.z,
-        });
-      }
+      if (input.warcry) p.weapons.activateWarcry();
       if (input.slot) p.weapons.switchSlot(input.slot);
       if (input.jump && p.player.grounded) {
         p.player.jump();
@@ -429,6 +418,7 @@ export class OfficeRoom extends Room {
       p.input.jump = false;
       p.input.interact = false;
       p.input.slot = 0;
+      p.input.warcry = false;
     }
     for (const weapons of this.orphanWeapons) weapons.update(idle(), dt);
     this.orphanWeapons = this.orphanWeapons.filter((w) => {
@@ -474,6 +464,8 @@ export class OfficeRoom extends Room {
         special: p.weapons.specialWeapon,
         ammo: p.weapons.ammo,
         reserve: p.weapons.bazookaReserve,
+        warcryAvailable: p.weapons.warcryAvailable,
+        invulnerable: p.player.invulnerable,
         reload: p.weapons.reloadRemaining,
       })),
       cores: this.cores.map((core) => ({

@@ -27,10 +27,13 @@ export interface NetInput {
   pressed: boolean;
   jump: boolean;
   interact: boolean;
+  warcry?: boolean;
   slot: 0 | 1 | 2;
 }
 export interface NetPlayer {
   ack: number;
+  warcryAvailable?: boolean;
+  invulnerable?: number;
   verticalVelocity: number;
   id: string;
   name: string;
@@ -117,6 +120,7 @@ export function validInput(value: unknown): value is NetInput {
           "jump",
           "interact",
           "slot",
+          "warcry",
         ].includes(key),
     )
   )
@@ -132,6 +136,7 @@ export function validInput(value: unknown): value is NetInput {
     [v.fire, v.pressed, v.jump, v.interact].every(
       (x) => typeof x === "boolean",
     ) &&
+    (v.warcry === undefined || typeof v.warcry === "boolean") &&
     [0, 1, 2].includes(v.slot)
   );
 }

@@ -64,7 +64,7 @@ export class Game {
   onlineTraces: { mesh: import("@babylonjs/core").Mesh; life: number }[] = [];
   onlineModels = new Map<string, string>();
   onlineObjects = new Map<string, import("@babylonjs/core").Mesh>();
-  onlineInput = { jump: false, interact: false, slot: 0 as 0 | 1 | 2 };
+  onlineInput = { warcry: false, jump: false, interact: false, slot: 0 as 0 | 1 | 2 };
   networkElapsed = 0;
   nameTimer = 0;
   lobby!: Lobby;
@@ -242,6 +242,7 @@ export class Game {
     this.pickup = new Pickup(this.world);
     this.weapons.onCoreBusterDropped = (position) =>
       this.pickup.dropCoreBuster(position);
+    this.weapons.onWarcry = () => { if (this.sound) this.weaponAudio?.playBusterScream(); };
     this.weapons.onCoreBusterAcquired = () => {
       this.busterScreamPlayed = false;
       this.hud.toast("Active Core buster! protect him at all costs!");
@@ -251,6 +252,15 @@ export class Game {
       notice.textContent = "Active Core buster! protect him at all costs!";
       notice.hidden = false;
     };
+    const warcry = document.createElement("button");
+    warcry.id = "warcry";
+    warcry.hidden = true;
+    this.hud.el.append(warcry);
+    warcry.addEventListener("click", () => {
+      if (this.paused) return;
+      if (this.multiplayer?.room) this.onlineInput.warcry = true;
+      else this.weapons.activateWarcry();
+    });
     const notice = document.createElement("div");
     notice.id = "core-buster-notice";
     notice.hidden = true;
@@ -387,6 +397,7 @@ export class Game {
           e.preventDefault();
           this.onlineInput.jump = true;
         }
+        if (e.code === "KeyQ") this.onlineInput.warcry = true;
         if (e.code === "KeyE") this.onlineInput.interact = true;
         if (e.code === "Digit1") this.onlineInput.slot = 1;
         if (e.code === "Digit2") this.onlineInput.slot = 2;
@@ -404,6 +415,7 @@ export class Game {
         }
         if (e.code === "Digit1") this.weapons.switchSlot(1);
         if (e.code === "Digit2") this.weapons.switchSlot(2);
+        if (e.code === "KeyQ") this.weapons.activateWarcry();
         if (e.code === "KeyE") this.pickup.chooseRequested = true;
       }
       if (e.code === "KeyC" && !e.repeat) {
@@ -894,7 +906,7 @@ export class Game {
         this.player.update(input, 1 / 30);
       }
       this.onlinePressed = false;
-      this.onlineInput = { jump: false, interact: false, slot: 0 };
+      this.onlineInput = { warcry: false, jump: false, interact: false, slot: 0 };
     }
     this.predictedPosition = this.player.root.position.clone();
     this.predictedVelocity = this.player.verticalVelocity;
@@ -954,6 +966,8 @@ export class Game {
         }
         player.root.setEnabled(state.hp > 0);
         player.hp = state.hp;
+        player.invulnerable = state.invulnerable ?? 0;
+        player.setBarrier(player.invulnerable > 0 && player.hp > 0);
         const target = new Vector3(state.x, state.y, state.z);
         const moving = Vector3.Distance(player.root.position, target) > 0.04;
         if (!own)
@@ -980,6 +994,7 @@ export class Game {
         }
         if (own) {
           this.weapons.id = state.weapon;
+          this.weapons.warcryAvailable = state.warcryAvailable ?? false;
           this.weapons.specialWeapon = state.special;
           this.weapons.ammo = state.ammo;
           this.weapons.bazookaReserve = state.reserve;
@@ -1479,14 +1494,6 @@ export class Game {
           beforeMove.x - this.player.root.position.x,
           beforeMove.z - this.player.root.position.z,
         ) > 0.001;
-      if (
-        moving &&
-        this.weapons.carryingCoreBuster &&
-        !this.busterScreamPlayed
-      ) {
-        this.busterScreamPlayed = true;
-        if (this.sound) this.weaponAudio?.playBusterScream();
-      }
       this.weaponAudio?.updateFootsteps(
         [
           {
@@ -1600,6 +1607,7 @@ export class Game {
       !this.paused && this.sound && !!alarmBase,
       alarmBase ? spatial(alarmBase) : undefined,
     );
+    this.player.setBarrier(this.player.invulnerable > 0 && this.player.hp > 0);
     this.hud.update(
       this.paused ? 0 : dt,
       this.cores,

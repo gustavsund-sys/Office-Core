@@ -664,3 +664,7 @@ kbd {
 
 #leave-game { pointer-events: auto; cursor: pointer; padding: 10px 14px; background: #19323e; border: 1px solid #66838b; color: #edf2ec; }
 #leave-game[hidden] { display: none; }
+
+#warcry { position:absolute; bottom:145px; left:50%; transform:translateX(-50%); pointer-events:auto; padding:12px 20px; border:1px solid #66eaff; background:#19323e; color:#66eaff; cursor:pointer; }
+#warcry[hidden] { display:none; }
+#warcry:disabled { opacity:.6; cursor:default; }

@@ -13,6 +13,15 @@ import { Destructible } from "../core/destructible";
 import { heldWeapon, rocketModel } from "./models";
 import type { Hittable } from "../core/hittable";
 export class Weapons {
+  warcryAvailable = false;
+  onWarcry: () => void = () => {};
+  activateWarcry() {
+    if (!this.carryingCoreBuster || !this.warcryAvailable || this.player.hp <= 0) return false;
+    this.warcryAvailable = false;
+    this.player.invulnerable = 4;
+    this.onWarcry();
+    return true;
+  }
   id: WeaponId = "pistol";
   specialWeapon?: WeaponId;
   onTrace: (start: Vector3, end: Vector3) => void = () => {};
@@ -85,7 +94,7 @@ export class Weapons {
     if (id !== "pistol") this.specialWeapon = id;
     this.id = id;
     this.player.setWeaponModel(id);
-    if (acquired) this.onCoreBusterAcquired();
+    if (acquired) { this.warcryAvailable = true; this.onCoreBusterAcquired(); }
 
     this.reloadRemaining = 0;
     this.burstRemaining = 0;
@@ -93,6 +102,7 @@ export class Weapons {
       this.reloadRemaining = 5;
   }
   update(c: PlayerCommand, dt: number) {
+    this.player.invulnerable = Math.max(0, this.player.invulnerable - dt);
     if (this.player.hp <= 0) this.dropCoreBuster();
     for (const charge of [...this.charges]) {
       charge.timer -= dt;
@@ -333,6 +343,7 @@ export class Weapons {
         },
         canDamageFrom: () => true,
         damage: (amount) => {
+          if (player.invulnerable > 0) return;
           player.hp = Math.max(0, player.hp - amount);
         },
       };

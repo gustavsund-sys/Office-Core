@@ -744,3 +744,28 @@ test("walls and office furniture protect targets from Core buster splash", () =>
     } finally { s.engine.dispose(); }
   }
 });
+
+test("warcry requires a carried buster, lasts four seconds and resets only on acquisition", () => {
+  const s = setup();
+  try {
+    assert.equal(s.weapon.activateWarcry(), false);
+    s.weapon.equip("coreBuster");
+    assert.equal(s.weapon.activateWarcry(), true);
+    assert.equal(s.player.invulnerable, 4);
+    assert.equal(s.weapon.activateWarcry(), false);
+    s.weapon.update(idle, 3.9);
+    assert.ok(s.player.invulnerable > 0);
+    s.weapon.update(idle, 0.11);
+    assert.equal(s.player.invulnerable, 0);
+    s.weapon.equip("coreBuster");
+    assert.equal(s.weapon.activateWarcry(), false);
+    s.weapon.dropCoreBuster();
+    assert.equal(s.weapon.activateWarcry(), false);
+    s.weapon.equip("coreBuster");
+    assert.equal(s.weapon.activateWarcry(), true);
+    s.player.hp = 0;
+    s.weapon.dropCoreBuster();
+    s.weapon.equip("coreBuster");
+    assert.equal(s.weapon.activateWarcry(), false);
+  } finally { s.engine.dispose(); }
+});
