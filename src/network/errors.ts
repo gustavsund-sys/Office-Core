@@ -8,7 +8,7 @@ export function connectionError(error: unknown): string {
   if (/locked|not found|does not exist|invalid room/i.test(message))
     return "Rummet finns inte eller matchen har redan startat. Kontrollera rumskoden med värden.";
   if (/server full/i.test(message))
-    return "Serverns två rum är upptagna. Anslut till ett befintligt rum eller lämna ett oanvänt rum.";
+    return "OFFICE01 är fullt. Vänta tills en plats blir ledig.";
   return (
     message || "Kunde inte ansluta. Kontrollera anslutningen och försök igen."
   );

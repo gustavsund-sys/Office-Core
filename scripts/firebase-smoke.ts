@@ -17,7 +17,17 @@ try {
       headers: { Origin: process.env.GAME_ORIGIN ?? "http://127.0.0.1:5173" },
     },
   );
-  const room = await client.create("office", {
+  const url = new URL(process.env.GAME_SERVER_URL ?? "ws://127.0.0.1:2567");
+  url.protocol = url.protocol === "wss:" ? "https:" : "http:";
+  url.pathname = "/rooms";
+  const rooms = (
+    await (
+      await fetch(url, {
+        headers: { Origin: process.env.GAME_ORIGIN ?? "http://127.0.0.1:5173" },
+      })
+    ).json()
+  ).rooms;
+  const room = await client.joinById(rooms[0].id, {
     token,
     name: "Auth smoke",
     team: "RED",

@@ -9,15 +9,58 @@ initializeApp({
     ? {}
     : { credential: applicationDefault() }),
 });
-const http = createServer((req, res) => {
-  if (req.url === "/health") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok", activeRooms: OfficeRoom.active }));
-  }
-});
 const origins = (
   process.env.ALLOWED_ORIGINS ?? "http://127.0.0.1:5173,http://localhost:5173"
 ).split(/[;,]/);
+let preparing: Promise<unknown> | undefined;
+async function ensureLobby() {
+  if (OfficeRoom.rooms.size > 0) return;
+  if (!preparing)
+    preparing = matchMaker
+      .createRoom("office", { hosted: true })
+      .finally(() => (preparing = undefined));
+  await preparing;
+}
+const http = createServer(async (req, res) => {
+  if (req.url === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ status: "ok", activeRooms: OfficeRoom.active }));
+    return;
+  }
+  if (req.url === "/rooms" && req.method === "GET") {
+    const origin = req.headers.origin;
+    if (origin && !origins.includes(origin)) {
+      res.writeHead(403);
+      res.end();
+      return;
+    }
+    res.setHeader("Access-Control-Allow-Origin", origin ?? origins[0]);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Cache-Control", "no-store");
+    try {
+      await ensureLobby();
+      const rooms = [...OfficeRoom.rooms.values()].map((room) => ({
+        id: room.roomId,
+        name: "OFFICE01",
+        players: [...room.participants.values()].map((p) => ({
+          name: p.name,
+          team: p.team,
+        })),
+        capacity: room.maxClients,
+        started: room.started || room.locked,
+      }));
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ rooms }));
+    } catch {
+      res.writeHead(503);
+      res.end(JSON.stringify({ error: "Lobby unavailable" }));
+    }
+    return;
+  }
+  res.writeHead(404);
+  res.end();
+});
+matchMaker.controller.exposedMethods = ["joinById", "reconnect"];
 matchMaker.controller.DEFAULT_CORS_HEADERS["Access-Control-Allow-Origin"] =
   origins[0];
 matchMaker.controller.getCorsHeaders = (req) => ({
@@ -36,4 +79,5 @@ const server = new Server({
 });
 server.define("office", OfficeRoom);
 await server.listen(Number(process.env.PORT ?? 2567));
+await ensureLobby();
 console.info("server started");

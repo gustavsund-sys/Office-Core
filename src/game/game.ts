@@ -42,6 +42,7 @@ export class Game {
   onlineObjects = new Map<string, import("@babylonjs/core").Mesh>();
   onlineInput = { jump: false, interact: false, slot: 0 as 0 | 1 | 2 };
   networkElapsed = 0;
+  nameTimer = 0;
   lobby!: Lobby;
   engine: Engine;
   scene: Scene;
@@ -193,6 +194,14 @@ export class Game {
         lobby.update(this.match.members, team);
       },
       (name) => {
+        if (this.multiplayer?.room) {
+          clearTimeout(this.nameTimer);
+          this.nameTimer = window.setTimeout(
+            () => this.multiplayer?.room?.send(MSG.profile, name.slice(0, 24)),
+            250,
+          );
+          return;
+        }
         this.match.setPlayerName(name);
         lobby.update(this.match.members, this.match.members[0]?.team ?? "RED");
       },
@@ -384,10 +393,13 @@ export class Game {
     const panel = document.createElement("div");
     panel.className = "network-lobby";
     panel.innerHTML =
-      '<p>MULTIPLAYER ALPHA</p><button id="create-room">SKAPA RUM</button> <input id="room-code" aria-label="Rumskod" placeholder="Rumskod" maxlength="32"> <button id="join-room">ANSLUT</button><button id="leave-room" hidden>LÄMNA RUM</button><p id="network-status">Skapa ett rum, eller skriv värdens rumskod och anslut. Minst två lag krävs för att starta.</p>';
-    this.lobby.el.after(panel);
-    panel.querySelector<HTMLInputElement>("#room-code")!.value =
-      new URL(location.href).searchParams.get("room") ?? "";
+      '<h3>OFFICE01 · MULTIPLAYER</h3><p>Anslut till OFFICE01. Skriv sedan ditt namn och välj Core i spellobbyn.</p><div id="available-rooms">Hämtar OFFICE01…</div><button id="leave-room" hidden>LÄMNA LOBBY</button><p id="network-status" role="status"></p>';
+    this.lobby.el.before(panel);
+    this.lobby.el.hidden = true;
+    const play = document.querySelector<HTMLButtonElement>("#play")!;
+    play.hidden = true;
+    const net = (this.multiplayer ??= new Multiplayer());
+    let busy = false;
     panel.querySelector("#leave-room")!.addEventListener("click", async () => {
       const button = panel.querySelector<HTMLButtonElement>("#leave-room")!;
       button.disabled = true;
@@ -397,8 +409,12 @@ export class Game {
         location.reload();
       }
     });
-    const connect = async (join: boolean) => {
-      if (this.multiplayer?.room) return;
+    const connect = async (id: string) => {
+      if (this.multiplayer?.room || busy) return;
+      busy = true;
+      panel
+        .querySelectorAll<HTMLButtonElement>("[data-room]")
+        .forEach((button) => (button.disabled = true));
       const net = (this.multiplayer ??= new Multiplayer());
       net.onStatus = (text) => {
         panel.querySelector("#network-status")!.textContent = text;
@@ -460,16 +476,12 @@ export class Game {
           this.hud.toast("Active Core buster! protect him at all costs!");
       };
       try {
-        const id = panel
-          .querySelector<HTMLInputElement>("#room-code")!
-          .value.trim();
-        if (join && !id) throw new Error("Skriv en rumskod.");
         await net.connect(
           this.match.playerName,
           document.querySelector<HTMLInputElement>(
             'input[name="team"]:checked',
           )!.value,
-          join ? id : undefined,
+          id,
         );
         panel
           .querySelectorAll<HTMLButtonElement>("button")
@@ -477,7 +489,12 @@ export class Game {
         const leave = panel.querySelector<HTMLButtonElement>("#leave-room")!;
         leave.hidden = false;
         leave.disabled = false;
-        panel.querySelector<HTMLInputElement>("#room-code")!.disabled = true;
+        panel.querySelector<HTMLElement>("#available-rooms")!.hidden = true;
+        panel.querySelector("h3")!.textContent = "SPELLOBBY · OFFICE01";
+        panel.querySelector("p")!.textContent =
+          "Skriv ditt namn och välj den Core du vill försvara.";
+        this.lobby.el.hidden = false;
+        play.hidden = false;
         this.match.started = false;
         this.match.winner = undefined;
         document.querySelector<HTMLElement>(".build-panel")!.hidden = true;
@@ -487,14 +504,56 @@ export class Game {
         this.prepareAudio();
       } catch (error) {
         net.onStatus(connectionError(error));
+      } finally {
+        busy = false;
+        if (!net.room) void refresh();
       }
     };
-    panel
-      .querySelector("#create-room")!
-      .addEventListener("click", () => void connect(false));
-    panel
-      .querySelector("#join-room")!
-      .addEventListener("click", () => void connect(true));
+    const refresh = async () => {
+      if (net.room || busy) return;
+      try {
+        const rooms = await net.rooms();
+        const list = panel.querySelector<HTMLElement>("#available-rooms")!;
+        list.replaceChildren();
+        for (const room of rooms) {
+          const card = document.createElement("article");
+          card.className = "available-room";
+          const title = document.createElement("strong");
+          title.textContent = room.name;
+          const state = document.createElement("p");
+          state.textContent = `${room.started ? "MATCH PÅGÅR" : "TILLGÄNGLIGT"} · ${room.players.length}/${room.capacity} spelare`;
+          const roster = document.createElement("ul");
+          for (const member of room.players) {
+            const row = document.createElement("li");
+            row.textContent = `${member.name} · ${member.team} CORE`;
+            row.style.color = TEAMS[member.team];
+            roster.append(row);
+          }
+          if (!room.players.length) {
+            const row = document.createElement("li");
+            row.textContent = "Inga spelare ännu. Bli först att ansluta.";
+            roster.append(row);
+          }
+          const join = document.createElement("button");
+          join.dataset.room = room.id;
+          join.textContent = room.started
+            ? "MATCH PÅGÅR"
+            : "ANSLUT TILL OFFICE01";
+          join.disabled = room.started || room.players.length >= room.capacity;
+          join.addEventListener("click", () => void connect(room.id));
+          card.append(title, state, roster, join);
+          list.append(card);
+        }
+        if (!rooms.length)
+          list.textContent =
+            "OFFICE01 förbereds. Listan uppdateras automatiskt.";
+      } catch (error) {
+        panel.querySelector("#network-status")!.textContent =
+          connectionError(error);
+      }
+    };
+    void refresh();
+    window.setInterval(() => void refresh(), 5000);
   }
   applyOnline(snapshot: Snapshot) {
     const own = snapshot.players.find(
@@ -516,7 +575,21 @@ export class Game {
     this.lobby.el.querySelector(".lobby-status")!.textContent =
       `${snapshot.players.length} SPELARE · ONLINE`;
     this.lobby.el.querySelector("small")!.textContent =
-      "Rumsägaren startar matchen när minst två lag har anslutit.";
+      "Välj Core och namn. Första spelaren är värd och startar matchen när minst två lag har anslutit.";
+    const play = document.querySelector<HTMLButtonElement>("#play")!;
+    if (!snapshot.started) {
+      const host = snapshot.owner === own.id;
+      const enough = new Set(snapshot.players.map((p) => p.team)).size >= 2;
+      play.disabled = !host || !enough;
+      play.textContent = !host
+        ? "VÄNTAR PÅ VÄRDEN"
+        : enough
+          ? "STARTA MATCH"
+          : "VÄNTAR PÅ ETT ANNAT LAG";
+    } else {
+      play.disabled = false;
+      play.textContent = "FORTSÄTT SPELA";
+    }
     if (snapshot.started && !this.match.started) {
       this.match.started = true;
       this.setPaused(false);

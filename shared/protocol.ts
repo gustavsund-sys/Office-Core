@@ -4,9 +4,17 @@ export const MSG = {
   input: "input",
   start: "start",
   team: "team",
+  profile: "profile",
   snapshot: "snapshot",
   event: "event",
 } as const;
+export interface AvailableRoom {
+  id: string;
+  name: string;
+  players: { name: string; team: Team }[];
+  capacity: number;
+  started: boolean;
+}
 export interface NetInput {
   moveX: number;
   moveZ: number;
@@ -34,6 +42,7 @@ export interface NetPlayer {
   reload: number;
 }
 export interface Snapshot {
+  owner: string;
   players: NetPlayer[];
   cores: { team: Team; hp: number; active: boolean }[];
   props: number[];

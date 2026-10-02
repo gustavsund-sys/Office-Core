@@ -54,6 +54,8 @@ interface Participant {
 }
 export class OfficeRoom extends Room {
   static active = 0;
+  static rooms = new Map<string, OfficeRoom>();
+  hosted = false;
   counted = false;
   engine!: NullEngine;
   scene!: Scene;
@@ -66,11 +68,13 @@ export class OfficeRoom extends Room {
   winner?: Team;
   owner = "";
   time = 0;
-  onCreate() {
-    if (OfficeRoom.active >= Number(process.env.MAX_ACTIVE_ROOMS ?? 8))
-      throw new ServerError(503, "Server full");
+  onCreate(options: { hosted?: boolean } = {}) {
+    this.hosted = options.hosted === true;
+    if (this.hosted) this.autoDispose = false;
+    if (OfficeRoom.active >= 1) throw new ServerError(503, "Server full");
     OfficeRoom.active++;
     this.counted = true;
+    OfficeRoom.rooms.set(this.roomId, this);
     this.maxClients = Number(process.env.MAX_PLAYERS_PER_ROOM ?? 16);
     this.engine = new NullEngine();
     this.scene = new Scene(this.engine);
@@ -109,6 +113,17 @@ export class OfficeRoom extends Room {
         interact: p.input.interact || payload.interact,
       };
       p.lastInput = now;
+    });
+    this.onMessage(MSG.profile, (client, name) => {
+      if (
+        !this.permit(client) ||
+        this.started ||
+        typeof name !== "string" ||
+        name.length > 24
+      )
+        return;
+      const p = this.participants.get(client.sessionId);
+      if (p) p.name = name.trim() || "Player";
     });
     this.onMessage(MSG.team, (client, team) => {
       if (!this.permit(client)) return;
@@ -353,6 +368,7 @@ export class OfficeRoom extends Room {
   }
   snapshot(): Snapshot {
     return {
+      owner: this.owner,
       players: [...this.participants].map(([id, p]) => ({
         id,
         name: p.name,
@@ -454,11 +470,14 @@ export class OfficeRoom extends Room {
       if (this.owner === client.sessionId)
         this.owner = this.participants.keys().next().value ?? "";
       this.refreshCores();
+      if (this.hosted && this.started && this.participants.size === 0)
+        await this.disconnect();
     }
     console.info("player disconnected", this.roomId);
   }
   onDispose() {
     if (this.counted) OfficeRoom.active--;
+    OfficeRoom.rooms.delete(this.roomId);
     this.scene?.dispose();
     this.engine?.dispose();
     console.info("room disposed", this.roomId);

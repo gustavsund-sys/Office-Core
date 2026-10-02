@@ -42,7 +42,20 @@ const wait = (room: Room, predicate: (s: Snapshot) => boolean) =>
     });
   });
 try {
-  const a = await client().create("office", {
+  const lobbyURL = new URL(endpoint);
+  lobbyURL.protocol = lobbyURL.protocol === "wss:" ? "https:" : "http:";
+  lobbyURL.pathname = "/rooms";
+  const available = async () => {
+    const data = await (
+      await fetch(lobbyURL, {
+        headers: { Origin: process.env.GAME_ORIGIN ?? "http://127.0.0.1:5173" },
+      })
+    ).json();
+    return data.rooms as { id: string; started: boolean; players: unknown[] }[];
+  };
+  const initial = (await available()).find((r) => !r.started)!;
+  assert.ok(initial, "Server supplies a lobby");
+  const a = await client().joinById(initial.id, {
     token: await identity("a"),
     name: "Alice",
     team: "RED",
@@ -57,6 +70,13 @@ try {
   b.onMessage(MSG.snapshot, () => {});
   const lobby = await wait(a, (s) => s.players.length === 2);
   assert.equal(lobby.cores.filter((c) => c.active).length, 2);
+  b.send(MSG.profile, "Bobby");
+  const renamed = await wait(a, (s) =>
+    s.players.some((p) => p.name === "Bobby"),
+  );
+  assert.equal(renamed.players.length, 2);
+  b.send(MSG.team, "GREEN");
+  await wait(a, (s) => s.players.some((p) => p.team === "GREEN"));
   a.send(MSG.start);
   const started = await wait(a, (s) => s.started);
   a.send(MSG.input, {
@@ -96,15 +116,11 @@ try {
   );
   clearInterval(interval);
   assert.equal(moved.players.find((p) => p.id === b.sessionId)!.hp, 100);
-  const c = await client().create("office", {
-    token: await identity("c"),
-    name: "Carol",
-    team: "GREEN",
-  });
-  c.onMessage(MSG.event, () => {});
-  const isolated = await wait(c, (s) => s.players.length === 1);
-  assert.equal(isolated.started, false);
-  assert.notEqual(c.roomId, a.roomId);
+  const only = await available();
+  assert.equal(only.length, 1);
+  assert.equal(only[0].id, a.roomId);
+  assert.equal(only[0].started, true);
+  await assert.rejects(() => client().create("office", {}));
   const token = b.reconnectionToken;
   await new Promise<void>((resolve) => {
     b.onLeave(() => resolve());
@@ -115,9 +131,18 @@ try {
   reconnected.onMessage(MSG.event, () => {});
   reconnected.onMessage(MSG.snapshot, () => {});
   assert.equal(reconnected.sessionId, b.sessionId);
-  await Promise.all([a.leave(), reconnected.leave(), c.leave()]);
+  await Promise.all([a.leave(), reconnected.leave()]);
+  let reset = await available();
+  for (let attempt = 0; reset[0]?.id === a.roomId && attempt < 15; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    reset = await available();
+  }
+  assert.equal(reset.length, 1);
+  assert.notEqual(reset[0].id, a.roomId);
+  assert.equal(reset[0].started, false);
+  assert.equal(reset[0].players.length, 0);
   console.log(
-    "PASS: two clients, lobby, active cores, server movement, malformed input, reconnect, separate rooms",
+    "PASS: single server lobby, two clients, live name/Core choice, movement, malformed input, reconnect, denied room creation, lobby reset",
   );
 } finally {
   for (const { app, user } of identities) {

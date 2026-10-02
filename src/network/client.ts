@@ -6,6 +6,7 @@ import {
   type Snapshot,
   type NetEvent,
   type NetInput,
+  type AvailableRoom,
 } from "../../shared/protocol";
 const app = initializeApp({
   apiKey: "AIzaSyAkgVLtGKDqojp40IdtA4ewaER_HyoIBRk",
@@ -19,28 +20,33 @@ const auth = getAuth(app);
 if (import.meta.env.VITE_AUTH_EMULATOR_URL)
   connectAuthEmulator(auth, import.meta.env.VITE_AUTH_EMULATOR_URL);
 export class Multiplayer {
-  client = new Client(
-    import.meta.env.VITE_GAME_SERVER_URL || "ws://127.0.0.1:2567",
-  );
+  endpoint = import.meta.env.VITE_GAME_SERVER_URL || "ws://127.0.0.1:2567";
+  client = new Client(this.endpoint);
+  async rooms(): Promise<AvailableRoom[]> {
+    const url = new URL(this.endpoint);
+    url.protocol = url.protocol === "wss:" ? "https:" : "http:";
+    url.pathname = "/rooms";
+    const response = await fetch(url);
+    if (!response.ok) throw new Error("Serverns lobby kunde inte hämtas.");
+    return (await response.json()).rooms;
+  }
   room?: Room;
   connected = false;
   snapshot?: Snapshot;
   onSnapshot: (snapshot: Snapshot) => void = () => {};
   onEvent: (event: NetEvent) => void = () => {};
   onStatus: (text: string) => void = () => {};
-  async connect(name: string, team: string, id?: string) {
+  async connect(name: string, team: string, id: string) {
     this.onStatus("Ansluter…");
     const user = auth.currentUser ?? (await signInAnonymously(auth)).user;
     const options = { token: await user.getIdToken(), name, team };
-    const room = id
-      ? await this.client.joinById(id, options)
-      : await this.client.create("office", options);
+    const room = await this.client.joinById(id, options);
     this.bind(room);
   }
   bind(room: Room) {
     this.room = room;
     this.connected = true;
-    this.onStatus(`RUM ${room.roomId} · dela rumskoden med dina vänner`);
+    this.onStatus("ANSLUTEN TILL OFFICE01");
     room.onMessage(MSG.snapshot, (snapshot: Snapshot) => {
       this.snapshot = snapshot;
       this.onSnapshot(snapshot);
