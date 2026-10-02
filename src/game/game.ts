@@ -486,6 +486,9 @@ export class Game {
     );
     if (!own) return;
     CONFIG.player.team = own.team;
+    this.hud.el.querySelector(".brand small")!.textContent="ALPHA 0.1 · MULTIPLAYER";
+    this.hud.el.querySelector(".location p")!.textContent=`ONLINE · ${snapshot.players.length} spelare`;
+    this.hud.el.querySelector(".health > span")!.textContent=`PLAYER / ${own.team} TEAM`;
     this.match.members = snapshot.players.map((p) => ({
       name: p.name,
       team: p.team,

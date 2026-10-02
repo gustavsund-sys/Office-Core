@@ -30,7 +30,7 @@ pnpm test:multiplayer
 node --import tsx scripts/firebase-smoke.ts
 ```
 
-Guest-läget är uttryckligt opt-in för tester, accepteras aldrig i production och exponeras inte i spelklienten. Smoke-testet verifierar två klienter, lag/cores, serverrörelse och isolerade rum. Firebase-testet skapar och raderar en anonym testanvändare. Build och 28 befintliga gameplaytester har passerat. Hosting och Cloud Run är publicerade, anonym Firebase-auth/tokenverifiering passerar över WSS och rumsskapande är kontrollerat i den publika webbläsarklienten. Visuell tvåklientstestning och belastningsmätning återstår.
+Guest-läget är uttryckligt opt-in för tester, accepteras aldrig i production och exponeras inte i spelklienten. Smoke-testet verifierar två klienter, lag/cores, serverrörelse och isolerade rum. Firebase-testet skapar och raderar en anonym testanvändare. Build och 28 befintliga gameplaytester har passerat. Hosting och Cloud Run är publicerade, anonym Firebase-auth/tokenverifiering passerar över WSS och rumsskapande är kontrollerat i den publika webbläsarklienten. Två separata webbläsarklienter har också verifierats i samma publika rum med gemensam matchstart. Det fullständiga SDK-testet passerar över WSS, inklusive återanslutning och två isolerade matcher. Belastningsmätning och vidare gameplay-QA återstår.
 
 ## Deployment
 
