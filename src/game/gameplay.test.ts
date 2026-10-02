@@ -213,6 +213,13 @@ test("Core rooms require a destroyed door, while spawn pads stay reachable", () 
         false,
         `${b.team} core sealed`,
       );
+      for (const dx of [-3, 3])
+        for (const dz of [-3, 3])
+          assert.equal(
+            before.seen.has(key((b.x + dx) * 2, (b.z + dz) * 2)),
+            false,
+            `${b.team} room corner ${dx},${dz} is sealed`,
+          );
     }
     for (const door of doors) {
       assert.equal(door.hp, 100);

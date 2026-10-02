@@ -225,6 +225,9 @@ export class World {
       // Two front entrances and one side entrance, with internal sightline baffles.
       const sx = Math.sign(b.x),
         sz = Math.sign(b.z);
+      // Close the entire room perimeter; outer map walls sit further away.
+      this.wall(b.x + sx * 4.5, b.z, 0.4, 9.4);
+      this.wall(b.x, b.z + sz * 4.5, 9.4, 0.4);
       // Exterior passages must not open a route around the security doors.
       this.wall(b.x + sx * 5.25, b.z - sz * 4.5, 1.5, 0.4);
       this.wall(b.x - sx * 4.5, b.z + sz * 2, 0.4, 5);

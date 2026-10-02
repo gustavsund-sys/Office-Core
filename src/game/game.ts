@@ -308,10 +308,15 @@ export class Game {
         this.hud.toast(`EQUIPPED: ${WEAPONS[this.weapons.id].name}`);
       });
     // Preserve the mix chosen in the local playtest on every hosting origin.
-    const savedMix = { footsteps: 10, busterScream: 65 } as Record<
-      string,
-      number
-    >;
+    const savedMix = {
+      footsteps: 10,
+      busterScream: 65,
+      bazookaExplosion: 70,
+    } as Record<string, number>;
+    if (localStorage.getItem("officeCore.bazookaExplosionMixVersion") !== "1") {
+      localStorage.setItem("officeWars.audio.bazookaExplosion", "70");
+      localStorage.setItem("officeCore.bazookaExplosionMixVersion", "1");
+    }
     const migrateMix =
       localStorage.getItem("officeCore.audioMixVersion") !== "1";
     for (const slider of Array.from(
