@@ -45,9 +45,10 @@ self.addEventListener("install", (event) => {
       await Promise.all(
         Object.keys(FILES)
           .filter((path) => path.startsWith("/assets/"))
-          .map((path) =>
-            resource(new Request(new URL(path, self.location.origin)), path),
-          ),
+          .map(async (path) => {
+            const response = await resource(new Request(new URL(path, self.location.origin)), path);
+            if (!response.ok) throw new Error(`Game update download failed: ${path}`);
+          }),
       );
       await self.skipWaiting();
     })(),
