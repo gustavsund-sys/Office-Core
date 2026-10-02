@@ -36,6 +36,8 @@ import { interpolateYaw } from "../network/interpolation";
 import { Multiplayer } from "../network/client";
 import { MSG, type Snapshot, type NetInput } from "../../shared/protocol";
 export class Game {
+  testToolsEnabled =
+    new URLSearchParams(location.search).get("devtools") === "1";
   multiplayer?: Multiplayer;
   inputSequence = 0;
   pendingInputs: NetInput[] = [];
@@ -240,6 +242,7 @@ export class Game {
     document.querySelector("#ui")!.append(notice);
     const panel = document.createElement("aside");
     panel.className = "build-panel";
+    panel.hidden = !this.testToolsEnabled;
     panel.innerHTML = `<details open><summary>BYGGPANEL · TEST</summary><p>Utrusta spelaren</p><div class="build-weapons">${Object.entries(
       WEAPONS,
     )
@@ -289,10 +292,22 @@ export class Game {
         this.weapons.equip(button.dataset.equip as WeaponId);
         this.hud.toast(`EQUIPPED: ${WEAPONS[this.weapons.id].name}`);
       });
+    // Preserve the mix chosen in the local playtest on every hosting origin.
+    const savedMix = { footsteps: 10, busterScream: 65 } as Record<
+      string,
+      number
+    >;
+    const migrateMix =
+      localStorage.getItem("officeCore.audioMixVersion") !== "1";
     for (const slider of Array.from(
       panel.querySelectorAll<HTMLInputElement>("[data-level]"),
     )) {
       const key = slider.dataset.level!;
+      if (migrateMix)
+        localStorage.setItem(
+          `officeWars.audio.${key}`,
+          String(savedMix[key] ?? 100),
+        );
       const saved = Number(
         localStorage.getItem(`officeWars.audio.${key}`) ?? 100,
       );
@@ -306,6 +321,7 @@ export class Game {
         this.prepareAudio().setLevel(key, Number(slider.value) / 100);
       });
     }
+    localStorage.setItem("officeCore.audioMixVersion", "1");
     panel.addEventListener("pointerdown", (event) => event.stopPropagation());
     panel.addEventListener("keydown", (event) => event.stopPropagation());
     this.debug = new Debug(this.world, this.player);
@@ -729,11 +745,20 @@ export class Game {
     }
     this.predictedPosition = this.player.root.position.clone();
     this.predictedVelocity = this.player.verticalVelocity;
-    if (snapshot?.started && !this.paused && this.player.hp > 0 && net.connected) this.player.simulate(command, this.networkElapsed);
+    if (
+      snapshot?.started &&
+      !this.paused &&
+      this.player.hp > 0 &&
+      net.connected
+    )
+      this.player.simulate(command, this.networkElapsed);
     if (snapshot) {
-      for (const [id, player] of this.onlinePlayers) if (!snapshot.players.some(p => p.id === id)) {
-        player.root.dispose(); this.onlinePlayers.delete(id); this.onlineModels.delete(id);
-      }
+      for (const [id, player] of this.onlinePlayers)
+        if (!snapshot.players.some((p) => p.id === id)) {
+          player.root.dispose();
+          this.onlinePlayers.delete(id);
+          this.onlineModels.delete(id);
+        }
       const steps: { id: string; x: number; z: number; moving: boolean }[] = [];
       const renderAt = performance.now() - 85;
       const before =
@@ -944,53 +969,59 @@ export class Game {
     this.cores.forEach((core) =>
       core.setActive(this.match.isActive(core.team!)),
     );
-    const other = this.match.members[1];
-    const otherBase = office01.bases.find((base) => base.team === other.team)!;
-    this.testPlayer = new Player(this.world);
-    this.testPlayer.root.position.set(
-      otherBase.x,
-      0,
-      otherBase.z - Math.sign(otherBase.z) * 9,
-    );
-    this.testPlayer.torso.material = this.world.mat(TEAMS[other.team]);
-    this.testWeapons = new Weapons(
-      this.testPlayer,
-      () => {},
-      () => {
-        if (!this.sound || !this.testPlayer) return;
-        const origin = this.testPlayer.root.position.add(
-          new Vector3(0, 1.1, 0),
-        );
-        const listener = this.player.root.position.add(new Vector3(0, 1.1, 0));
-        const delta = listener.subtract(origin);
-        const distance = delta.length();
-        const hit =
-          distance > 0
-            ? this.scene.pickWithRay(
-                new Ray(origin, delta.scale(1 / distance), distance),
-                (mesh) =>
-                  mesh.isEnabled() &&
-                  (!!mesh.metadata?.solid || !!mesh.metadata?.damageable),
-              )
-            : null;
-        const blocked = !!hit?.hit;
-        this.weaponAudio?.playRemoteShot(
-          "machineGun",
-          distance,
-          (origin.x - listener.x) / Math.max(10, distance),
-          blocked,
-        );
-      },
-    );
-    this.testWeapons.equip("machineGun");
-    this.testWeapons.ammo = Infinity;
-    this.world.label(
-      "TEST PLAYER",
-      otherBase.x,
-      otherBase.z - Math.sign(otherBase.z) * 11,
-      TEAMS[other.team],
-      3,
-    );
+    if (this.testToolsEnabled) {
+      const other = this.match.members[1];
+      const otherBase = office01.bases.find(
+        (base) => base.team === other.team,
+      )!;
+      this.testPlayer = new Player(this.world);
+      this.testPlayer.root.position.set(
+        otherBase.x,
+        0,
+        otherBase.z - Math.sign(otherBase.z) * 9,
+      );
+      this.testPlayer.torso.material = this.world.mat(TEAMS[other.team]);
+      this.testWeapons = new Weapons(
+        this.testPlayer,
+        () => {},
+        () => {
+          if (!this.sound || !this.testPlayer) return;
+          const origin = this.testPlayer.root.position.add(
+            new Vector3(0, 1.1, 0),
+          );
+          const listener = this.player.root.position.add(
+            new Vector3(0, 1.1, 0),
+          );
+          const delta = listener.subtract(origin);
+          const distance = delta.length();
+          const hit =
+            distance > 0
+              ? this.scene.pickWithRay(
+                  new Ray(origin, delta.scale(1 / distance), distance),
+                  (mesh) =>
+                    mesh.isEnabled() &&
+                    (!!mesh.metadata?.solid || !!mesh.metadata?.damageable),
+                )
+              : null;
+          const blocked = !!hit?.hit;
+          this.weaponAudio?.playRemoteShot(
+            "machineGun",
+            distance,
+            (origin.x - listener.x) / Math.max(10, distance),
+            blocked,
+          );
+        },
+      );
+      this.testWeapons.equip("machineGun");
+      this.testWeapons.ammo = Infinity;
+      this.world.label(
+        "TEST PLAYER",
+        otherBase.x,
+        otherBase.z - Math.sign(otherBase.z) * 11,
+        TEAMS[other.team],
+        3,
+      );
+    }
     document.querySelector(".health > span")!.textContent =
       `PLAYER / ${team} TEAM`;
     document.querySelector(".team-choice")!.setAttribute("disabled", "");
