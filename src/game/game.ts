@@ -31,6 +31,7 @@ import { Pickup } from "../pickups/pickup";
 import { HUD } from "../ui/hud";
 import { Debug } from "../debug/debug";
 import { heldWeapon, rocketModel } from "../weapons/models";
+import { connectionError } from "../network/errors";
 import { Multiplayer } from "../network/client";
 import { MSG, type Snapshot } from "../../shared/protocol";
 export class Game {
@@ -383,8 +384,19 @@ export class Game {
     const panel = document.createElement("div");
     panel.className = "network-lobby";
     panel.innerHTML =
-      '<p>MULTIPLAYER ALPHA</p><button id="create-room">SKAPA RUM</button> <input id="room-code" aria-label="Rumskod" placeholder="Rumskod" maxlength="32"> <button id="join-room">ANSLUT</button><p id="network-status">Välj namn och lag. Minst två lag krävs för att starta.</p>';
+      '<p>MULTIPLAYER ALPHA</p><button id="create-room">SKAPA RUM</button> <input id="room-code" aria-label="Rumskod" placeholder="Rumskod" maxlength="32"> <button id="join-room">ANSLUT</button><button id="leave-room" hidden>LÄMNA RUM</button><p id="network-status">Skapa ett rum, eller skriv värdens rumskod och anslut. Minst två lag krävs för att starta.</p>';
     this.lobby.el.after(panel);
+    panel.querySelector<HTMLInputElement>("#room-code")!.value =
+      new URL(location.href).searchParams.get("room") ?? "";
+    panel.querySelector("#leave-room")!.addEventListener("click", async () => {
+      const button = panel.querySelector<HTMLButtonElement>("#leave-room")!;
+      button.disabled = true;
+      try {
+        await this.multiplayer?.room?.leave();
+      } finally {
+        location.reload();
+      }
+    });
     const connect = async (join: boolean) => {
       if (this.multiplayer?.room) return;
       const net = (this.multiplayer ??= new Multiplayer());
@@ -462,15 +474,19 @@ export class Game {
         panel
           .querySelectorAll<HTMLButtonElement>("button")
           .forEach((button) => (button.disabled = true));
+        const leave = panel.querySelector<HTMLButtonElement>("#leave-room")!;
+        leave.hidden = false;
+        leave.disabled = false;
+        panel.querySelector<HTMLInputElement>("#room-code")!.disabled = true;
+        this.match.started = false;
+        this.match.winner = undefined;
         document.querySelector<HTMLElement>(".build-panel")!.hidden = true;
         this.testPlayer?.root.dispose();
         this.testPlayer = undefined;
         this.testWeapons = undefined;
         this.prepareAudio();
       } catch (error) {
-        net.onStatus(
-          error instanceof Error ? error.message : "Kunde inte ansluta",
-        );
+        net.onStatus(connectionError(error));
       }
     };
     panel
@@ -486,9 +502,12 @@ export class Game {
     );
     if (!own) return;
     CONFIG.player.team = own.team;
-    this.hud.el.querySelector(".brand small")!.textContent="ALPHA 0.1 · MULTIPLAYER";
-    this.hud.el.querySelector(".location p")!.textContent=`ONLINE · ${snapshot.players.length} spelare`;
-    this.hud.el.querySelector(".health > span")!.textContent=`PLAYER / ${own.team} TEAM`;
+    this.hud.el.querySelector(".brand small")!.textContent =
+      "ALPHA 0.1 · MULTIPLAYER";
+    this.hud.el.querySelector(".location p")!.textContent =
+      `ONLINE · ${snapshot.players.length} spelare`;
+    this.hud.el.querySelector(".health > span")!.textContent =
+      `PLAYER / ${own.team} TEAM`;
     this.match.members = snapshot.players.map((p) => ({
       name: p.name,
       team: p.team,
@@ -802,7 +821,9 @@ export class Game {
       ? "grid"
       : "none";
     document.querySelector("#play")!.innerHTML =
-      "RESUME PLAYTEST <span>↗</span>";
+      this.multiplayer?.room && !this.multiplayer.snapshot?.started
+        ? "STARTA MATCH <span>↗</span>"
+        : "FORTSÄTT SPELA <span>↗</span>";
     document.body.classList.toggle("playing", !value);
   }
   resize() {
