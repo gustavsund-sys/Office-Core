@@ -1,6 +1,8 @@
 import type { Team } from "../src/config/game";
 import type { WeaponId } from "../src/config/weapons";
 export const MSG = {
+  ready: "ready",
+  chat: "chat",
   input: "input",
   ping: "ping",
   start: "start",
@@ -31,6 +33,8 @@ export interface NetInput {
   slot: 0 | 1 | 2;
 }
 export interface NetPlayer {
+  kills?: number;
+  disarm?: number;
   ack: number;
   warcryAvailable?: boolean;
   invulnerable?: number;
@@ -50,6 +54,10 @@ export interface NetPlayer {
   reload: number;
 }
 export interface Snapshot {
+  round?: number;
+  wins?: Record<Team, number>;
+  ready?: string[];
+  seriesWinner?: Team;
   owner: string;
   players: NetPlayer[];
   cores: { team: Team; hp: number; active: boolean }[];

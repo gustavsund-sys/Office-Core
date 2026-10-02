@@ -1,3 +1,4 @@
+import { Disarm } from "./disarm";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -221,7 +222,19 @@ test("side bases and new north/south approaches form a mirrored footprint", () =
 test("med-kits heal living injured players, cap HP, and respawn per location", () => {
   for (const type of ["medkit", "superMedkit"] as const) {
     const doc = defaultMap();
-    doc.spawns = [{ id: "health", type, x: 0, z: 0, weapon: "pistol", pool: ["pistol"], interval: 10, initialDelay: 2, amount: 0 }];
+    doc.spawns = [
+      {
+        id: "health",
+        type,
+        x: 0,
+        z: 0,
+        weapon: "pistol",
+        pool: ["pistol"],
+        interval: 10,
+        initialDelay: 2,
+        amount: 0,
+      },
+    ];
     const s = setup(parseMap(doc));
     try {
       const pickups = new Pickup(s.world);
@@ -246,6 +259,49 @@ test("med-kits heal living injured players, cap HP, and respawn per location", (
       s.player.hp = 30;
       pickups.update(0, 11, s.weapons, () => {});
       assert.equal(s.player.hp, 30);
-    } finally { s.engine.dispose(); applyMap(defaultMap()); }
+    } finally {
+      s.engine.dispose();
+      applyMap(defaultMap());
+    }
+  }
+});
+
+test("disarming requires proximity and ten seconds, and cancels on leaving, death or firing", () => {
+  const s = setup(defaultMap());
+  try {
+    s.weapons.equip("coreBuster");
+    s.player.root.position.set(0, 0, 0);
+    s.weapons.update(
+      { moveX: 0, moveZ: 0, aimX: 0, aimZ: 0, fire: true, pressed: true },
+      0,
+    );
+    assert.equal(s.weapons.charges.length, 1);
+    const channel = new Disarm();
+    s.player.root.position.x = 2;
+    channel.update(s.player, [s.weapons], true, false, 1);
+    assert.equal(channel.target, undefined);
+    s.player.root.position.x = 0;
+    channel.update(s.player, [s.weapons], true, false, 4);
+    assert.equal(channel.elapsed, 4);
+    s.player.root.position.x = 2;
+    channel.update(s.player, [s.weapons], false, false, 1);
+    assert.equal(channel.elapsed, 0);
+    s.player.root.position.x = 0;
+    channel.update(s.player, [s.weapons], true, false, 4);
+    channel.update(s.player, [s.weapons], false, true, 1);
+    assert.equal(channel.target, undefined);
+    channel.update(s.player, [s.weapons], true, false, 4);
+    s.player.hp = 0;
+    channel.update(s.player, [s.weapons], false, false, 1);
+    assert.equal(channel.target, undefined);
+    s.player.hp = 100;
+    channel.update(s.player, [s.weapons], true, false, 9.9);
+    assert.equal(s.weapons.charges.length, 1);
+    channel.update(s.player, [s.weapons], false, false, 0.1);
+    assert.equal(s.weapons.charges.length, 0);
+    assert.equal(channel.target, undefined);
+  } finally {
+    s.engine.dispose();
+    applyMap(defaultMap());
   }
 });

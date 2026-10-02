@@ -34,7 +34,13 @@ export class Pickup {
     interval: number;
     sign: TransformNode;
   }[] = [];
-  healthDrops: { root: TransformNode; type: "medkit" | "superMedkit"; cooldown: number; interval: number }[] = [];
+  healthDrops: {
+    root: TransformNode;
+    type: "medkit" | "superMedkit";
+    cooldown: number;
+    interval: number;
+  }[] = [];
+  initialDelays = new Map<object, number>();
   constructor(public world: World) {
     for (const spot of activeMap.spawns) {
       if (spot.type !== "medkit" && spot.type !== "superMedkit") continue;
@@ -42,13 +48,23 @@ export class Pickup {
       const root = new TransformNode(spot.type, world.scene);
       root.position.set(spot.x, 0.55, spot.z);
       const accent = superKit ? "#ffc85a" : "#3ce6a0";
-      const part = (name: string, x: number, y: number, z: number, w: number, h: number, d: number, color: string) => {
+      const part = (
+        name: string,
+        x: number,
+        y: number,
+        z: number,
+        w: number,
+        h: number,
+        d: number,
+        color: string,
+      ) => {
         const mesh = world.box(name, x, y, z, w, h, d, color, false);
         mesh.parent = root;
       };
       part("medical case", 0, 0, 0, 1.2, 0.8, 0.8, "#f1f6f5");
       part("medical case seam", 0, 0.05, 0, 1.23, 0.07, 0.83, accent);
-      for (const x of [-0.22, 0.22]) part("case handle", x, 0.5, 0, 0.08, 0.25, 0.12, "#273c43");
+      for (const x of [-0.22, 0.22])
+        part("case handle", x, 0.5, 0, 0.08, 0.25, 0.12, "#273c43");
       part("case handle grip", 0, 0.62, 0, 0.5, 0.08, 0.12, "#273c43");
       // Bright medical crosses on the lid and both faces remain legible from above.
       part("medical cross lid", 0, 0.41, 0, 0.16, 0.025, 0.5, accent);
@@ -59,20 +75,36 @@ export class Pickup {
       }
       if (superKit) {
         root.scaling.setAll(1.25);
-        for (const x of [-0.52, 0.52]) part("super kit gold band", x, 0, 0, 0.08, 0.83, 0.83, accent);
+        for (const x of [-0.52, 0.52])
+          part("super kit gold band", x, 0, 0, 0.08, 0.83, 0.83, accent);
       }
-      const halo = MeshBuilder.CreateTorus("medical pickup halo", { diameter: superKit ? 2 : 1.7, thickness: 0.07 }, world.scene);
+      const halo = MeshBuilder.CreateTorus(
+        "medical pickup halo",
+        { diameter: superKit ? 2 : 1.7, thickness: 0.07 },
+        world.scene,
+      );
       halo.parent = root;
       halo.position.y = -0.47;
       halo.material = world.mat(accent, true);
       halo.isPickable = false;
-      const sign = world.label(superKit ? "SUPER MED-KIT · 100 HP" : "MED-KIT · +50 HP", spot.x, spot.z + 1.3, accent, 3);
+      const sign = world.label(
+        superKit ? "SUPER MED-KIT · 100 HP" : "MED-KIT · +50 HP",
+        spot.x,
+        spot.z + 1.3,
+        accent,
+        3,
+      );
       sign.parent = root;
       sign.position.x -= spot.x;
       sign.position.z -= spot.z;
       sign.position.y -= root.position.y;
       root.setEnabled(spot.initialDelay === 0);
-      this.healthDrops.push({ root, type: spot.type, cooldown: spot.initialDelay, interval: spot.interval });
+      this.healthDrops.push({
+        root,
+        type: spot.type,
+        cooldown: spot.initialDelay,
+        interval: spot.interval,
+      });
     }
     const candidates = (spawn: SpawnPoint) =>
       spawn.weapon === "random" ? spawn.pool : [spawn.weapon];
@@ -277,6 +309,44 @@ export class Pickup {
         2.5,
       );
     }
+    for (const drop of [
+      ...this.ammoDrops,
+      ...this.endpoints,
+      ...this.healthDrops,
+      ...this.weaponSlots,
+      ...this.singleAmmoSlots,
+    ])
+      this.initialDelays.set(drop, drop.cooldown);
+  }
+  reset() {
+    for (const drop of this.endpoints.filter((d) => d.dropped))
+      drop.root.dispose();
+    this.endpoints = this.endpoints.filter((d) => !d.dropped);
+    this.weaponSlots.forEach((slot, i) => {
+      slot.cooldown = activeMap.spawns.filter((p) => p.type === "weapon")[
+        i
+      ].initialDelay;
+      slot.selected = Math.floor(Math.random() * slot.drops.length);
+    });
+    this.singleAmmoSlots.forEach((slot) => {
+      slot.cooldown = this.initialDelays.get(slot) ?? 0;
+      slot.selected = Math.floor(Math.random() * slot.drops.length);
+    });
+    this.ammoDrops.forEach(
+      (drop) => (drop.cooldown = this.initialDelays.get(drop) ?? 0),
+    );
+    this.healthDrops.forEach(
+      (drop, i) =>
+        (drop.cooldown = activeMap.spawns.filter(
+          (p) => p.type === "medkit" || p.type === "superMedkit",
+        )[i].initialDelay),
+    );
+    this.endpoints.forEach(
+      (drop) => (drop.cooldown = this.initialDelays.get(drop) ?? 0),
+    );
+    this.chooseRequested = false;
+    this.nearbyWeapon = undefined;
+    this.tickTimers(0);
   }
   tickTimers(dt: number) {
     const remaining = (value: number) => (value < 1e-7 ? 0 : value);
@@ -312,9 +382,15 @@ export class Pickup {
     for (const drop of this.healthDrops) {
       const player = weapons.player;
       const p = player.root.position;
-      if (player.hp <= 0 || player.hp >= 100 || !drop.root.isEnabled()) continue;
-      if (Math.hypot(p.x - drop.root.position.x, p.z - drop.root.position.z) >= 1.1) continue;
-      player.hp = drop.type === "superMedkit" ? 100 : Math.min(100, player.hp + 50);
+      if (player.hp <= 0 || player.hp >= 100 || !drop.root.isEnabled())
+        continue;
+      if (
+        Math.hypot(p.x - drop.root.position.x, p.z - drop.root.position.z) >=
+        1.1
+      )
+        continue;
+      player.hp =
+        drop.type === "superMedkit" ? 100 : Math.min(100, player.hp + 50);
       drop.cooldown = drop.interval;
       drop.root.setEnabled(false);
       onPick();

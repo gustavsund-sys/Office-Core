@@ -20,7 +20,7 @@ export class HUD {
       )
       .join(
         "",
-      )}</div><button id="pause" aria-label="Pause game">Ⅱ</button></header><aside class="location"><span>FLOOR 01 / HEADQUARTERS</span><h2 id="room">RED BASE</h2><p><i></i> Training session · No hostiles</p></aside><div id="warning">YOUR CORE IS UNDER ATTACK</div><div id="toast"></div><div class="objective"><span>FIELD TEST / 01</span><b>Take the long way in.</b><p>Follow the corridors to the Combat Atrium.<br>Shoot office furniture to destroy cover.</p></div><div class="map"><div>OFFICE01 <span>N ↑</span></div><canvas id="minimap" width="190" height="190"></canvas></div><footer><div class="health"><span>PLAYER / RED TEAM</span><strong>100 <small>HP</small></strong><div class="healthline"></div></div><div class="weapon"><span>EQUIPPED WEAPON</span><strong id="weapon">PISTOL</strong><small id="mode">SEMI-AUTO</small></div><div class="ammo"><span>AMMUNITION</span><strong id="ammo">∞</strong></div><div class="controls"><p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move &nbsp; <kbd>↖</kbd> Aim &nbsp; <kbd>LMB</kbd> Fire</p><p><kbd>C</kbd> <span id="movement-mode">W follows aim</span> &nbsp; <kbd>SPACE</kbd> Jump &nbsp; <kbd>1</kbd> Pistol <kbd>2</kbd> Special <kbd>E</kbd> Pick up &nbsp; <kbd>F2</kbd> Debug &nbsp; <kbd>ESC</kbd> Pause &nbsp; <button id="sound">SOUND ON</button></p></div></footer><div id="crosshair"><i></i></div><div id="damage"></div><pre id="debug"></pre><div id="overlay"><div class="pause-card"><span>WELCOME TO THE OFFICE</span><h1>Office<br><span class="title-core">Core</span></h1><p>Two teams. Up to four players per team. One floor. A very different workday.</p><div class="brief"><b>ALPHA 0.1 — OFFICE01</b><p>Fixed camera. Choose the controls that feel right for you.<br>Choose a team. Last active core standing wins. Collect matching ammo crates to keep firing.</p></div><fieldset class="control-choice"><legend>VÄLJ DIN STYRNING</legend><label><input type="radio" name="controls" value="classic"><span><b>Klassisk</b><small>WASD följer kartan. Musen siktar fritt.</small></span></label><label><input type="radio" name="controls" value="aim"><span><b>Siktstyrd</b><small>W följer siktet. S backar, A/D går sidledes.</small></span></label></fieldset><button id="play">START PLAYTEST <span>↗</span></button><small>Byt när som helst i pausmenyn eller med C. Valet sparas på denna enhet.</small></div></div>`;
+      )}</div><button id="pause" aria-label="Pause game">Ⅱ</button></header><aside class="location"><span>FLOOR 01 / HEADQUARTERS</span><h2 id="room">RED BASE</h2><p><i></i> Training session · No hostiles</p></aside><div id="warning" role="alert">YOUR CORE IS UNDER ATTACK</div><div id="toast"></div><div class="objective"><span>FIELD TEST / 01</span><b>Take the long way in.</b><p>Follow the corridors to the Combat Atrium.<br>Shoot office furniture to destroy cover.</p></div><div class="map"><div>OFFICE01 <span>N ↑</span></div><canvas id="minimap" width="190" height="190"></canvas></div><footer><div class="health"><span>PLAYER / RED TEAM</span><strong>100 <small>HP</small></strong><div class="healthline"></div></div><div class="weapon"><span>EQUIPPED WEAPON</span><strong id="weapon">PISTOL</strong><small id="mode">SEMI-AUTO</small></div><div class="ammo"><span>AMMUNITION</span><strong id="ammo">∞</strong></div><div class="controls"><p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move &nbsp; <kbd>↖</kbd> Aim &nbsp; <kbd>LMB</kbd> Fire</p><p><kbd>C</kbd> <span id="movement-mode">W follows aim</span> &nbsp; <kbd>SPACE</kbd> Jump &nbsp; <kbd>1</kbd> Pistol <kbd>2</kbd> Special <kbd>E</kbd> Pick up &nbsp; <kbd>F2</kbd> Debug &nbsp; <kbd>ESC</kbd> Pause &nbsp; <button id="sound">SOUND ON</button></p></div></footer><div id="crosshair"><i></i></div><div id="damage"></div><pre id="debug"></pre><div id="overlay"><div class="pause-card"><span>WELCOME TO THE OFFICE</span><h1>Office<br><span class="title-core">Core</span></h1><p>Two teams. Up to four players per team. One floor. A very different workday.</p><div class="brief"><b>ALPHA 0.1 — OFFICE01</b><p>Fixed camera. Choose the controls that feel right for you.<br>Choose a team. Last active core standing wins. Collect matching ammo crates to keep firing.</p></div><fieldset class="control-choice"><legend>VÄLJ DIN STYRNING</legend><label><input type="radio" name="controls" value="classic"><span><b>Klassisk</b><small>WASD följer kartan. Musen siktar fritt.</small></span></label><label><input type="radio" name="controls" value="aim"><span><b>Siktstyrd</b><small>W följer siktet. S backar, A/D går sidledes.</small></span></label></fieldset><button id="play">START PLAYTEST <span>↗</span></button><small>Byt när som helst i pausmenyn eller med C. Valet sparas på denna enhet.</small></div></div>`;
     this.minimap = this.el.querySelector("#minimap")!;
     this.ctx = this.minimap.getContext("2d")!;
     window.addEventListener("pointermove", (e) => {
@@ -33,15 +33,87 @@ export class HUD {
     this.el.querySelector("#toast")!.textContent = text;
     this.toastTime = 3;
   }
-  warning() {
+  warning(team = "BLUE") {
     this.el.querySelector("#warning")!.textContent =
-      "YOUR CORE IS UNDER ATTACK";
+      `${team.charAt(0) + team.slice(1).toLowerCase()} core is under attack! Protect it!`;
     this.warningTime = 3.5;
   }
   breachWarning(team: string) {
     this.el.querySelector("#warning")!.textContent =
-      `${team} CORE · Someone is trying to breach your core!`;
+      `${team.charAt(0) + team.slice(1).toLowerCase()} core is under attack! Protect it!`;
     this.warningTime = 4;
+  }
+  plantedWarning(team: string) {
+    const name = team.charAt(0) + team.slice(1).toLowerCase();
+    this.el.querySelector("#warning")!.textContent =
+      `A Core Buster has been planted at ${name} Core! ${name} Team! Disarm IT!`;
+    this.warningTime = 1;
+  }
+  statsStarted = false;
+  showStats(started: boolean) {
+    this.statsStarted = started;
+    for (const id of ["team-wins", "kill-counter"]) {
+      const panel = this.el.querySelector<HTMLElement>("#" + id);
+      if (panel) panel.hidden = !started;
+    }
+  }
+  wins(wins: { RED: number; BLUE: number }, round: number) {
+    let panel = this.el.querySelector<HTMLElement>("#team-wins");
+    if (!panel) {
+      panel = document.createElement("aside");
+      panel.id = "team-wins";
+      this.el.append(panel);
+    }
+    panel.hidden = !this.statsStarted;
+    panel.innerHTML = `<div class="score-heading"><span>ROUND ${round}</span><small>FIRST TO 3</small></div><div class="team-score-grid">${(["RED", "BLUE"] as const).map((team) => `<div class="team-score" style="--accent:${TEAMS[team]}"><span>${team}</span><strong>${wins[team]}<small> WINS</small></strong><div class="win-pips">${[0, 1, 2].map((n) => `<i class="${n < wins[team] ? "earned" : ""}"></i>`).join("")}</div></div>`).join("")}</div>`;
+  }
+  scoreboard(players: { name: string; kills?: number; team?: string }[]) {
+    let list = this.el.querySelector<HTMLElement>("#kill-counter");
+    if (!list) {
+      list = document.createElement("aside");
+      list.id = "kill-counter";
+      this.el.append(list);
+    }
+    list.hidden = !this.statsStarted || players.length === 0;
+    list.replaceChildren();
+    const title = document.createElement("b");
+    title.className = "score-heading";
+    title.textContent = "✦ KILL LEADERBOARD";
+    list.append(title);
+    for (const p of [...players].sort(
+      (a, b) => (b.kills ?? 0) - (a.kills ?? 0),
+    )) {
+      const row = document.createElement("div");
+      row.className = "kill-row";
+      row.style.setProperty(
+        "--accent",
+        p.team === "BLUE" ? TEAMS.BLUE : TEAMS.RED,
+      );
+      const rank = document.createElement("i");
+      rank.textContent = String(list.children.length);
+      const name = document.createElement("span");
+      name.textContent = p.name;
+      const count = document.createElement("strong");
+      count.textContent = String(p.kills ?? 0);
+      row.append(rank, name, count);
+      list.append(row);
+    }
+  }
+  disarm(progress?: number) {
+    let panel = this.el.querySelector<HTMLElement>("#disarm-progress");
+    if (!panel) {
+      panel = document.createElement("section");
+      panel.id = "disarm-progress";
+      panel.innerHTML =
+        '<b>DISARMING CORE BUSTER</b><progress max="10" aria-label="Disarm progress"></progress><span></span>';
+      this.el.append(panel);
+    }
+    panel.hidden = progress === undefined;
+    if (progress !== undefined) {
+      panel.querySelector("progress")!.value = progress;
+      panel.querySelector("span")!.textContent =
+        `${Math.max(0, 10 - progress).toFixed(1)}s · Stay close`;
+    }
   }
   damage(amount: number) {
     const e = this.el.querySelector<HTMLElement>("#damage")!;
@@ -55,12 +127,26 @@ export class HUD {
     if (warcry) {
       warcry.hidden = !weapons.carryingCoreBuster;
       warcry.disabled = !weapons.warcryAvailable || player.hp <= 0;
-      warcry.textContent = player.invulnerable > 0 ? `SHIELD · ${player.invulnerable.toFixed(1)}s` : weapons.warcryAvailable ? "Q · CORE BUSTER WARCRY" : "WARCRY ANVÄNT";
+      warcry.textContent =
+        player.invulnerable > 0
+          ? `SHIELD · ${player.invulnerable.toFixed(1)}s`
+          : weapons.warcryAvailable
+            ? "Q · CORE BUSTER WARCRY"
+            : "WARCRY ANVÄNT";
     }
     let bombs = this.el.querySelector<HTMLElement>("#buster-countdowns");
-    if (!bombs) { bombs = document.createElement("section"); bombs.id = "buster-countdowns"; this.el.append(bombs); }
+    if (!bombs) {
+      bombs = document.createElement("section");
+      bombs.id = "buster-countdowns";
+      this.el.append(bombs);
+    }
     bombs.hidden = weapons.charges.length === 0;
-    bombs.innerHTML = weapons.charges.map((charge, index) => `<div class="buster-countdown"><span>CORE BUSTER ${weapons.charges.length > 1 ? index + 1 : ""}</span><strong>${Math.max(0, charge.timer).toFixed(1)}s</strong><progress aria-label="Core buster countdown" max="25" value="${Math.max(0, charge.timer)}"></progress></div>`).join("");
+    bombs.innerHTML = weapons.charges
+      .map(
+        (charge, index) =>
+          `<div class="buster-countdown"><span>CORE BUSTER ${weapons.charges.length > 1 ? index + 1 : ""}</span><strong>${Math.max(0, charge.timer).toFixed(1)}s</strong><progress aria-label="Core buster countdown" max="25" value="${Math.max(0, charge.timer)}"></progress></div>`,
+      )
+      .join("");
     this.toastTime -= dt;
     this.warningTime -= dt;
     (this.el.querySelector("#toast") as HTMLElement).style.opacity =
@@ -68,19 +154,30 @@ export class HUD {
     (this.el.querySelector("#warning") as HTMLElement).style.opacity =
       this.warningTime > 0 ? "1" : "0";
     for (const c of cores) {
-      this.el.querySelector("#hp-" + c.team)!.textContent = c.active ? String(c.hp) : "INACTIVE";
+      this.el.querySelector("#hp-" + c.team)!.textContent = c.active
+        ? String(c.hp)
+        : "INACTIVE";
       (this.el.querySelector("#bar-" + c.team) as HTMLElement).style.width =
         (c.active ? c.hp / c.maxHp : 0) * 100 + "%";
     }
-    this.el.querySelector("#weapon")!.textContent = WEAPONS[weapons.id].name + (weapons.id === "pistol" ? " [1]" : " [2]");
+    this.el.querySelector("#weapon")!.textContent =
+      WEAPONS[weapons.id].name + (weapons.id === "pistol" ? " [1]" : " [2]");
     this.el.querySelector("#ammo")!.textContent = Number.isFinite(weapons.ammo)
-      ? String(weapons.ammo) + (weapons.id === "bazooka" ? ` / ${weapons.bazookaReserve}` : "")
+      ? String(weapons.ammo) +
+        (weapons.id === "bazooka" ? ` / ${weapons.bazookaReserve}` : "")
       : "∞";
-    this.el.querySelector("#mode")!.textContent = weapons.reloadRemaining > 0
-      ? `RELOADING · ${weapons.reloadRemaining.toFixed(1)}s`
-      : weapons.ammo === 0 ? "EMPTY · FIND AMMO" : `${weapons.id === "coreBuster" ? "LMB: PLACE · 25s FUSE" : weapons.id === "burstGun" ? "5-SHOT BURST" : WEAPONS[weapons.id].automatic ? "AUTOMATIC" : "SEMI-AUTO"} / ${WEAPONS[weapons.id].damage} DMG`;
+    this.el.querySelector("#mode")!.textContent =
+      weapons.reloadRemaining > 0
+        ? `RELOADING · ${weapons.reloadRemaining.toFixed(1)}s`
+        : weapons.ammo === 0
+          ? "EMPTY · FIND AMMO"
+          : `${weapons.id === "coreBuster" ? "LMB: PLACE · 25s FUSE" : weapons.id === "burstGun" ? "5-SHOT BURST" : WEAPONS[weapons.id].automatic ? "AUTOMATIC" : "SEMI-AUTO"} / ${WEAPONS[weapons.id].damage} DMG`;
     let inventory = this.el.querySelector("#inventory-slots");
-    if (!inventory) { inventory = document.createElement("small"); inventory.id = "inventory-slots"; this.el.querySelector(".weapon")!.append(inventory); }
+    if (!inventory) {
+      inventory = document.createElement("small");
+      inventory.id = "inventory-slots";
+      this.el.querySelector(".weapon")!.append(inventory);
+    }
     inventory.textContent = `1 PISTOL · 2 ${weapons.specialWeapon ? WEAPONS[weapons.specialWeapon].name : "EMPTY"}`;
     let reload = this.el.querySelector<HTMLProgressElement>("#weapon-reload");
     if (!reload) {

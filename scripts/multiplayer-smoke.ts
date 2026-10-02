@@ -69,6 +69,24 @@ try {
   });
   b.onMessage(MSG.event, () => {});
   b.onMessage(MSG.snapshot, () => {});
+  const chat = new Promise<{ name: string; text: string }>(
+    (resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error("Lobby chat timed out")),
+        5000,
+      );
+      b.onMessage(MSG.chat, (message) => {
+        clearTimeout(timeout);
+        resolve(message);
+      });
+    },
+  );
+  a.onMessage(MSG.chat, () => {});
+  a.send(MSG.chat, "Hello lobby <b>test</b>");
+  assert.deepEqual(await chat, {
+    name: "Alice",
+    text: "Hello lobby <b>test</b>",
+  });
   const lobby = await wait(a, (s) => s.players.length === 2);
   assert.equal(lobby.cores.filter((c) => c.active).length, 2);
   b.send(MSG.profile, "Bobby");

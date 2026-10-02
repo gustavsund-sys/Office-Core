@@ -108,6 +108,20 @@ export class Destructible implements Hittable {
         );
     }
   }
+  reset() {
+    this.hp = this.maxHp;
+    this.flash = 0;
+    for (const mesh of this.meshes) {
+      mesh.setEnabled(true);
+      this.world.shadows.addShadowCaster(mesh);
+      if (!this.world.solids.includes(mesh)) this.world.solids.push(mesh);
+    }
+    for (const obstacle of this.obstacles)
+      if (!this.world.obstacles.includes(obstacle))
+        this.world.obstacles.push(obstacle);
+    for (const original of this.originals)
+      original.mesh.position.copyFrom(original.position);
+  }
   update(dt: number) {
     if (this.hp <= 0) return;
     this.flash = Math.max(0, this.flash - dt);

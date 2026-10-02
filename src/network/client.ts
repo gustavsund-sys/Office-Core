@@ -81,6 +81,7 @@ export class Multiplayer {
   nextPing = 0;
   snapshot?: Snapshot;
   history: { at: number; snapshot: Snapshot }[] = [];
+  onChat: (message: { name: string; text: string }) => void = () => {};
   onSnapshot: (snapshot: Snapshot) => void = () => {};
   onEvent: (event: NetEvent) => void = () => {};
   onStatus: (text: string) => void = () => {};
@@ -116,6 +117,9 @@ export class Multiplayer {
       this.snapshot = snapshot;
       this.onSnapshot(snapshot);
     });
+    room.onMessage(MSG.chat, (message: { name: string; text: string }) =>
+      this.onChat(message),
+    );
     room.onMessage(MSG.ping, (stamp: number) => {
       this.rtt = Math.max(0, Date.now() - stamp);
     });

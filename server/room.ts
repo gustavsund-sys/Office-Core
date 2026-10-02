@@ -1,3 +1,5 @@
+import { resetRound } from "../src/game/round";
+import { Disarm } from "../src/game/disarm";
 import { Room, type Client, ServerError } from "@colyseus/core";
 import { getAuth } from "firebase-admin/auth";
 import {
@@ -45,6 +47,9 @@ const idle = (): NetInput => ({
   slot: 0,
 });
 interface Participant {
+  kills: number;
+  disarm: Disarm;
+  lastChat: number;
   uid: string;
   name: string;
   team: Team;
@@ -74,6 +79,10 @@ export class OfficeRoom extends Room {
   cores: Damageable[] = [];
   started = false;
   winner?: Team;
+  round = 1;
+  wins: Record<Team, number> = { RED: 0, BLUE: 0 };
+  ready = new Set<string>();
+  seriesWinner?: Team;
   owner = "";
   time = 0;
   onCreate(options: { hosted?: boolean } = {}) {
@@ -138,6 +147,20 @@ export class OfficeRoom extends Room {
       };
       p.lastInput = now;
     });
+    this.onMessage(MSG.chat, (client, text) => {
+      const p = this.participants.get(client.sessionId);
+      if (
+        !p ||
+        this.started ||
+        typeof text !== "string" ||
+        text.length > 240 ||
+        !text.trim() ||
+        Date.now() - p.lastChat < 1000
+      )
+        return;
+      p.lastChat = Date.now();
+      this.broadcast(MSG.chat, { name: p.name, text: text.trim() });
+    });
     this.onMessage(MSG.profile, (client, name) => {
       if (
         !this.permit(client) ||
@@ -147,7 +170,7 @@ export class OfficeRoom extends Room {
       )
         return;
       const p = this.participants.get(client.sessionId);
-      if (p) p.name = name.trim() || "Player";
+      if (p && name.trim()) p.name = name.trim();
     });
     this.onMessage(MSG.team, (client, team) => {
       if (!this.permit(client)) return;
@@ -163,6 +186,11 @@ export class OfficeRoom extends Room {
         this.spawn(p);
         this.refreshCores();
       }
+    });
+    this.onMessage(MSG.ready, (client) => {
+      if (!this.permit(client) || !this.winner || this.seriesWinner) return;
+      this.ready.add(client.sessionId);
+      this.tryNextRound();
     });
     this.onMessage(MSG.restart, async (client) => {
       if (!this.permit(client)) return;
@@ -237,6 +265,12 @@ export class OfficeRoom extends Room {
   ) {
     if ([...this.participants.values()].some((p) => p.uid === auth.uid))
       throw new ServerError(409, "Already in match");
+    if (
+      typeof options.name !== "string" ||
+      !options.name.trim() ||
+      options.name.length > 24
+    )
+      throw new ServerError(400, "Choose a name before joining");
     const requestedTeam = Object.hasOwn(TEAMS, options.team ?? "")
       ? options.team!
       : "RED";
@@ -248,6 +282,9 @@ export class OfficeRoom extends Room {
     if (!team) throw new ServerError(409, "Both teams are full");
     const player = new Player(this.world);
     const participant: Participant = {
+      kills: 0,
+      disarm: new Disarm(),
+      lastChat: 0,
       uid: auth.uid,
       name:
         typeof options.name === "string"
@@ -279,7 +316,22 @@ export class OfficeRoom extends Room {
       });
     participant.weapons = new Weapons(
       player,
-      () => {},
+      (target) => {
+        if (target instanceof Damageable && target.team)
+          this.attackUntil.set(target.team as Team, this.time + 4);
+        const victim = [...this.participants.values()].find((p) =>
+          p.player.bodyMeshes.some(
+            (mesh) => mesh.metadata?.damageable === target,
+          ),
+        );
+        if (
+          victim &&
+          victim !== participant &&
+          victim.team !== participant.team &&
+          target.hp <= 0
+        )
+          participant.kills++;
+      },
       () => event("shot"),
     );
     participant.weapons.visuals = false;
@@ -377,6 +429,7 @@ export class OfficeRoom extends Room {
         ),
       );
   }
+  attackUntil = new Map<Team, number>();
   tick(dt: number) {
     this.time += dt;
     if (!this.started || this.winner) return;
@@ -438,8 +491,20 @@ export class OfficeRoom extends Room {
           z: p.player.root.position.z,
         });
       for (const mesh of p.player.bodyMeshes) mesh.computeWorldMatrix(true);
-      p.weapons.update(input, dt);
-      this.pickup.chooseRequested = input.interact;
+      const disarming = p.disarm.update(
+        p.player,
+        [...this.participants.values()]
+          .map((p) => p.weapons)
+          .concat(this.orphanWeapons),
+        input.interact,
+        input.fire,
+        dt,
+      );
+      p.weapons.update(
+        disarming ? { ...input, fire: false, pressed: false } : input,
+        dt,
+      );
+      this.pickup.chooseRequested = input.interact && !disarming;
       this.pickup.update(0, this.time, p.weapons, () => {});
       p.input.pressed = false;
       p.input.jump = false;
@@ -457,6 +522,11 @@ export class OfficeRoom extends Room {
     const alive = this.cores.filter((core) => core.active && core.hp > 0);
     if (alive.length === 1) {
       this.winner = alive[0].team;
+      if (this.winner) {
+        this.wins[this.winner]++;
+        this.ready.clear();
+        if (this.wins[this.winner] >= 3) this.seriesWinner = this.winner;
+      }
       console.info("match ended", this.roomId);
     }
   }
@@ -468,6 +538,8 @@ export class OfficeRoom extends Room {
         ack: p.ack,
         verticalVelocity: p.player.verticalVelocity,
         name: p.name,
+        kills: p.kills,
+        disarm: p.disarm.target ? p.disarm.elapsed : undefined,
         team: p.team,
         x: p.player.root.position.x,
         y: p.player.root.position.y,
@@ -490,8 +562,13 @@ export class OfficeRoom extends Room {
       props: this.world.destructibles.map((prop) => prop.hp),
       pickups: [
         ...this.pickup.healthDrops.map((p) => ({
-          x: p.root.position.x, y: p.root.position.y, z: p.root.position.z,
-          id: "pistol" as const, active: p.root.isEnabled(), type: p.type, dropped: false,
+          x: p.root.position.x,
+          y: p.root.position.y,
+          z: p.root.position.z,
+          id: "pistol" as const,
+          active: p.root.isEnabled(),
+          type: p.type,
+          dropped: false,
         })),
         ...this.pickup.ammoDrops.map((p) => ({
           x: p.root.position.x,
@@ -541,13 +618,14 @@ export class OfficeRoom extends Room {
         .filter(
           (b) =>
             this.cores.some((c) => c.team === b.team && c.active && c.hp > 0) &&
-            [...this.participants.values()].some(
-              (p) =>
-                p.team !== b.team &&
-                p.player.hp > 0 &&
-                Math.abs(p.player.root.position.x - b.x) < 5.5 &&
-                Math.abs(p.player.root.position.z - b.z) < 5.5,
-            ),
+            ((this.attackUntil.get(b.team) ?? 0) > this.time ||
+              [...this.participants.values()].some(
+                (p) =>
+                  p.team !== b.team &&
+                  p.player.hp > 0 &&
+                  Math.abs(p.player.root.position.x - b.x) < 5.5 &&
+                  Math.abs(p.player.root.position.z - b.z) < 5.5,
+              )),
         )
         .map((b) => b.team),
       alarm: office01.bases.find(
@@ -561,12 +639,49 @@ export class OfficeRoom extends Room {
               Math.abs(p.player.root.position.z - b.z) < 5.5,
           ),
       )?.team,
+      round: this.round,
+      wins: { ...this.wins },
+      ready: [...this.ready],
+      seriesWinner: this.seriesWinner,
       started: this.started,
       winner: this.winner,
     };
   }
+  tryNextRound() {
+    if (!this.winner || this.seriesWinner || !this.participants.size) return;
+    if (
+      ![...this.participants].every(
+        ([id, p]) => p.connected && this.ready.has(id),
+      )
+    )
+      return;
+    if (new Set([...this.participants.values()].map((p) => p.team)).size < 2)
+      return;
+    resetRound(
+      this.world,
+      this.cores,
+      [...this.participants.values()]
+        .map((p) => p.weapons)
+        .concat(this.orphanWeapons),
+      this.pickup,
+    );
+    for (const orphan of this.orphanWeapons) orphan.player.root.dispose();
+    this.orphanWeapons = [];
+    for (const p of this.participants.values()) {
+      this.spawn(p);
+      p.disarm.reset();
+      p.respawn = 0;
+      p.input = idle();
+      p.queue = [];
+    }
+    this.attackUntil.clear();
+    this.winner = undefined;
+    this.round++;
+    this.ready.clear();
+    this.broadcast(MSG.snapshot, this.snapshot());
+  }
   async restartFinishedMatch() {
-    if (!this.winner) return;
+    if (!this.seriesWinner) return;
     await this.disconnect();
   }
   event(event: NetEvent) {
@@ -581,6 +696,7 @@ export class OfficeRoom extends Room {
       if (consented) throw new Error();
       await this.allowReconnection(client, 20);
       p.connected = true;
+      this.tryNextRound();
     } catch {
       p.weapons.dropCoreBuster();
       if (p.weapons.charges.length || p.weapons.rockets.length) {
@@ -588,6 +704,8 @@ export class OfficeRoom extends Room {
         this.orphanWeapons.push(p.weapons);
       } else p.player.root.dispose();
       this.participants.delete(client.sessionId);
+      this.ready.delete(client.sessionId);
+      this.tryNextRound();
       if (this.owner === client.sessionId)
         this.owner = this.participants.keys().next().value ?? "";
       this.refreshCores();

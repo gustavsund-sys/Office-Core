@@ -1238,3 +1238,47 @@ kbd {
 body.editing-map {
   overflow: auto;
 }
+
+.lobby-chat {margin-top:16px; border-top:1px solid #47616a; padding-top:12px}
+.chat-messages {height:100px; overflow:auto; background:#0c2029; padding:8px; text-align:left; overflow-wrap:anywhere}
+.chat-messages p {margin:5px 0!important; font-size:13px!important}
+.lobby-chat form {display:flex; gap:8px; margin:8px 0}
+.lobby-chat input {flex:1; min-width:0; background:#142c36; color:white; border:1px solid #607e87; padding:10px}
+.lobby-chat button {padding:8px 12px; cursor:pointer}
+#kill-counter {position:absolute; right:20px; top:95px; min-width:160px; max-width:240px; background:#102a36ed; border:1px solid #66828c; padding:12px; color:#fff; font-size:13px}
+#kill-counter div {display:flex; justify-content:space-between; gap:15px; margin-top:6px}
+#kill-counter span {overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#warning {top:120px!important; max-width:620px; width:calc(100% - 560px); font-size:22px!important; font-weight:800; line-height:1.4; padding:18px 24px!important; background:#861e25f2!important; color:#fff!important; border:3px solid #ffb05e; box-shadow:0 0 28px #ff302977; text-align:center}
+#disarm-progress {position:absolute; left:50%; bottom:180px; transform:translateX(-50%); width:340px; padding:20px; background:#102a36ed; border:2px solid #6be7b2; text-align:center; color:white}
+#disarm-progress progress {display:block; width:100%; height:20px; margin:12px 0; accent-color:#6be7b2}
+@media(max-width:800px) {#kill-counter {right:8px;top:100px;min-width:110px} #warning {width:65%;top:205px!important;font-size:16px!important}}
+.pause-card .lobby-chat form button {width:auto; flex:0 0 auto; padding:10px 16px; text-align:center}
+.pause-card .lobby-chat form input {width:0; flex:1 1 0; font-size:14px}
+#kill-counter[hidden], #disarm-progress[hidden] {display:none}
+
+#team-wins {position:absolute;right:20px;top:72px;background:#102a36ed;color:#ffdb93;padding:8px 12px;font-size:11px;font-weight:800;max-width:350px}
+#kill-counter {top:122px}
+#round-ready {display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:14px 0;color:#b7ead6;font-size:13px}
+
+.network-lobby .player-name {display:grid;gap:8px;margin:18px 0;color:#c3d6dd;font-weight:800;font-size:11px;letter-spacing:1px}
+.network-lobby .lobby-music {margin-top:12px}
+#team-wins[hidden],#kill-counter[hidden] {display:none!important}
+#team-wins,#kill-counter {right:18px;width:224px;box-sizing:border-box;max-width:224px;border:1px solid #547686;background:linear-gradient(145deg,#193642f5,#091923f5);box-shadow:0 8px 24px #0008,inset 0 1px #b7e6ff22;border-radius:8px;color:#e8f4fc;padding:12px}
+#team-wins {top:92px;border-top:3px solid #f2cd83}
+.score-heading {display:flex;justify-content:space-between;font-size:10px;font-weight:900;letter-spacing:1.5px;color:#d2e7f4;margin-bottom:10px}
+.score-heading small {font-size:8px;color:#8aa7b6;letter-spacing:1px}
+.team-score-grid {display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.team-score {padding:8px;background:#06151c88;border-left:3px solid var(--accent);border-radius:4px;color:var(--accent)}
+.team-score>span {font-size:9px;font-weight:800;letter-spacing:1.5px;display:block}
+.team-score>strong {font-size:28px;line-height:1.3;font-variant-numeric:tabular-nums}
+.team-score strong small {font-size:8px;color:#9bb4c1}
+.win-pips {display:flex;gap:4px;margin-top:4px}
+.win-pips i {height:5px;flex:1;background:#334750;border-radius:2px}
+.win-pips i.earned {background:var(--accent);box-shadow:0 0 7px var(--accent)}
+#kill-counter {top:236px}
+#kill-counter .kill-row {display:flex;align-items:center;gap:8px;padding:7px 6px;margin-top:4px;background:#07182188;border-radius:4px;border-left:2px solid var(--accent)}
+.kill-row i {font-style:normal;font-size:10px;color:#7796a8;width:14px}
+#kill-counter .kill-row span {flex:1;font-size:12px}
+.kill-row strong {font-size:16px;min-width:22px;text-align:center;color:#f5d38f;font-variant-numeric:tabular-nums}
+@media(max-width:800px){#team-wins,#kill-counter{right:8px;width:170px;max-width:170px;padding:9px}#team-wins{top:105px}#kill-counter{top:240px}}
+.network-lobby .player-name input {width:100%;box-sizing:border-box}

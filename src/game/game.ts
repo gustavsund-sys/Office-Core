@@ -1,3 +1,5 @@
+import { resetRound } from "./round";
+import { Disarm } from "./disarm";
 import {
   Color3,
   Color4,
@@ -20,7 +22,7 @@ import { WEAPONS, type WeaponId } from "../config/weapons";
 import { WeaponAudio } from "../audio/weapons";
 import { CoreMatch } from "./match";
 import { Lobby } from "../ui/lobby";
-import { showVictory } from "../ui/victory";
+import { showVictory, closeVictory, updateReady } from "../ui/victory";
 import { CONFIG, TEAMS, type Team } from "../config/game";
 import { World } from "../map/builder";
 import { office01 } from "../maps/office01";
@@ -99,13 +101,29 @@ export class Game {
   audio?: AudioContext;
   weaponAudio?: WeaponAudio;
   sound = true;
+  localDisarm = new Disarm();
+  localKills = 0;
+  currentRound = 1;
+  teamWins = { RED: 0, BLUE: 0 };
+  disarmAudio = new Audio("/audio/disarm.mp3");
+  lobbyMuted = localStorage.getItem("officeCore.lobbyMuted") === "true";
+  updateDisarm(progress?: number) {
+    this.hud.disarm(progress);
+    this.disarmAudio.loop = true;
+    if (progress !== undefined && this.sound && !this.paused) {
+      if (this.disarmAudio.paused) void this.disarmAudio.play().catch(() => {});
+    } else {
+      this.disarmAudio.pause();
+      this.disarmAudio.currentTime = 0;
+    }
+  }
   lobbyMusic = new Audio("/audio/music/office-groove.mp3");
   lobbyMusicBlocked = false;
   lobbyMusicPending = false;
   updateLobbyMusic(unlock = false) {
     if (unlock) this.lobbyMusicBlocked = false;
     this.lobbyMusic.loop = true;
-    this.lobbyMusic.volume = 0.35;
+    this.lobbyMusic.volume = this.lobbyMuted ? 0 : 0.35;
     const inLobby = !this.match.started && !this.match.winner && this.sound;
     if (!inLobby) {
       this.lobbyMusic.pause();
@@ -238,7 +256,7 @@ export class Game {
           this.breachUntil = this.time + 4;
           this.hud.breachWarning(t.team);
         } else if (t instanceof Damageable && t.team === CONFIG.player.team)
-          this.hud.warning();
+          this.hud.warning(t.team);
       },
       () => this.shotSound(),
       () => this.hud.toast("CORE SHIELDED — ENTER THE BASE"),
@@ -264,10 +282,34 @@ export class Game {
           return;
         }
         this.match.setPlayerName(name);
-        lobby.update(this.match.members, this.match.members[0]?.team ?? "RED");
+        lobby.update(
+          this.multiplayer ? [] : this.match.members,
+          this.match.members[0]?.team ?? "RED",
+        );
       },
     );
     this.lobby = lobby;
+    lobby.onChat = (text) => {
+      if (this.multiplayer?.room) {
+        this.multiplayer.room.send(
+          MSG.profile,
+          this.lobby.el.querySelector<HTMLInputElement>("#player-name")!.value,
+        );
+        this.multiplayer.room.send(MSG.chat, text);
+      } else this.hud.toast("Anslut till en lobby för att chatta.");
+    };
+    const music = lobby.el.querySelector<HTMLButtonElement>(".lobby-music")!;
+    const updateMusic = () =>
+      (music.textContent = this.lobbyMuted
+        ? "Lobbymusik: av"
+        : "Lobbymusik: på");
+    updateMusic();
+    music.addEventListener("click", () => {
+      this.lobbyMuted = !this.lobbyMuted;
+      localStorage.setItem("officeCore.lobbyMuted", String(this.lobbyMuted));
+      this.updateLobbyMusic(true);
+      updateMusic();
+    });
     this.match.setPlayerName(
       localStorage.getItem("officeCore.playerName") ?? "",
     );
@@ -415,6 +457,7 @@ export class Game {
         void this.audio.resume();
     });
     document.querySelector("#play")!.addEventListener("click", () => {
+      if (!this.lobby.validName()) return;
       if (this.multiplayer?.room) {
         this.prepareAudio();
         this.multiplayer.room.send(MSG.start);
@@ -503,9 +546,19 @@ export class Game {
     const panel = document.createElement("div");
     panel.className = "network-lobby";
     panel.innerHTML =
-      '<h3>OFFICE01 · MULTIPLAYER</h3><p>Anslut till OFFICE01. Skriv sedan ditt namn och välj Core i spellobbyn.</p><div id="available-rooms">Hämtar OFFICE01…</div><button id="leave-room" hidden>LÄMNA LOBBY</button><p id="network-status" role="status"></p>';
+      '<h3>OFFICE01 · MULTIPLAYER</h3><p>Välj ditt namn och anslut till en lobby. Därefter väljer du lag och chattar med spelarna.</p><div id="available-rooms">Hämtar OFFICE01…</div><button id="leave-room" hidden>LÄMNA LOBBY</button><p id="network-status" role="status"></p>';
     this.lobby.el.before(panel);
     this.lobby.el.hidden = true;
+    const nameField = this.lobby.nameInput.closest("label")!;
+    const musicButton =
+      this.lobby.el.querySelector<HTMLButtonElement>(".lobby-music")!;
+    panel.querySelector("#available-rooms")!.before(nameField);
+    panel.append(musicButton);
+    this.lobby.update([], "RED");
+    this.lobby.el.querySelector(".lobby-status")!.textContent =
+      "VÄLJ NAMN OCH LAG";
+    this.lobby.el.querySelector("small")!.textContent =
+      "Anslut till lobbyn för att se spelare och chatta.";
     const play = document.querySelector<HTMLButtonElement>("#play")!;
     play.hidden = true;
     const net = (this.multiplayer ??= new Multiplayer());
@@ -529,6 +582,7 @@ export class Game {
       panel.querySelector<HTMLButtonElement>("#leave-room")!.click();
     });
     const connect = async (id: string) => {
+      if (!this.lobby.validName()) return;
       if (this.multiplayer?.room || busy) return;
       busy = true;
       panel
@@ -644,6 +698,7 @@ export class Game {
         if (event.kind === "buster" && event.team === CONFIG.player.team)
           this.hud.toast("Active Core buster! protect him at all costs!");
       };
+      net.onChat = (message) => this.lobby.message(message.name, message.text);
       try {
         await net.connect(
           this.match.playerName,
@@ -664,6 +719,9 @@ export class Game {
         panel.querySelector("h3")!.textContent = "SPELLOBBY · OFFICE01";
         panel.querySelector("p")!.textContent =
           "Skriv ditt namn och välj den Core du vill försvara.";
+        this.lobby.el.querySelector("legend")!.after(nameField);
+        this.lobby.el.querySelector(".lobby-chat")!.append(musicButton);
+        musicButton.disabled = false;
         this.lobby.el.hidden = false;
         play.hidden = false;
         this.match.started = false;
@@ -729,6 +787,18 @@ export class Game {
     window.setInterval(() => void refresh(), 5000);
   }
   applyOnline(snapshot: Snapshot) {
+    if ((snapshot.round ?? 1) !== this.currentRound) {
+      this.currentRound = snapshot.round ?? 1;
+      closeVictory();
+      this.match.winner = undefined;
+      resetRound(this.world, this.cores, [this.weapons], this.pickup);
+      this.localDisarm.reset();
+      this.onlineSpawned = false;
+      this.pendingInputs = [];
+      this.setPaused(false);
+    }
+    this.hud.showStats(snapshot.started);
+    this.hud.wins(snapshot.wins ?? { RED: 0, BLUE: 0 }, snapshot.round ?? 1);
     const own = snapshot.players.find(
       (p) => p.id === this.multiplayer?.room?.sessionId,
     );
@@ -807,8 +877,12 @@ export class Game {
       const prop = this.world.destructibles[index];
       if (prop && prop.hp > hp) prop.damage(prop.hp - hp, "coreBuster", false);
     });
-    const health = snapshot.pickups.filter((p) => p.type === "medkit" || p.type === "superMedkit");
-    this.pickup.healthDrops.forEach((drop, index) => drop.root.setEnabled(health[index]?.active ?? false));
+    const health = snapshot.pickups.filter(
+      (p) => p.type === "medkit" || p.type === "superMedkit",
+    );
+    this.pickup.healthDrops.forEach((drop, index) =>
+      drop.root.setEnabled(health[index]?.active ?? false),
+    );
     const ammo = snapshot.pickups.filter((p) => p.type === "ammo");
     this.pickup.ammoDrops.forEach((drop, index) =>
       drop.root.setEnabled(ammo[index]?.active ?? false),
@@ -827,9 +901,15 @@ export class Game {
       showVictory(
         snapshot.winner,
         this.match.members.filter((m) => m.team === snapshot.winner),
-        () => this.multiplayer?.room?.send(MSG.restart),
+        () => {
+          if (snapshot.seriesWinner) this.multiplayer?.room?.send(MSG.restart);
+          else this.multiplayer?.room?.send(MSG.ready);
+        },
+        !!snapshot.seriesWinner,
+        snapshot.wins,
       );
     }
+    if (snapshot.winner) updateReady(snapshot.players, snapshot.ready ?? []);
   }
   tickOnline(dt: number) {
     const net = this.multiplayer!,
@@ -1239,6 +1319,21 @@ export class Game {
     this.world.explosions.update(dt);
     this.cores.forEach((core) => core.update(dt, this.time));
     this.world.destructibles.forEach((prop) => prop.update(dt));
+    if (snapshot) {
+      this.hud.scoreboard(snapshot.players);
+      const self = snapshot.players.find(
+        (p) => p.id === this.multiplayer?.room?.sessionId,
+      );
+      this.updateDisarm(self?.disarm);
+      const threat = snapshot.bombs.flatMap((b) =>
+        office01.bases.filter(
+          (core) => Math.hypot(b.x - core.x, b.z - core.z) <= 5,
+        ),
+      )[0];
+      if (threat) this.hud.plantedWarning(threat.team);
+      else if (snapshot.alarms?.length)
+        this.hud.breachWarning(snapshot.alarms[0]);
+    }
     this.hud.update(dt, this.cores, this.weapons, this.player);
     this.scene.render();
   }
@@ -1417,6 +1512,7 @@ export class Game {
     if (this.match.winner && !value) return;
     this.paused = value;
     if (value) {
+      this.disarmAudio.pause();
       this.weaponAudio?.releaseMachineGun(false);
       this.weaponAudio?.setAlarm(false);
       this.weaponAudio?.setBusterClock(false);
@@ -1595,7 +1691,18 @@ export class Game {
         this.testPlayer.update(bot, dt);
         this.testWeapons.update(bot, dt);
       }
-      this.weapons.update(command, dt);
+      const disarming = this.localDisarm.update(
+        this.player,
+        [this.weapons, ...(this.testWeapons ? [this.testWeapons] : [])],
+        this.pickup.chooseRequested,
+        command.fire,
+        dt,
+      );
+      if (disarming) this.pickup.chooseRequested = false;
+      this.weapons.update(
+        disarming ? { ...command, fire: false, pressed: false } : command,
+        dt,
+      );
       if (!command.fire || this.weapons.id !== "machineGun")
         this.weaponAudio?.releaseMachineGun();
       this.pickup.update(dt, this.time, this.weapons, () =>
@@ -1606,10 +1713,42 @@ export class Game {
       this.world.explosions.update(dt);
       const winner = this.match.evaluate(this.cores);
       if (winner) {
+        this.teamWins[winner]++;
         this.setPaused(true);
         showVictory(
           winner,
           this.match.members.filter((member) => member.team === winner),
+          () => {
+            if (this.teamWins[winner] >= 3) {
+              location.reload();
+              return;
+            }
+            closeVictory();
+            this.match.winner = undefined;
+            this.currentRound++;
+            resetRound(
+              this.world,
+              this.cores,
+              [this.weapons, ...(this.testWeapons ? [this.testWeapons] : [])],
+              this.pickup,
+            );
+            this.localDisarm.reset();
+            this.respawnRemaining = 0;
+            for (const [i, player] of [
+              this.player,
+              this.testPlayer,
+            ].entries()) {
+              if (player) {
+                const base = office01.bases.find(
+                  (b) => b.team === this.match.members[i].team,
+                )!;
+                player.root.position.set(base.spawn.x, 0, base.spawn.z);
+              }
+            }
+            this.setPaused(false);
+          },
+          this.teamWins[winner] >= 3,
+          this.teamWins,
         );
       }
     }
@@ -1660,6 +1799,34 @@ export class Game {
       alarmBase ? spatial(alarmBase) : undefined,
     );
     this.player.setBarrier(this.player.invulnerable > 0 && this.player.hp > 0);
+    if (!this.multiplayer) this.hud.showStats(this.match.started);
+    if (!this.multiplayer) this.hud.wins(this.teamWins, this.currentRound);
+    this.hud.scoreboard(
+      this.multiplayer
+        ? []
+        : this.match.members.map((p, i) => ({
+            ...p,
+            kills: i === 0 ? this.localKills : 0,
+          })),
+    );
+    this.updateDisarm(
+      this.localDisarm.target ? this.localDisarm.elapsed : undefined,
+    );
+    const threat = [
+      this.weapons,
+      ...(this.testWeapons ? [this.testWeapons] : []),
+    ]
+      .flatMap((w) => w.charges)
+      .flatMap((b) =>
+        office01.bases.filter(
+          (core) =>
+            Math.hypot(
+              b.mesh.position.x - core.x,
+              b.mesh.position.z - core.z,
+            ) <= 5,
+        ),
+      )[0];
+    if (threat) this.hud.plantedWarning(threat.team);
     this.hud.update(
       this.paused ? 0 : dt,
       this.cores,
