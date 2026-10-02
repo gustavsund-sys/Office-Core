@@ -249,6 +249,7 @@ export class OfficeRoom extends Room {
     const event = (kind: NetEvent["kind"]) =>
       this.event({
         kind,
+        inputSeq: participant.ack,
         player: client.sessionId,
         team: participant.team,
         weapon: participant.weapons.id,
@@ -272,6 +273,8 @@ export class OfficeRoom extends Room {
     participant.weapons.onTrace = (start, end) =>
       this.event({
         kind: "trace",
+        player: client.sessionId,
+        inputSeq: participant.ack,
         weapon: participant.weapons.id,
         x: start.x,
         y: start.y,

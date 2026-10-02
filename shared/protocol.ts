@@ -66,6 +66,7 @@ export interface Snapshot {
   winner?: Team;
 }
 export interface NetEvent {
+  inputSeq?: number;
   kind:
     | "trace"
     | "shot"

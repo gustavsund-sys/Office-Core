@@ -125,6 +125,36 @@ try {
     "Server acknowledges prediction inputs",
   );
   assert.equal(moved.players.find((p) => p.id === b.sessionId)!.hp, 100);
+  const shotEvent = new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error("Authoritative shot event timed out")),
+      5000,
+    );
+    const remove = b.onMessage(
+      MSG.event,
+      (event: { kind: string; player?: string; inputSeq?: number }) => {
+        if (event.kind === "trace" && event.player === a.sessionId) {
+          assert.ok(Number.isSafeInteger(event.inputSeq));
+          clearTimeout(timeout);
+          remove();
+          resolve();
+        }
+      },
+    );
+  });
+  a.send(MSG.input, {
+    seq: seq++,
+    moveX: 0,
+    moveZ: 0,
+    aimX: 0,
+    aimZ: 0,
+    fire: true,
+    pressed: true,
+    jump: false,
+    interact: false,
+    slot: 0,
+  });
+  await shotEvent;
   const only = await available();
   assert.equal(only.length, 1);
   assert.equal(only[0].id, a.roomId);

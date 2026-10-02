@@ -32,6 +32,7 @@ import { HUD } from "../ui/hud";
 import { Debug } from "../debug/debug";
 import { heldWeapon, rocketModel } from "../weapons/models";
 import { connectionError } from "../network/errors";
+import { ShotPrediction } from "../network/shotPrediction";
 import { interpolateYaw } from "../network/interpolation";
 import { Multiplayer } from "../network/client";
 import { MSG, type Snapshot, type NetInput } from "../../shared/protocol";
@@ -42,6 +43,7 @@ export class Game {
   inputSequence = 0;
   pendingInputs: NetInput[] = [];
   onlinePressed = false;
+  shotPrediction = new ShotPrediction();
   onlineSpawned = false;
   predictedPosition?: Vector3;
   predictedVelocity = 0;
@@ -444,6 +446,12 @@ export class Game {
       };
       net.onSnapshot = (snapshot) => this.applyOnline(snapshot);
       net.onEvent = (event) => {
+        // Own shots are presented immediately. Server hits/impacts remain authoritative.
+        if (
+          event.player === net.room?.sessionId &&
+          (event.kind === "shot" || event.kind === "trace")
+        )
+          return;
         const position = new Vector3(event.x, event.y, event.z);
         const distance = Vector3.Distance(position, this.player.root.position);
         if (event.kind === "impact") {
@@ -719,6 +727,77 @@ export class Game {
     this.networkElapsed += dt;
     const command = this.input.command(this.world, this.player.root.position);
     this.onlinePressed ||= command.pressed;
+    this.player.root.rotation.y = Math.atan2(
+      command.aimX - this.player.root.position.x,
+      command.aimZ - this.player.root.position.z,
+    );
+    const predictedShot = this.shotPrediction.update(
+      this.weapons.id,
+      dt,
+      command.fire,
+      command.pressed,
+      !!snapshot?.started &&
+        net.connected &&
+        !this.paused &&
+        this.player.hp > 0 &&
+        this.weapons.ammo > 0 &&
+        this.weapons.reloadRemaining <= 0,
+    );
+    if (predictedShot) {
+      this.player.recoil = 1;
+      this.player.animate(!!(command.moveX || command.moveZ), 0);
+      if (predictedShot.audio && this.sound)
+        this.weaponAudio?.play(this.weapons.id);
+      const start = this.player.root.position
+        .add(new Vector3(0, 1.1, 0))
+        .add(this.player.direction.scale(0.65));
+      const muzzle = MeshBuilder.CreateSphere(
+        "predicted muzzle",
+        { diameter: 0.23, segments: 4 },
+        this.scene,
+      );
+      muzzle.position.copyFrom(start);
+      muzzle.material = this.world.mat("#ffe8a1", true);
+      muzzle.isPickable = false;
+      this.onlineTraces.push({ mesh: muzzle, life: 0.045 });
+      if (this.weapons.id !== "bazooka") {
+        const ray = new Ray(
+          start,
+          this.player.direction,
+          WEAPONS[this.weapons.id].range,
+        );
+        const hit = this.scene.pickWithRay(
+          ray,
+          (mesh) =>
+            mesh.isEnabled() &&
+            !this.player.bodyMeshes.includes(
+              mesh as import("@babylonjs/core").Mesh,
+            ) &&
+            (!!mesh.metadata?.solid || !!mesh.metadata?.damageable),
+        );
+        const end =
+          hit?.pickedPoint ??
+          start.add(this.player.direction.scale(ray.length));
+        const tracer =
+          this.weapons.id === "pulseGun"
+            ? MeshBuilder.CreateTube(
+                "predicted pulse",
+                { path: [start, end], radius: 0.07, tessellation: 8 },
+                this.scene,
+              )
+            : MeshBuilder.CreateLines(
+                "predicted tracer",
+                { points: [start, end] },
+                this.scene,
+              );
+        if (this.weapons.id === "pulseGun")
+          tracer.material = this.world.mat("#ff263e", true);
+        else if ("color" in tracer)
+          tracer.color = Color3.FromHexString("#ffe4a5");
+        tracer.isPickable = false;
+        this.onlineTraces.push({ mesh: tracer, life: 0.065 });
+      }
+    }
     this.networkElapsed = Math.min(this.networkElapsed, 0.1);
     while (this.networkElapsed >= 1 / 30) {
       this.networkElapsed -= 1 / 30;
