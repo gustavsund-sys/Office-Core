@@ -2,6 +2,7 @@ import type { Team } from "../src/config/game";
 import type { WeaponId } from "../src/config/weapons";
 export const MSG = {
   input: "input",
+  ping: "ping",
   start: "start",
   team: "team",
   profile: "profile",
@@ -16,6 +17,7 @@ export interface AvailableRoom {
   started: boolean;
 }
 export interface NetInput {
+  seq?: number;
   moveX: number;
   moveZ: number;
   aimX: number;
@@ -27,6 +29,8 @@ export interface NetInput {
   slot: 0 | 1 | 2;
 }
 export interface NetPlayer {
+  ack: number;
+  verticalVelocity: number;
   id: string;
   name: string;
   team: Team;
@@ -62,7 +66,16 @@ export interface Snapshot {
   winner?: Team;
 }
 export interface NetEvent {
-  kind: "trace" | "shot" | "death" | "spawn" | "buster" | "explosion";
+  kind:
+    | "trace"
+    | "shot"
+    | "death"
+    | "spawn"
+    | "buster"
+    | "explosion"
+    | "impact"
+    | "jump"
+    | "land";
   player?: string;
   team?: Team;
   weapon?: WeaponId;
@@ -81,6 +94,7 @@ export function validInput(value: unknown): value is NetInput {
     Object.keys(value).some(
       (key) =>
         ![
+          "seq",
           "moveX",
           "moveZ",
           "aimX",
@@ -96,6 +110,7 @@ export function validInput(value: unknown): value is NetInput {
     return false;
   const v = value as NetInput;
   return (
+    (v.seq === undefined || (Number.isSafeInteger(v.seq) && v.seq >= 0)) &&
     [v.moveX, v.moveZ, v.aimX, v.aimZ].every(Number.isFinite) &&
     Math.abs(v.moveX) <= 1 &&
     Math.abs(v.moveZ) <= 1 &&

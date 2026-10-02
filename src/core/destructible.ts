@@ -73,7 +73,7 @@ export class Destructible implements Hittable {
   canDamageFrom() {
     return true;
   }
-  damage(amount: number, source?: "coreBuster") {
+  damage(amount: number, source?: "coreBuster", effects = true) {
     if (this.prop.kind === "coreDoor" && source !== "coreBuster") return;
     if (this.hp <= 0) return;
     this.hp = Math.max(0, this.hp - amount);
@@ -90,21 +90,22 @@ export class Destructible implements Hittable {
       this.world.solids = this.world.solids.filter(
         (m) => !this.meshes.includes(m),
       );
-      this.explosions.burst(
-        this.position,
-        this.prop.kind === "coreDoor"
-          ? "#ff685e"
-          : this.prop.kind === "server"
-            ? "#558da8"
-            : this.prop.kind === "plant"
-              ? "#70a77e"
-              : "#b6aa8e",
-        this.prop.kind === "coreDoor"
-          ? 1.5
-          : this.prop.kind === "server"
-            ? 1.2
-            : 1,
-      );
+      if (effects)
+        this.explosions.burst(
+          this.position,
+          this.prop.kind === "coreDoor"
+            ? "#ff685e"
+            : this.prop.kind === "server"
+              ? "#558da8"
+              : this.prop.kind === "plant"
+                ? "#70a77e"
+                : "#b6aa8e",
+          this.prop.kind === "coreDoor"
+            ? 1.5
+            : this.prop.kind === "server"
+              ? 1.2
+              : 1,
+        );
     }
   }
   update(dt: number) {

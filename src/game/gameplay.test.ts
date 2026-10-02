@@ -545,3 +545,37 @@ test("Core buster is exclusive, breaches barriers and persists as a death drop",
     assert.ok(!pickups.endpoints.includes(dropped));
   } finally { s.scene.dispose(); s.engine.dispose(); }
 });
+
+test("headless authoritative hits emit traces and impacts without visual allocations", () => {
+  const s = setup();
+  try {
+    const target = new Damageable(s.world, "target", 0, 5);
+    s.sync();
+    s.weapon.visuals = false;
+    let impacts = 0, traces = 0;
+    s.weapon.onImpact = position => { impacts++; assert.ok(position.z > 0); };
+    s.weapon.onTrace = () => traces++;
+    const meshes = s.scene.meshes.length;
+    s.weapon.update({...idle, fire: true, pressed: true}, 1 / 30);
+    assert.equal(target.hp, 80);
+    assert.equal(impacts, 1);
+    assert.equal(traces, 1);
+    assert.equal(s.scene.meshes.length, meshes);
+  } finally { s.engine.dispose(); }
+});
+
+test("replaying unacknowledged movement reproduces position and jumping", () => {
+  const s = setup();
+  try {
+    const server = new Player(s.world);
+    const inputs = Array.from({length: 18}, (_, i) => ({...idle, moveZ: 1, jump: i === 2}));
+    for (const input of inputs) { if (input.jump) s.player.jump(); s.player.update(input, 1 / 30); }
+    for (const input of inputs.slice(0, 7)) { if (input.jump) server.jump(); server.update(input, 1 / 30); }
+    s.player.root.position.copyFrom(server.root.position);
+    s.player.verticalVelocity = server.verticalVelocity;
+    for (const input of inputs.slice(7)) s.player.update(input, 1 / 30);
+    for (const input of inputs.slice(7)) server.update(input, 1 / 30);
+    assert.ok(Vector3.Distance(s.player.root.position, server.root.position) < 1e-8);
+    assert.equal(s.player.verticalVelocity, server.verticalVelocity);
+  } finally { s.engine.dispose(); }
+});

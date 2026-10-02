@@ -46,6 +46,9 @@ interface Participant {
   player: Player;
   weapons: Weapons;
   input: NetInput;
+  queue: NetInput[];
+  ack: number;
+  lastSeq: number;
   lastInput: number;
   window: number;
   messages: number;
@@ -87,6 +90,7 @@ export class OfficeRoom extends Room {
     );
     this.cores.forEach((core) => core.setActive(false));
     this.pickup = new Pickup(this.world);
+    this.world.explosions.visuals = false;
     this.world.explosions.onBurst = (position, power, sound) =>
       this.event({
         kind: "explosion",
@@ -96,6 +100,14 @@ export class OfficeRoom extends Room {
         power,
         sound,
       });
+    this.onMessage(MSG.ping, (client, stamp) => {
+      if (
+        this.permit(client) &&
+        typeof stamp === "number" &&
+        Number.isFinite(stamp)
+      )
+        client.send(MSG.ping, stamp);
+    });
     this.onMessage(MSG.input, (client, payload) => {
       const p = this.participants.get(client.sessionId);
       if (!p) return;
@@ -106,6 +118,12 @@ export class OfficeRoom extends Room {
       }
       if (++p.messages > 90) return;
       if (!validInput(payload)) return;
+      if (payload.seq !== undefined) {
+        if (payload.seq <= p.lastSeq || p.queue.length >= 12) return;
+        p.lastSeq = payload.seq;
+        if (this.started) p.queue.push(payload);
+        else p.ack = payload.seq;
+      }
       p.input = {
         ...payload,
         pressed: p.input.pressed || payload.pressed,
@@ -219,6 +237,9 @@ export class OfficeRoom extends Room {
       player,
       weapons: undefined!,
       input: idle(),
+      queue: [],
+      ack: -1,
+      lastSeq: -1,
       lastInput: 0,
       window: 0,
       messages: 0,
@@ -240,6 +261,14 @@ export class OfficeRoom extends Room {
       () => {},
       () => event("shot"),
     );
+    participant.weapons.visuals = false;
+    participant.weapons.onImpact = (position) =>
+      this.event({
+        kind: "impact",
+        x: position.x,
+        y: position.y,
+        z: position.z,
+      });
     participant.weapons.onTrace = (start, end) =>
       this.event({
         kind: "trace",
@@ -324,14 +353,34 @@ export class OfficeRoom extends Room {
           });
         }
       }
+      const queued = p.queue.shift();
       const input =
         Date.now() - p.lastInput < 300 && p.connected && p.player.hp > 0
-          ? p.input
+          ? (queued ??
+            (p.lastSeq >= 0
+              ? { ...idle(), aimX: p.input.aimX, aimZ: p.input.aimZ }
+              : p.input))
           : idle();
       if (input.slot) p.weapons.switchSlot(input.slot);
-      if (input.jump) p.player.jump();
-      p.player.update(input, dt);
-      this.scene.render();
+      if (input.jump && p.player.grounded) {
+        p.player.jump();
+        this.event({
+          kind: "jump",
+          x: p.player.root.position.x,
+          y: p.player.root.position.y,
+          z: p.player.root.position.z,
+        });
+      }
+      p.player.update(input, p.lastSeq >= 0 ? (queued ? 1 / 30 : 0) : dt);
+      if (queued?.seq !== undefined) p.ack = queued.seq;
+      if (p.player.landed)
+        this.event({
+          kind: "land",
+          x: p.player.root.position.x,
+          y: 0,
+          z: p.player.root.position.z,
+        });
+      for (const mesh of p.player.bodyMeshes) mesh.computeWorldMatrix(true);
       p.weapons.update(input, dt);
       this.pickup.chooseRequested = input.interact;
       this.pickup.update(0, this.time, p.weapons, () => {});
@@ -371,6 +420,8 @@ export class OfficeRoom extends Room {
       owner: this.owner,
       players: [...this.participants].map(([id, p]) => ({
         id,
+        ack: p.ack,
+        verticalVelocity: p.player.verticalVelocity,
         name: p.name,
         team: p.team,
         x: p.player.root.position.x,

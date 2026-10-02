@@ -70,12 +70,13 @@ export class Weapons {
   }[] = [];
   trail: { mesh: Mesh; life: number; maxLife: number; smoke: boolean }[] = [];
   effects: { mesh: Mesh; life: number }[] = [];
+  visuals = true;
   constructor(
     public player: Player,
     public onHit: (target: Hittable, damage: number) => void,
     public onShot: () => void,
     public onShield: () => void = () => {},
-    public onImpact: () => void = () => {},
+    public onImpact: (position: Vector3) => void = () => {},
   ) {}
   equip(id: WeaponId) {
     if (this.carryingCoreBuster && id !== "coreBuster") return;
@@ -232,33 +233,35 @@ export class Weapons {
     const start = origin.add(
       direction.scale(Math.min(0.65, Vector3.Distance(origin, end))),
     );
-    const tracer =
-      this.id === "pulseGun"
-        ? MeshBuilder.CreateTube(
-            "pulse beam",
-            { path: [start, end], radius: 0.07, tessellation: 8 },
-            scene,
-          )
-        : MeshBuilder.CreateLines("tracer", { points: [start, end] }, scene);
-    if ("color" in tracer) tracer.color = Color3.FromHexString("#ffe4a5");
-    if (this.id === "pulseGun")
-      tracer.material = this.player.world.mat("#ff263e", true);
-
     this.onTrace(start, end);
-    tracer.isPickable = false;
-    this.effects.push({ mesh: tracer, life: 0.065 });
-    const flash = MeshBuilder.CreateSphere(
-      "muzzle",
-      { diameter: 0.23, segments: 4 },
-      scene,
-    );
-    flash.position.copyFrom(start);
-    flash.material = this.player.world.mat("#ffe8a1", true);
-    flash.isPickable = false;
-    this.effects.push({ mesh: flash, life: 0.045 });
+    if (this.visuals) {
+      const tracer =
+        this.id === "pulseGun"
+          ? MeshBuilder.CreateTube(
+              "pulse beam",
+              { path: [start, end], radius: 0.07, tessellation: 8 },
+              scene,
+            )
+          : MeshBuilder.CreateLines("tracer", { points: [start, end] }, scene);
+      if ("color" in tracer) tracer.color = Color3.FromHexString("#ffe4a5");
+      if (this.id === "pulseGun")
+        tracer.material = this.player.world.mat("#ff263e", true);
+
+      tracer.isPickable = false;
+      this.effects.push({ mesh: tracer, life: 0.065 });
+      const flash = MeshBuilder.CreateSphere(
+        "muzzle",
+        { diameter: 0.23, segments: 4 },
+        scene,
+      );
+      flash.position.copyFrom(start);
+      flash.material = this.player.world.mat("#ffe8a1", true);
+      flash.isPickable = false;
+      this.effects.push({ mesh: flash, life: 0.045 });
+    }
     if (hit?.hit) {
-      this.onImpact();
-      for (let i = 0; i < 5; i++) {
+      this.onImpact(end);
+      for (let i = 0; this.visuals && i < 5; i++) {
         const spark = MeshBuilder.CreateBox(
           "impact",
           { size: 0.065 + Math.random() * 0.07 },
@@ -336,7 +339,7 @@ export class Weapons {
               if (target.hp < before) this.onHit(target, damage);
             } else this.onShield();
           }
-          this.onImpact();
+          this.onImpact(hit.pickedPoint);
           this.player.world.explosions.burst(
             hit.pickedPoint,
             "#ffb34f",
@@ -344,7 +347,7 @@ export class Weapons {
             "bazookaExplosion",
           );
         }
-        for (const smoke of [false, true]) {
+        for (const smoke of this.visuals ? [false, true] : []) {
           const mesh = MeshBuilder.CreateSphere(
             smoke ? "rocket smoke" : "burning rocket trail",
             { diameter: smoke ? 0.16 : 0.09, segments: 4 },

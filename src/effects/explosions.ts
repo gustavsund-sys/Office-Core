@@ -17,12 +17,21 @@ interface Particle {
 }
 export class Explosions {
   particles: Particle[] = [];
+  visuals = true;
   lights: { light: PointLight; life: number }[] = [];
   constructor(
     public world: World,
-    public onBurst: (position: Vector3, power: number, sound?: string) => void = () => {},
+    public onBurst: (
+      position: Vector3,
+      power: number,
+      sound?: string,
+    ) => void = () => {},
   ) {}
   burst(position: Vector3, color: string, power = 1, sound?: string) {
+    if (!this.visuals) {
+      this.onBurst(position, power, sound);
+      return;
+    }
     // Bound transient GPU resources during rapid destruction.
     while (this.particles.length > 220) this.remove(this.particles.shift()!);
     const scene = this.world.scene;
@@ -122,28 +131,87 @@ export class Explosions {
   playerDeath(position: Vector3, teamColor: string) {
     while (this.particles.length > 220) this.remove(this.particles.shift()!);
     for (let i = 0; i < 30; i++) {
-      const mesh = MeshBuilder.CreateBox("player fragment", { size: 0.12 + Math.random() * 0.18 }, this.world.scene);
-      mesh.position.copyFrom(position.add(new Vector3((Math.random() - 0.5) * 0.55, 0.3 + Math.random() * 1.4, (Math.random() - 0.5) * 0.4)));
-      mesh.material = this.world.mat(i % 3 === 0 ? teamColor : i % 3 === 1 ? "#efdfbd" : "#253a4c").clone("player fragment fade");
+      const mesh = MeshBuilder.CreateBox(
+        "player fragment",
+        { size: 0.12 + Math.random() * 0.18 },
+        this.world.scene,
+      );
+      mesh.position.copyFrom(
+        position.add(
+          new Vector3(
+            (Math.random() - 0.5) * 0.55,
+            0.3 + Math.random() * 1.4,
+            (Math.random() - 0.5) * 0.4,
+          ),
+        ),
+      );
+      mesh.material = this.world
+        .mat(i % 3 === 0 ? teamColor : i % 3 === 1 ? "#efdfbd" : "#253a4c")
+        .clone("player fragment fade");
       mesh.isPickable = false;
       const life = 1.4 + Math.random() * 0.8;
-      this.particles.push({ mesh, kind: "debris", life, maxLife: life, velocity: new Vector3((Math.random() - 0.5) * 7, 2 + Math.random() * 4, (Math.random() - 0.5) * 7), spin: new Vector3(Math.random() * 8, Math.random() * 8, Math.random() * 8) });
+      this.particles.push({
+        mesh,
+        kind: "debris",
+        life,
+        maxLife: life,
+        velocity: new Vector3(
+          (Math.random() - 0.5) * 7,
+          2 + Math.random() * 4,
+          (Math.random() - 0.5) * 7,
+        ),
+        spin: new Vector3(
+          Math.random() * 8,
+          Math.random() * 8,
+          Math.random() * 8,
+        ),
+      });
     }
   }
   playerSpawn(position: Vector3, color: string) {
-    const ring = MeshBuilder.CreateTorus("spawn energy ring", { diameter: 0.6, thickness: 0.06, tessellation: 40 }, this.world.scene);
+    const ring = MeshBuilder.CreateTorus(
+      "spawn energy ring",
+      { diameter: 0.6, thickness: 0.06, tessellation: 40 },
+      this.world.scene,
+    );
     ring.position.copyFrom(position.add(new Vector3(0, 0.08, 0)));
     ring.material = this.world.mat(color, true).clone("spawn ring fade");
     ring.isPickable = false;
-    this.particles.push({ mesh: ring, kind: "ring", life: 0.8, maxLife: 0.8, velocity: Vector3.Zero(), spin: Vector3.Zero() });
+    this.particles.push({
+      mesh: ring,
+      kind: "ring",
+      life: 0.8,
+      maxLife: 0.8,
+      velocity: Vector3.Zero(),
+      spin: Vector3.Zero(),
+    });
     for (let i = 0; i < 22; i++) {
-      const mesh = MeshBuilder.CreateSphere("spawn energy particle", { diameter: 0.08, segments: 4 }, this.world.scene);
-      const angle = i / 22 * Math.PI * 2;
-      mesh.position.copyFrom(position.add(new Vector3(Math.cos(angle) * 0.65, Math.random() * 0.5, Math.sin(angle) * 0.65)));
+      const mesh = MeshBuilder.CreateSphere(
+        "spawn energy particle",
+        { diameter: 0.08, segments: 4 },
+        this.world.scene,
+      );
+      const angle = (i / 22) * Math.PI * 2;
+      mesh.position.copyFrom(
+        position.add(
+          new Vector3(
+            Math.cos(angle) * 0.65,
+            Math.random() * 0.5,
+            Math.sin(angle) * 0.65,
+          ),
+        ),
+      );
       mesh.material = this.world.mat(color, true).clone("spawn particle fade");
       mesh.isPickable = false;
       const life = 0.7 + Math.random() * 0.5;
-      this.particles.push({ mesh, kind: "spawn", life, maxLife: life, velocity: new Vector3(0, 1.5 + Math.random(), 0), spin: Vector3.Zero() });
+      this.particles.push({
+        mesh,
+        kind: "spawn",
+        life,
+        maxLife: life,
+        velocity: new Vector3(0, 1.5 + Math.random(), 0),
+        spin: Vector3.Zero(),
+      });
     }
   }
   private remove(p: Particle) {

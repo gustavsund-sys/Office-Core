@@ -186,7 +186,9 @@ export class Player {
   recoil = 0;
   verticalVelocity = 0;
   landed = false;
-  get grounded() { return this.root.position.y <= 0 && this.verticalVelocity === 0; }
+  get grounded() {
+    return this.root.position.y <= 0 && this.verticalVelocity === 0;
+  }
   jump() {
     if (!this.grounded) return false;
     this.verticalVelocity = 5;
@@ -261,8 +263,18 @@ export class Player {
     this.gun.parent = this.root;
     const overhead = id === "coreBuster";
     const shoulder = id === "bazooka";
-    this.weaponZ = overhead ? 0 : shoulder ? 0.12 : id === "pistol" || id === "pulseGun" ? 0.55 : 0.52;
-    this.gun.position.set(overhead ? 0 : shoulder ? 0.43 : 0.26, overhead ? 2.2 : shoulder ? 1.55 : 1.12, this.weaponZ);
+    this.weaponZ = overhead
+      ? 0
+      : shoulder
+        ? 0.12
+        : id === "pistol" || id === "pulseGun"
+          ? 0.55
+          : 0.52;
+    this.gun.position.set(
+      overhead ? 0 : shoulder ? 0.43 : 0.26,
+      overhead ? 2.2 : shoulder ? 1.55 : 1.12,
+      this.weaponZ,
+    );
     for (const mesh of this.bodyMeshes) {
       if (overhead && (mesh.name === "right arm" || mesh.name === "left arm")) {
         mesh.position.set(mesh.name === "right arm" ? 0.38 : -0.38, 1.6, 0);
@@ -274,7 +286,11 @@ export class Player {
         mesh.rotation.x = shoulder ? -0.65 : 0;
       }
       if (mesh.name === "left arm") {
-        mesh.position.set(shoulder ? 0.15 : -0.39, shoulder ? 1.18 : 1.04, shoulder ? 0.48 : 0.17);
+        mesh.position.set(
+          shoulder ? 0.15 : -0.39,
+          shoulder ? 1.18 : 1.04,
+          shoulder ? 0.48 : 0.17,
+        );
         mesh.rotation.x = shoulder ? -0.3 : 0;
         mesh.rotation.y = shoulder ? -0.7 : 0;
       }
@@ -330,9 +346,9 @@ export class Player {
       // second clip in the exported file is a one-frame targeting-pose helper
       // and would otherwise keep the character in a T-pose.
       result.animationGroups.forEach((group) => group.stop());
-      const idle = result.animationGroups.find((group) =>
-        /idle/i.test(group.name),
-      ) ?? result.animationGroups[0];
+      const idle =
+        result.animationGroups.find((group) => /idle/i.test(group.name)) ??
+        result.animationGroups[0];
       if (idle) {
         idle.name = "kenney idle";
         idle.reset();
@@ -409,6 +425,10 @@ export class Player {
     this.activeAnimation = next;
   }
   update(c: PlayerCommand, dt: number) {
+    this.simulate(c, dt);
+    this.animate(!!(c.moveX || c.moveZ), dt);
+  }
+  simulate(c: PlayerCommand, dt: number) {
     this.landed = false;
     if (!this.grounded) {
       this.root.position.y += this.verticalVelocity * dt - 0.5 * 14 * dt * dt;
@@ -430,7 +450,8 @@ export class Player {
     this.root.rotation.y =
       c.facingYaw ??
       Math.atan2(c.aimX - this.root.position.x, c.aimZ - this.root.position.z);
-    const moving = !!(c.moveX || c.moveZ);
+  }
+  animate(moving: boolean, dt: number) {
     this.walk += dt * (moving ? 13 : 2);
     this.legs.forEach(
       (m, i) =>

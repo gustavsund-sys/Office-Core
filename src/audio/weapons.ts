@@ -230,11 +230,11 @@ export class WeaponAudio {
   playExplosion(strength: number) {
     return this.sample("explosion", Math.max(0, strength) * 1.6);
   }
-  playImpact() {
+  playImpact(distance = 0) {
     // Keep impacts occasional: a rare metallic ring sells the hit better than
     // a sound on every bullet, especially during automatic fire.
     if (Math.random() >= 0.2) return false;
-    return this.sample("ricochet", 0.85, 0.9 + Math.random() * 0.2);
+    return this.sample("ricochet", 0.85 * shotAudibility(distance, false).gain, 0.9 + Math.random() * 0.2);
   }
   setAlarm(active: boolean, spatial = { distance: 0, pan: 0, blocked: false }) {
     this.updateSpatialLoops("alarm", "coreAlarm", active ? [{ id: "core", ...spatial }] : [], 0.85);

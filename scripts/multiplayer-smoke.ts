@@ -11,7 +11,8 @@ import { MSG, type Snapshot } from "../shared/protocol";
 const endpoint = process.env.GAME_SERVER_URL ?? "ws://127.0.0.1:2567";
 const identities: { app: FirebaseApp; user: User }[] = [];
 const identity = async (name: string) => {
-  if (!process.env.GAME_SERVER_URL) return `local:${name}`;
+  if (!process.env.GAME_SERVER_URL || process.env.LOCAL_AUTH === "true")
+    return `local:${name}`;
   const app = initializeApp(
     {
       apiKey: "AIzaSyAkgVLtGKDqojp40IdtA4ewaER_HyoIBRk",
@@ -95,9 +96,13 @@ try {
   );
   assert.equal(safe.players.length, 2);
   const before = started.players.find((p) => p.id === a.sessionId)!;
+  let seq = 0;
+  a.onMessage(MSG.ping, () => {});
+  a.send(MSG.ping, Date.now());
   const interval = setInterval(
     () =>
       a.send(MSG.input, {
+        seq: seq++,
         moveX: 0,
         moveZ: 1,
         aimX: 0,
@@ -115,6 +120,10 @@ try {
     (s) => s.players.find((p) => p.id === a.sessionId)!.z > before.z + 0.5,
   );
   clearInterval(interval);
+  assert.ok(
+    moved.players.find((p) => p.id === a.sessionId)!.ack >= 0,
+    "Server acknowledges prediction inputs",
+  );
   assert.equal(moved.players.find((p) => p.id === b.sessionId)!.hp, 100);
   const only = await available();
   assert.equal(only.length, 1);

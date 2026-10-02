@@ -32,10 +32,17 @@ import { HUD } from "../ui/hud";
 import { Debug } from "../debug/debug";
 import { heldWeapon, rocketModel } from "../weapons/models";
 import { connectionError } from "../network/errors";
+import { interpolateYaw } from "../network/interpolation";
 import { Multiplayer } from "../network/client";
-import { MSG, type Snapshot } from "../../shared/protocol";
+import { MSG, type Snapshot, type NetInput } from "../../shared/protocol";
 export class Game {
   multiplayer?: Multiplayer;
+  inputSequence = 0;
+  pendingInputs: NetInput[] = [];
+  onlinePressed = false;
+  onlineSpawned = false;
+  predictedPosition?: Vector3;
+  predictedVelocity = 0;
   onlinePlayers = new Map<string, Player>();
   onlineTraces: { mesh: import("@babylonjs/core").Mesh; life: number }[] = [];
   onlineModels = new Map<string, string>();
@@ -423,7 +430,42 @@ export class Game {
       net.onEvent = (event) => {
         const position = new Vector3(event.x, event.y, event.z);
         const distance = Vector3.Distance(position, this.player.root.position);
+        if (event.kind === "impact") {
+          if (this.sound) this.weaponAudio?.playImpact(distance);
+          for (let i = 0; i < 6; i++) {
+            const spark = MeshBuilder.CreateBox(
+              "online impact",
+              { size: 0.09 },
+              this.scene,
+            );
+            spark.position.copyFrom(
+              position.add(
+                new Vector3(
+                  (Math.random() - 0.5) * 0.45,
+                  Math.random() * 0.35,
+                  (Math.random() - 0.5) * 0.45,
+                ),
+              ),
+            );
+            spark.material = this.world.mat("#ffe8a1", true);
+            spark.isPickable = false;
+            this.onlineTraces.push({ mesh: spark, life: 0.12 });
+          }
+        }
+        if (event.kind === "jump" && this.sound)
+          this.weaponAudio?.playMovement("jump");
+        if (event.kind === "land" && this.sound)
+          this.weaponAudio?.playMovement("land");
         if (event.kind === "trace") {
+          const muzzle = MeshBuilder.CreateSphere(
+            "online muzzle",
+            { diameter: 0.23, segments: 4 },
+            this.scene,
+          );
+          muzzle.position.copyFrom(position);
+          muzzle.material = this.world.mat("#ffe8a1", true);
+          muzzle.isPickable = false;
+          this.onlineTraces.push({ mesh: muzzle, life: 0.045 });
           const end = new Vector3(event.endX!, event.endY!, event.endZ!);
           const mesh =
             event.weapon === "pulseGun"
@@ -595,16 +637,39 @@ export class Game {
       this.setPaused(false);
       this.lobby.el.disabled = true;
     }
+    this.pendingInputs = this.pendingInputs.filter(
+      (input) => (input.seq ?? 0) > own.ack,
+    );
+    if (
+      !this.onlineSpawned ||
+      own.hp <= 0 ||
+      Vector3.Distance(
+        this.player.root.position,
+        new Vector3(own.x, own.y, own.z),
+      ) > 8
+    )
+      this.pendingInputs = [];
+    this.player.root.position.set(own.x, own.y, own.z);
+    this.player.verticalVelocity = own.verticalVelocity;
+    if (snapshot.started && own.hp > 0)
+      for (const input of this.pendingInputs) {
+        if (input.jump) this.player.jump();
+        this.player.update(input, 1 / 30);
+      }
+    this.predictedPosition = this.player.root.position.clone();
+    this.predictedVelocity = this.player.verticalVelocity;
+    this.onlineSpawned = true;
     this.cores.forEach((core) => {
       const state = snapshot.cores.find((c) => c.team === core.team);
       if (state) {
         core.setActive(state.active);
+        if (core.hp > state.hp) core.damage(core.hp - state.hp);
         core.hp = state.hp;
       }
     });
     snapshot.props.forEach((hp, index) => {
       const prop = this.world.destructibles[index];
-      if (prop && prop.hp > hp) prop.damage(prop.hp - hp, "coreBuster");
+      if (prop && prop.hp > hp) prop.damage(prop.hp - hp, "coreBuster", false);
     });
     const ammo = snapshot.pickups.filter((p) => p.type === "ammo");
     this.pickup.ammoDrops.forEach((drop, index) =>
@@ -631,26 +696,78 @@ export class Game {
     const net = this.multiplayer!,
       snapshot = net.snapshot;
     this.time += dt;
+    if (this.predictedPosition) {
+      this.player.root.position.copyFrom(this.predictedPosition);
+      this.player.verticalVelocity = this.predictedVelocity;
+    }
     this.networkElapsed += dt;
-    if (this.networkElapsed >= 1 / 30) {
-      this.networkElapsed = 0;
-      const command = this.input.command(this.world, this.player.root.position);
+    const command = this.input.command(this.world, this.player.root.position);
+    this.onlinePressed ||= command.pressed;
+    this.networkElapsed = Math.min(this.networkElapsed, 0.1);
+    while (this.networkElapsed >= 1 / 30) {
+      this.networkElapsed -= 1 / 30;
       const length = Math.max(1, Math.hypot(command.moveX, command.moveZ));
-      net.send({
+      const input: NetInput = {
+        seq: this.inputSequence++,
         aimX: command.aimX,
         aimZ: command.aimZ,
         ...this.onlineInput,
         moveX: this.paused ? 0 : command.moveX / length,
         moveZ: this.paused ? 0 : command.moveZ / length,
         fire: !this.paused && command.fire,
-        pressed: !this.paused && command.pressed,
-      });
+        pressed: !this.paused && this.onlinePressed,
+      };
+      net.send(input);
+      if (snapshot?.started && this.player.hp > 0 && net.connected) {
+        this.pendingInputs.push(input);
+        if (this.pendingInputs.length > 30) this.pendingInputs.shift();
+        if (input.jump) this.player.jump();
+        this.player.update(input, 1 / 30);
+      }
+      this.onlinePressed = false;
       this.onlineInput = { jump: false, interact: false, slot: 0 };
     }
+    this.predictedPosition = this.player.root.position.clone();
+    this.predictedVelocity = this.player.verticalVelocity;
+    if (snapshot?.started && !this.paused && this.player.hp > 0 && net.connected) this.player.simulate(command, this.networkElapsed);
     if (snapshot) {
+      for (const [id, player] of this.onlinePlayers) if (!snapshot.players.some(p => p.id === id)) {
+        player.root.dispose(); this.onlinePlayers.delete(id); this.onlineModels.delete(id);
+      }
       const steps: { id: string; x: number; z: number; moving: boolean }[] = [];
-      for (const state of snapshot.players) {
-        const own = state.id === net.room?.sessionId;
+      const renderAt = performance.now() - 85;
+      const before =
+        [...net.history].reverse().find((frame) => frame.at <= renderAt) ??
+        net.history[0];
+      const after =
+        net.history.find((frame) => frame.at >= renderAt) ?? net.history.at(-1);
+      const fraction =
+        before && after && after.at > before.at
+          ? Math.max(
+              0,
+              Math.min(1, (renderAt - before.at) / (after.at - before.at)),
+            )
+          : 1;
+      for (const latest of snapshot.players) {
+        const own = latest.id === net.room?.sessionId;
+        const a = before?.snapshot.players.find((p) => p.id === latest.id);
+        const b = after?.snapshot.players.find((p) => p.id === latest.id);
+        const state =
+          !own &&
+          a &&
+          b &&
+          a.hp > 0 &&
+          b.hp > 0 &&
+          Math.hypot(a.x - b.x, a.z - b.z) < 8
+            ? {
+                ...latest,
+                x: a.x + (b.x - a.x) * fraction,
+                y: a.y + (b.y - a.y) * fraction,
+                z: a.z + (b.z - a.z) * fraction,
+                yaw: interpolateYaw(a.yaw, b.yaw, fraction),
+              }
+            : latest;
+
         let player = own ? this.player : this.onlinePlayers.get(state.id);
         if (!player) {
           player = new Player(this.world);
@@ -661,16 +778,23 @@ export class Game {
         player.hp = state.hp;
         const target = new Vector3(state.x, state.y, state.z);
         const moving = Vector3.Distance(player.root.position, target) > 0.04;
-        player.root.position.copyFrom(
-          Vector3.Lerp(
-            player.root.position,
-            target,
-            Vector3.Distance(player.root.position, target) > 8
-              ? 1
-              : 1 - Math.exp(-18 * dt),
-          ),
-        );
-        player.root.rotation.y = state.yaw;
+        if (!own)
+          player.root.position.copyFrom(
+            Vector3.Lerp(
+              player.root.position,
+              target,
+              Vector3.Distance(player.root.position, target) > 8 ? 1 : 1,
+            ),
+          );
+        if (own)
+          player.root.rotation.y = Math.atan2(
+            command.aimX - player.root.position.x,
+            command.aimZ - player.root.position.z,
+          );
+        else {
+          player.root.rotation.y = state.yaw;
+          player.animate(moving, dt);
+        }
         player.torso.material = this.world.mat(TEAMS[state.team]);
         if (this.onlineModels.get(state.id) !== state.weapon) {
           player.setWeaponModel(state.weapon);
@@ -728,7 +852,23 @@ export class Game {
               Vector3.Up(),
             );
         }
-        mesh.position.set(object.x, object.y, object.z);
+        const target = new Vector3(object.x, object.y, object.z);
+        if (object.weapon === "bazooka" && mesh.position.length() > 0) {
+          mesh.position.copyFrom(
+            Vector3.Lerp(mesh.position, target, 1 - Math.exp(-25 * dt)),
+          );
+          if (Math.random() < dt * 25) {
+            const smoke = MeshBuilder.CreateSphere(
+              "online rocket trail",
+              { diameter: 0.16, segments: 4 },
+              this.scene,
+            );
+            smoke.position.copyFrom(mesh.position);
+            smoke.material = this.world.mat("#778085");
+            smoke.isPickable = false;
+            this.onlineTraces.push({ mesh: smoke, life: 0.6 });
+          }
+        } else mesh.position.copyFrom(target);
       }
       for (const [key, mesh] of this.onlineObjects)
         if (!objects.some((o) => o.key === key)) {
@@ -789,6 +929,8 @@ export class Game {
     this.pickup.endpoints.forEach((drop) => (drop.root.rotation.y += dt));
     this.updateCamera(dt);
     this.world.explosions.update(dt);
+    this.cores.forEach((core) => core.update(dt, this.time));
+    this.world.destructibles.forEach((prop) => prop.update(dt));
     this.hud.update(dt, this.cores, this.weapons, this.player);
     this.scene.render();
   }

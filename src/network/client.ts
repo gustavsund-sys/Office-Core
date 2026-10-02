@@ -32,7 +32,10 @@ export class Multiplayer {
   }
   room?: Room;
   connected = false;
+  rtt = 0;
+  nextPing = 0;
   snapshot?: Snapshot;
+  history: { at: number; snapshot: Snapshot }[] = [];
   onSnapshot: (snapshot: Snapshot) => void = () => {};
   onEvent: (event: NetEvent) => void = () => {};
   onStatus: (text: string) => void = () => {};
@@ -44,12 +47,18 @@ export class Multiplayer {
     this.bind(room);
   }
   bind(room: Room) {
+    this.history = [];
     this.room = room;
     this.connected = true;
     this.onStatus("ANSLUTEN TILL OFFICE01");
     room.onMessage(MSG.snapshot, (snapshot: Snapshot) => {
+      this.history.push({ at: performance.now(), snapshot });
+      if (this.history.length > 12) this.history.shift();
       this.snapshot = snapshot;
       this.onSnapshot(snapshot);
+    });
+    room.onMessage(MSG.ping, (stamp: number) => {
+      this.rtt = Math.max(0, Date.now() - stamp);
     });
     room.onMessage(MSG.event, (event: NetEvent) => this.onEvent(event));
     room.onError((_code, message) =>
@@ -76,6 +85,12 @@ export class Multiplayer {
     });
   }
   send(input: NetInput) {
-    if (this.connected) this.room?.send(MSG.input, input);
+    if (this.connected) {
+      this.room?.send(MSG.input, input);
+      if (Date.now() >= this.nextPing) {
+        this.nextPing = Date.now() + 3000;
+        this.room?.send(MSG.ping, Date.now());
+      }
+    }
   }
 }
