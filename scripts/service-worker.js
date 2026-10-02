@@ -25,7 +25,7 @@ async function resource(request, path) {
     }
     return cached;
   }
-  const response = await fetch(request);
+  const response = await fetch(request, { cache: "no-cache" });
   if (
     response.ok &&
     response.type !== "opaque" &&
