@@ -1,0 +1,3 @@
+#!/bin/sh
+set -eu
+exec gcloud run deploy office-core-server --project officecore-ad307 --region europe-north1 --source . --build-service-account projects/officecore-ad307/serviceAccounts/office-core-builder@officecore-ad307.iam.gserviceaccount.com --quiet --allow-unauthenticated --min-instances 0 --max-instances 1 --cpu 1 --memory 1Gi --timeout 3600 --concurrency 80 --session-affinity --set-env-vars 'NODE_ENV=production,GOOGLE_CLOUD_PROJECT=officecore-ad307,ALLOWED_ORIGINS=https://officecore-ad307.web.app;https://officecore-ad307.firebaseapp.com,MAX_PLAYERS_PER_ROOM=16,MAX_ACTIVE_ROOMS=2,SERVER_TICK_RATE=30'

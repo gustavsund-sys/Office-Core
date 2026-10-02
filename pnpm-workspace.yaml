@@ -1,0 +1,6 @@
+allowBuilds:
+  '@firebase/util': false
+  esbuild: true
+  msgpackr-extract: false
+  protobufjs: false
+  re2: false

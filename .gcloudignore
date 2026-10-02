@@ -1,0 +1,12 @@
+.git
+node_modules
+dist
+.env
+.env.*
+server/.env
+public
+*.log
+**/*service-account*.json
+**/*credentials*.json
+*.pem
+*.key
