@@ -2531,3 +2531,24 @@ kbd {
 .rc-overlay {position:fixed;top:88px;left:50%;transform:translateX(-50%);padding:11px 20px;border:1px solid #65cbd0;border-radius:6px;background:#10272ceb;color:#e3faf3;font:700 13px monospace;letter-spacing:1px;z-index:90;pointer-events:none;box-shadow:0 4px 25px #0006;white-space:nowrap}
 .rc-overlay[hidden]{display:none}
 .inventory-slot.car{border-color:#dbb66d}
+
+/* Player vitality: override the small footer label styling on the HP number. */
+.health {
+  min-width: 145px;
+  padding: 6px 10px;
+  border-left: 3px solid #ef8978;
+  background: linear-gradient(110deg, #ef897815, transparent);
+}
+.health > span { font-weight: 700; letter-spacing: 1.4px; }
+.health strong { display: flex; align-items: baseline; gap: 7px; line-height: 1; margin: 4px 0 7px; }
+.health #player-hp {
+  display: inline;
+  font: 800 38px/1 "Barlow Condensed", Impact, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+  color: #fff4e8;
+  text-shadow: 0 2px 0 #0008, 0 0 14px #ef897835;
+}
+.health small { font-size: 11px; font-weight: 800; color: #efb09e; }
+.health-track { width: 140px; height: 7px; background: #06151c; border: 1px solid #ffffff22; transform: skewX(-12deg); overflow: hidden; }
+.healthline { width: 100%; height: 100%; border-radius: 0; box-shadow: 0 0 8px #ee7c6e66; transition: width 160ms ease, background-color 160ms ease; }
