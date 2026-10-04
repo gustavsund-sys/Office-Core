@@ -2552,3 +2552,33 @@ kbd {
 .health small { font-size: 11px; font-weight: 800; color: #efb09e; }
 .health-track { width: 140px; height: 7px; background: #06151c; border: 1px solid #ffffff22; transform: skewX(-12deg); overflow: hidden; }
 .healthline { width: 100%; height: 100%; border-radius: 0; box-shadow: 0 0 8px #ee7c6e66; transition: width 160ms ease, background-color 160ms ease; }
+
+.onboarding { position: fixed; inset: 0; z-index: 10000; background: #07151d; color: #eef8f8; font-family: Inter, sans-serif; }
+.onboarding button { border: 1px solid #84c6c780; background: #173c49; color: #eef8f8; padding: 13px 22px; font: 700 14px Inter, sans-serif; border-radius: 5px; cursor: pointer; }
+.onboarding button:hover { background: #286071; }
+.onboarding button:focus-visible { outline: 3px solid #f4c675; outline-offset: 4px; }
+.onboarding button:disabled { opacity: .35; cursor: default; }
+.onboarding-kicker { color: #83d3d4; letter-spacing: 3px; font-size: 11px; font-weight: 800; }
+.intro-screen video { width: 100%; height: 100%; object-fit: contain; }
+.intro-shade { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(transparent 60%, #06131aee); }
+.intro-brand { position: absolute; top: 30px; left: 35px; display: flex; flex-direction: column; gap: 8px; }
+.intro-brand img { width: 150px; }
+.intro-sound { position: absolute; top: 30px; right: 35px; }
+.intro-actions { position: absolute; bottom: 35px; right: 35px; left: 35px; text-align: right; }
+.intro-actions label { display: block; margin: 15px 0; font-size: 14px; }
+.intro-actions input { accent-color: #83d3d4; width: 18px; height: 18px; vertical-align: middle; margin-right: 8px; }
+.intro-actions button { margin-left: 10px; }
+.intro-actions .intro-skip { background: #e5bc74; color: #142a34; border-color: #e5bc74; }
+.intro-status { font-size: 13px; }
+.tutorial-screen { display: grid; place-items: center; overflow: auto; padding: 25px; }
+.tutorial-card { display: grid; grid-template-columns: 42% 58%; width: min(1050px, 100%); border: 1px solid #82b7bc55; border-radius: 12px; overflow: hidden; background: linear-gradient(135deg, #143340, #0b202c); box-shadow: 0 25px 90px #0008; }
+.tutorial-art { background: #06151d; min-height: 460px; }
+.tutorial-art img { width: 100%; height: 100%; object-fit: cover; }
+.tutorial-copy { padding: 35px; }
+.tutorial-copy h1 { font: 800 38px/1.08 "Barlow Condensed", Impact, sans-serif; margin: 18px 0; }
+.tutorial-copy p, .tutorial-copy li { font-size: 14px; line-height: 1.65; color: #bfd4d9; }
+.tutorial-copy ul { padding-left: 20px; }
+.tutorial-copy li { margin-bottom: 10px; }
+.tutorial-copy nav { display: flex; justify-content: space-between; gap: 10px; margin-top: 25px; }
+.tutorial-copy .tutorial-close { border: 0; padding: 12px 0 0; background: transparent; color: #91acb5; font-size: 12px; }
+@media (max-width: 650px) { .tutorial-card { grid-template-columns: 1fr; } .tutorial-art { min-height: 0; height: 160px; } .tutorial-copy { padding: 20px; } .tutorial-copy h1 { font-size: 30px; } .intro-actions { left: 15px; right: 15px; bottom: 20px; } .intro-actions button { margin: 5px 0 0; } .intro-brand { left: 15px; } .intro-sound { right: 15px; } }

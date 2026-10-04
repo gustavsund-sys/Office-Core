@@ -8,8 +8,14 @@ async function start() {
   loading.setAttribute("role", "status");
   loading.textContent = "Laddar Office Core…";
   document.body.append(loading);
-  await installGameCache();
   const params = new URLSearchParams(location.search);
+  const { showIntro, showTutorial } = await import("./ui/intro");
+  if (params.get("builder") !== "1" && (params.get("playtest") !== "1" || params.get("intro") === "1")) {
+    loading.hidden = true;
+    await showIntro(params.get("intro") === "1");
+    loading.hidden = false;
+  }
+  await installGameCache();
   if (params.get("playtest") === "1") {
     const saved = localStorage.getItem(STORAGE_KEY);
     // A fresh browser origin can playtest the bundled map without an editor save.
@@ -63,6 +69,12 @@ async function start() {
       }
     }
     new Game(canvas, engine);
+    const guide = document.createElement("button");
+    guide.className = "open-field-guide";
+    guide.textContent = "Tutorial";
+    guide.style.cssText = "position:fixed;bottom:8px;right:30px;z-index:210;padding:6px 12px;background:#163744;color:#d8eff0;border:1px solid #78b4bb;border-radius:4px;cursor:pointer";
+    guide.onclick = () => { void showTutorial(); };
+    document.querySelector("#overlay")!.append(guide);
     {
       const badge = document.createElement("div");
       badge.textContent = engine ? "RENDERER · WEBGPU" : "RENDERER · WEBGL";
