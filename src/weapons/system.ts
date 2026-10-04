@@ -1,4 +1,10 @@
 import {
+  shard,
+  beam,
+  flash as pooledFlash,
+  releaseEffect,
+} from "../game/effectPool";
+import {
   Color3,
   Mesh,
   MeshBuilder,
@@ -13,10 +19,30 @@ import { Destructible } from "../core/destructible";
 import { heldWeapon, rocketModel } from "./models";
 import type { Hittable } from "../core/hittable";
 export class Weapons {
+  pickHit?: (ray: Ray) => import("@babylonjs/core").PickingInfo | null;
+  carryingBeacon = false;
+  remoteControlled = false;
+  utilityKind: "pulseTrap" | "superMedkit" | "rcCar" = "pulseTrap";
+  utilityCount = 0;
+  get carryingPulseTrap() {
+    return this.utilityKind === "pulseTrap" && this.utilityCount > 0;
+  }
+  set carryingPulseTrap(value: boolean) {
+    if (value) {
+      this.utilityKind = "pulseTrap";
+      this.utilityCount = Math.max(1, this.utilityCount);
+    } else if (this.utilityKind === "pulseTrap") this.utilityCount = 0;
+  }
+  pulseTrapSelected = false;
   warcryAvailable = false;
   onWarcry: () => void = () => {};
   activateWarcry() {
-    if (!this.carryingCoreBuster || !this.warcryAvailable || this.player.hp <= 0) return false;
+    if (
+      !this.carryingCoreBuster ||
+      !this.warcryAvailable ||
+      this.player.hp <= 0
+    )
+      return false;
     this.warcryAvailable = false;
     this.player.invulnerable = 4;
     this.onWarcry();
@@ -37,7 +63,16 @@ export class Weapons {
     this.specialWeapon = undefined;
     this.equip("pistol");
   }
-  switchSlot(slot: 1 | 2) {
+  switchSlot(slot: 1 | 2 | 3) {
+    if (this.remoteControlled) return;
+    if (slot === 3) {
+      if (this.utilityCount > 0) {
+        this.pulseTrapSelected = true;
+        this.burstRemaining = 0;
+      }
+      return;
+    }
+    this.pulseTrapSelected = false;
     const id = slot === 1 ? "pistol" : this.specialWeapon;
     if (id && id !== this.id) this.equip(id);
   }
@@ -94,7 +129,10 @@ export class Weapons {
     if (id !== "pistol") this.specialWeapon = id;
     this.id = id;
     this.player.setWeaponModel(id);
-    if (acquired) { this.warcryAvailable = true; this.onCoreBusterAcquired(); }
+    if (acquired) {
+      this.warcryAvailable = true;
+      this.onCoreBusterAcquired();
+    }
 
     this.reloadRemaining = 0;
     this.burstRemaining = 0;
@@ -131,6 +169,8 @@ export class Weapons {
       }
     }
     if (this.player.hp <= 0) return;
+    if (this.pulseTrapSelected || this.remoteControlled)
+      c = { ...c, fire: false, pressed: false };
     if (this.carryingCoreBuster) {
       if (c.pressed && this.player.grounded) {
         const mesh = heldWeapon(this.player.world, "coreBuster");
@@ -162,7 +202,7 @@ export class Weapons {
     this.cooldown = Math.max(0, this.cooldown - dt);
     for (const e of this.effects) {
       e.life -= dt;
-      if (e.life <= 0) e.mesh.dispose();
+      if (e.life <= 0) releaseEffect(e.mesh);
     }
     this.effects = this.effects.filter((e) => e.life > 0);
     if (this.reloadRemaining > 0) {
@@ -172,6 +212,14 @@ export class Weapons {
         this.ammo = loaded;
         this.bazookaReserve -= loaded;
       }
+      return;
+    }
+    if (
+      this.carryingBeacon ||
+      this.pulseTrapSelected ||
+      this.remoteControlled
+    ) {
+      this.burstRemaining = 0;
       return;
     }
     if (this.ammo <= 0) {
@@ -203,13 +251,11 @@ export class Weapons {
     }
     this.player.recoil = 1;
     const scene = this.player.world.scene;
-    const origin = this.player.root.position.add(new Vector3(0, 1.1, 0));
-    const direction = c.shotTarget
-      ? c.shotTarget.subtract(origin).normalize()
-      : this.player.direction;
+    const origin = this.player.shotOrigin;
+    const direction = this.player.shotDirection(c, origin);
     if (this.id === "bazooka") {
       const mesh = rocketModel(this.player.world);
-      const start = origin.add(direction.scale(0.45));
+      const start = origin.clone();
       mesh.position.copyFrom(start);
       mesh.rotationQuaternion = Quaternion.FromLookDirectionLH(
         direction,
@@ -218,7 +264,7 @@ export class Weapons {
       mesh.isPickable = false;
       this.rockets.push({
         mesh,
-        origin: origin.clone(),
+        origin: this.player.root.position.add(new Vector3(0, 1.1, 0)),
         start,
         direction,
         distance: 0,
@@ -229,42 +275,37 @@ export class Weapons {
       return;
     }
     const ray = new Ray(origin, direction, data.range);
-    const hit = scene.pickWithRay(
-      ray,
-      (m) =>
-        m.isEnabled() &&
-        !this.player.bodyMeshes.includes(m as Mesh) &&
-        (!!m.metadata?.solid ||
-          (!!m.metadata?.damageable && m.metadata.damageable.hp > 0)),
-    );
+    const hit = this.pickHit
+      ? this.pickHit(ray)
+      : scene.pickWithRay(
+          ray,
+          (m) =>
+            m.isEnabled() &&
+            !this.player.bodyMeshes.includes(m as Mesh) &&
+            (!!m.metadata?.solid ||
+              (!!m.metadata?.damageable && m.metadata.damageable.hp > 0)),
+        );
     const end =
       hit?.hit && hit.pickedPoint
         ? hit.pickedPoint
         : origin.add(direction.scale(data.range));
-    const start = origin.add(
-      direction.scale(Math.min(0.65, Vector3.Distance(origin, end))),
-    );
+    const start = origin.clone();
     this.onTrace(start, end);
     if (this.visuals) {
-      const tracer =
-        this.id === "pulseGun"
-          ? MeshBuilder.CreateTube(
-              "pulse beam",
-              { path: [start, end], radius: 0.07, tessellation: 8 },
-              scene,
-            )
-          : MeshBuilder.CreateLines("tracer", { points: [start, end] }, scene);
-      if ("color" in tracer) tracer.color = Color3.FromHexString("#ffe4a5");
-      if (this.id === "pulseGun")
-        tracer.material = this.player.world.mat("#ff263e", true);
-
+      const tracer = beam(
+        scene,
+        start,
+        end,
+        this.id === "pulseGun" ? 0.14 : 0.025,
+      );
+      tracer.name = this.id === "pulseGun" ? "pulse beam" : "tracer";
+      tracer.material = this.player.world.mat(
+        this.id === "pulseGun" ? "#ff263e" : "#ffe4a5",
+        true,
+      );
       tracer.isPickable = false;
       this.effects.push({ mesh: tracer, life: 0.065 });
-      const flash = MeshBuilder.CreateSphere(
-        "muzzle",
-        { diameter: 0.23, segments: 4 },
-        scene,
-      );
+      const flash = pooledFlash(scene, 0.23);
       flash.position.copyFrom(start);
       flash.material = this.player.world.mat("#ffe8a1", true);
       flash.isPickable = false;
@@ -273,11 +314,7 @@ export class Weapons {
     if (hit?.hit) {
       this.onImpact(end);
       for (let i = 0; this.visuals && i < 5; i++) {
-        const spark = MeshBuilder.CreateBox(
-          "impact",
-          { size: 0.065 + Math.random() * 0.07 },
-          scene,
-        );
+        const spark = shard(scene, 0.065 + Math.random() * 0.07);
         spark.position.copyFrom(
           end.add(
             new Vector3(
@@ -293,7 +330,7 @@ export class Weapons {
       }
       const t = hit.pickedMesh?.metadata?.damageable as Hittable | undefined;
       if (t) {
-        if (t.canDamageFrom(origin)) {
+        if (t.canDamageFrom(this.player.root.position)) {
           const damage = Math.min(data.damage, t.hp);
           const before = t.hp;
           t.damage(data.damage);

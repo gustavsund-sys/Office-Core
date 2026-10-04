@@ -1,3 +1,5 @@
+import { PulseTraps } from "../game/pulseTrap";
+import { Beacons } from "../game/beacon";
 import { MeshBuilder, TransformNode } from "@babylonjs/core";
 import { World } from "../map/builder";
 import { activeMap, AMMO_AMOUNTS, type SpawnPoint } from "../maps/layout";
@@ -5,6 +7,8 @@ import { heldWeapon } from "../weapons/models";
 import { WEAPONS, type WeaponId } from "../config/weapons";
 import { Weapons } from "../weapons/system";
 export class Pickup {
+  beacons: Beacons;
+  pulseTraps: PulseTraps;
   chooseRequested = false;
   nearbyWeapon?: WeaponId;
   endpoints: {
@@ -41,7 +45,10 @@ export class Pickup {
     interval: number;
   }[] = [];
   initialDelays = new Map<object, number>();
+  onAmmo = (_weapons: Weapons) => {};
   constructor(public world: World) {
+    this.beacons = new Beacons(world);
+    this.pulseTraps = new PulseTraps(world);
     for (const spot of activeMap.spawns) {
       if (spot.type !== "medkit" && spot.type !== "superMedkit") continue;
       const superKit = spot.type === "superMedkit";
@@ -319,6 +326,8 @@ export class Pickup {
       this.initialDelays.set(drop, drop.cooldown);
   }
   reset() {
+    this.beacons.reset();
+    this.pulseTraps.reset();
     for (const drop of this.endpoints.filter((d) => d.dropped))
       drop.root.dispose();
     this.endpoints = this.endpoints.filter((d) => !d.dropped);
@@ -410,6 +419,7 @@ export class Pickup {
           0.85
       ) {
         weapons.addAmmo(drop.id, drop.amount);
+        this.onAmmo(weapons);
         drop.cooldown = drop.interval;
         if (slot) slot.cooldown = drop.cooldown;
         drop.root.setEnabled(false);

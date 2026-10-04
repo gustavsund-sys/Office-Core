@@ -1,5 +1,6 @@
 import {
   MeshBuilder,
+  Ray,
   StandardMaterial,
   Color3,
   TransformNode,
@@ -35,6 +36,9 @@ export class Input {
   down = false;
   pressed = false;
   pointer = { x: 0, y: 0 };
+  remote = false;
+  remoteReady = false;
+  remoteSteer = 0;
   mode: ViewMode = "topDown";
   aimRelativeMovement = true;
   yaw = Math.PI;
@@ -45,8 +49,13 @@ export class Input {
   get locked() {
     return document.pointerLockElement === this.canvas;
   }
-  requestLock() {
-    if (this.mode !== "thirdPerson" || !this.active || this.locked) return;
+  requestLock(forRemote = false) {
+    if (
+      (!forRemote && !this.remote && this.mode !== "thirdPerson") ||
+      !this.active ||
+      this.locked
+    )
+      return;
     try {
       const result = this.canvas.requestPointerLock();
       result?.catch(() => this.lockFailed());
@@ -54,6 +63,21 @@ export class Input {
       this.lockFailed();
     }
   }
+  setRemote(active: boolean, dt = 0) {
+    const wasRemote = this.remote;
+    this.remote = active;
+    if (active && !wasRemote) this.requestLock();
+    if (!active && wasRemote && this.locked && this.mode !== "thirdPerson")
+      document.exitPointerLock();
+    if (active && !wasRemote) this.remoteSteer = 0;
+    document.body.classList.toggle("rc-driving", active);
+    const marker = document.querySelector<HTMLElement>("#crosshair");
+    if (active && marker) {
+      marker.style.left = `${50 + this.remoteSteer * 22}%`;
+      marker.style.top = "50%";
+    }
+  }
+
   lockFailed() {
     this.lockUnavailable = true;
     window.dispatchEvent(new CustomEvent("look-lock-failed"));
@@ -66,8 +90,28 @@ export class Input {
         e.target instanceof HTMLButtonElement
       )
         return;
-      if (["KeyW", "KeyA", "KeyS", "KeyD", "Space", "F2"].includes(e.code))
+      if (
+        [
+          "KeyW",
+          "KeyA",
+          "KeyS",
+          "KeyD",
+          "ArrowUp",
+          "ArrowDown",
+          "ArrowLeft",
+          "ArrowRight",
+          "Space",
+          "F2",
+        ].includes(e.code)
+      )
         e.preventDefault();
+      if (
+        this.remote &&
+        this.active &&
+        !this.locked &&
+        ["KeyW", "KeyS"].includes(e.code)
+      )
+        this.requestLock();
       this.keys.add(e.code);
     });
     window.addEventListener("keyup", (e) => this.keys.delete(e.code));
@@ -76,17 +120,28 @@ export class Input {
       this.pointer = { x: e.clientX - r.left, y: e.clientY - r.top };
       if (
         this.active &&
-        this.mode === "thirdPerson" &&
-        (this.locked || this.dragging)
+        (this.remote || this.mode === "thirdPerson") &&
+        (this.remote || this.locked || this.dragging)
       ) {
-        this.yaw += e.movementX * CONFIG.thirdPerson.sensitivity;
+        if (this.remote) {
+          this.remoteSteer = Math.max(
+            -1,
+            Math.min(1, this.remoteSteer + e.movementX / 300),
+          );
+        } else this.yaw += e.movementX * CONFIG.thirdPerson.sensitivity;
       }
     });
     canvas.addEventListener("pointerdown", (e) => {
       if (!this.active) return;
+      // Request inside the deployment click, before the next animation/server frame.
+      if (this.remoteReady && !this.remote && e.button === 0 && !this.locked)
+        this.requestLock(true);
+      // Re-locking must not consume the RC detonation click.
+      if (this.remote && !this.locked) this.requestLock();
       if (e.button === 2) this.dragging = true;
       if (
         this.mode === "thirdPerson" &&
+        !this.remote &&
         !this.locked &&
         !this.lockUnavailable &&
         e.button === 0
@@ -106,6 +161,10 @@ export class Input {
       if (e.button === 2) this.dragging = false;
     });
     document.addEventListener("pointerlockerror", () => this.lockFailed());
+    document.addEventListener("pointerlockchange", () => {
+      if (this.locked) this.lockUnavailable = false;
+      else if (this.remote) this.clear();
+    });
     window.addEventListener("blur", () => this.clear());
     document.addEventListener("visibilitychange", () => this.clear());
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
@@ -130,10 +189,24 @@ export class Input {
       : ray.origin.add(ray.direction.scale(100));
   }
   command(world: World, pos: Vector3): PlayerCommand {
+    if (this.remote) {
+      const command = {
+        moveX: 0,
+        moveZ: 0,
+        aimX: pos.x + Math.sin(this.yaw),
+        aimZ: pos.z + Math.cos(this.yaw),
+        fire: false,
+        pressed: this.pressed,
+      };
+      this.pressed = false;
+      return command;
+    }
     if (this.mode === "thirdPerson") {
       const movement = relativeMovement(
-        Number(this.keys.has("KeyD")) - Number(this.keys.has("KeyA")),
-        Number(this.keys.has("KeyW")) - Number(this.keys.has("KeyS")),
+        Number(this.keys.has("KeyD") || this.keys.has("ArrowRight")) -
+          Number(this.keys.has("KeyA") || this.keys.has("ArrowLeft")),
+        Number(this.keys.has("KeyW") || this.keys.has("ArrowUp")) -
+          Number(this.keys.has("KeyS") || this.keys.has("ArrowDown")),
         this.yaw,
       );
       const c: PlayerCommand = {
@@ -160,8 +233,12 @@ export class Input {
         ? ray.origin.add(ray.direction.scale(distance))
         : pos.add(new Vector3(0, 0, 1));
     const c = {
-      moveX: Number(this.keys.has("KeyD")) - Number(this.keys.has("KeyA")),
-      moveZ: Number(this.keys.has("KeyW")) - Number(this.keys.has("KeyS")),
+      moveX:
+        Number(this.keys.has("KeyD") || this.keys.has("ArrowRight")) -
+        Number(this.keys.has("KeyA") || this.keys.has("ArrowLeft")),
+      moveZ:
+        Number(this.keys.has("KeyW") || this.keys.has("ArrowUp")) -
+        Number(this.keys.has("KeyS") || this.keys.has("ArrowDown")),
       aimX: aim.x,
       aimZ: aim.z,
       fire: this.down,
@@ -188,7 +265,11 @@ export class Player {
   barrier?: Mesh;
   setBarrier(active: boolean) {
     if (active && !this.barrier) {
-      this.barrier = MeshBuilder.CreateSphere("warcry shield", { diameter: 2.8, segments: 16 }, this.world.scene);
+      this.barrier = MeshBuilder.CreateSphere(
+        "warcry shield",
+        { diameter: 2.8, segments: 16 },
+        this.world.scene,
+      );
       this.barrier.parent = this.root;
       this.barrier.position.y = 1.1;
       this.barrier.isPickable = false;
@@ -218,6 +299,9 @@ export class Player {
   torso: Mesh;
   gun: Mesh;
   weaponZ = 0.56;
+  weaponId: WeaponId = "pistol";
+  stride = 0;
+  knees: TransformNode[] = [];
   bodyMeshes: Mesh[] = [];
   legacyMeshes: Mesh[] = [];
   animationGroups: {
@@ -259,10 +343,145 @@ export class Player {
       part("right arm", 0.39, 1.04, 0.17, 0.22, 0.28, 0.62, "#efdfbd"),
     );
     this.gun = part("weapon", 0.26, 1.12, 0.56, 0.19, 0.22, 0.65, "#263647");
+    // Details share the existing palette; no character textures or downloaded rig.
+    const detail = (
+      parent: TransformNode,
+      name: string,
+      x: number,
+      y: number,
+      z: number,
+      w: number,
+      h: number,
+      d: number,
+      color: string,
+    ) => {
+      const mesh = part(name, x, y, z, w, h, d, color);
+      mesh.parent = parent;
+      mesh.isPickable = false;
+      return mesh;
+    };
+    detail(
+      this.torso,
+      "shirt placket",
+      0,
+      0.08,
+      0.211,
+      0.1,
+      0.46,
+      0.03,
+      "#faf0dc",
+    );
+    detail(this.torso, "tie", 0, 0.04, 0.31, 0.07, 0.32, 0.035, "#263b49");
+    detail(
+      this.torso,
+      "ID badge",
+      -0.17,
+      0.04,
+      0.31,
+      0.12,
+      0.16,
+      0.025,
+      "#f4f4de",
+    );
+    detail(
+      this.torso,
+      "badge stripe",
+      -0.17,
+      0.065,
+      0.329,
+      0.08,
+      0.025,
+      0.01,
+      "#49c7c5",
+    );
+    detail(this.torso, "belt", 0, -0.29, 0.015, 0.66, 0.09, 0.43, "#263b49");
+    detail(
+      this.torso,
+      "belt buckle",
+      0,
+      -0.29,
+      0.239,
+      0.12,
+      0.075,
+      0.035,
+      "#b9c5bc",
+    );
+    const head = this.bodyMeshes.find((m) => m.name === "head")!;
+    for (const x of [-0.12, 0.12]) {
+      detail(head, "glasses", x, 0.04, 0.222, 0.18, 0.1, 0.035, "#263b49");
+      detail(head, "lens", x, 0.05, 0.245, 0.115, 0.043, 0.01, "#8edbd8");
+      detail(
+        head,
+        "ear",
+        Math.sign(x) * 0.23,
+        -0.015,
+        0,
+        0.065,
+        0.12,
+        0.1,
+        "#d9a77b",
+      );
+    }
+    detail(
+      head,
+      "glasses bridge",
+      0,
+      0.04,
+      0.23,
+      0.07,
+      0.025,
+      0.035,
+      "#263b49",
+    );
+    detail(head, "nose", 0, -0.04, 0.24, 0.07, 0.08, 0.08, "#c89369");
+    for (const arm of this.bodyMeshes.filter((m) => m.name.endsWith(" arm"))) {
+      detail(arm, "shirt cuff", 0, 0, 0.24, 0.23, 0.29, 0.09, "#faf0dc");
+      detail(arm, "glove", 0, -0.015, 0.34, 0.19, 0.22, 0.15, "#344956");
+    }
     for (const x of [-0.19, 0.19]) {
-      const boot = part("boot", x, 0.3, 0, 0.24, 0.55, 0.3, "#253a4c");
-      this.legs.push(boot);
-      this.bodyMeshes.push(boot);
+      const hip = new TransformNode("hip joint", world.scene);
+      hip.parent = this.root;
+      hip.position.set(x, 0.68, 0);
+      const thigh = detail(
+        hip,
+        "trouser thigh",
+        0,
+        -0.17,
+        0,
+        0.25,
+        0.34,
+        0.29,
+        "#344956",
+      );
+      const knee = new TransformNode("knee joint", world.scene);
+      knee.parent = hip;
+      knee.position.y = -0.32;
+      const shin = detail(
+        knee,
+        "trouser shin",
+        0,
+        -0.13,
+        0,
+        0.22,
+        0.26,
+        0.25,
+        "#293e4c",
+      );
+      const boot = detail(
+        knee,
+        "shoe",
+        0,
+        -0.27,
+        0.065,
+        0.25,
+        0.15,
+        0.4,
+        "#192b36",
+      );
+      detail(boot, "shoe sole", 0, -0.065, 0, 0.26, 0.035, 0.41, "#66777a");
+      this.legs.push(hip);
+      this.knees.push(knee);
+      this.bodyMeshes.push(thigh, shin, boot);
     }
     const ring = MeshBuilder.CreateTorus(
       "player ring",
@@ -277,6 +496,7 @@ export class Player {
     this.legacyMeshes = this.root.getChildMeshes() as Mesh[];
   }
   setWeaponModel(id: WeaponId) {
+    this.weaponId = id;
     this.gun?.dispose();
     this.gun = heldWeapon(this.world, id);
     this.gun.parent = this.root;
@@ -471,14 +691,68 @@ export class Player {
       Math.atan2(c.aimX - this.root.position.x, c.aimZ - this.root.position.z);
   }
   animate(moving: boolean, dt: number) {
-    this.walk += dt * (moving ? 13 : 2);
-    this.legs.forEach(
-      (m, i) =>
-        (m.rotation.x = moving ? Math.sin(this.walk + i * Math.PI) * 0.55 : 0),
-    );
+    this.stride +=
+      ((moving && this.grounded ? 1 : 0) - this.stride) *
+      (1 - Math.exp(-dt * 12));
+    this.walk += dt * (2 + this.stride * 11);
+    this.legs.forEach((hip, i) => {
+      const phase = this.walk + i * Math.PI;
+      hip.rotation.x =
+        Math.sin(phase) * 0.48 * this.stride + (this.grounded ? 0 : -0.25);
+      this.knees[i].rotation.x =
+        -Math.max(0, Math.cos(phase)) * 0.48 * this.stride +
+        (this.grounded ? 0 : -0.55);
+    });
     this.recoil = Math.max(0, this.recoil - dt * 6);
-    this.gun.position.z = this.weaponZ - this.recoil * 0.18;
-    this.torso.position.y = 1 + Math.sin(this.walk) * (moving ? 0.045 : 0.018);
+    this.gun.position.z = this.weaponZ - this.recoil * 0.12;
+    this.torso.position.y =
+      1 +
+      Math.sin(this.walk * 2) * 0.025 * this.stride +
+      Math.sin(this.walk) * 0.009;
+    this.torso.rotation.z = Math.sin(this.walk) * 0.035 * this.stride;
+  }
+  get muzzlePosition() {
+    const tip: Record<WeaponId, number> = {
+      pistol: 0.385,
+      pulseGun: 0.48,
+      burstGun: 0.8,
+      machineGun: 0.9,
+      bazooka: 0.87,
+      coreBuster: 0,
+    };
+    this.root.computeWorldMatrix(true);
+    return Vector3.TransformCoordinates(
+      new Vector3(0, 0, tip[this.weaponId]),
+      this.gun.computeWorldMatrix(true),
+    );
+  }
+  /** Stop at cover between the body and barrel, so a protruding gun cannot shoot through walls. */
+  get shotOrigin() {
+    const muzzle = this.muzzlePosition;
+    const chest = this.root.position.add(
+      new Vector3(0, muzzle.y - this.root.position.y, 0),
+    );
+    const delta = muzzle.subtract(chest);
+    const distance = delta.length();
+    if (distance < 0.001) return muzzle;
+    const direction = delta.scale(1 / distance);
+    const hit = this.world.scene.pickWithRay(
+      new Ray(chest, direction, distance),
+      (m) => m.isEnabled() && !!m.metadata?.solid,
+    );
+    return hit?.hit && hit.pickedPoint
+      ? hit.pickedPoint.subtract(direction.scale(0.02))
+      : muzzle;
+  }
+  shotDirection(command: PlayerCommand, origin = this.shotOrigin) {
+    const target =
+      command.shotTarget ??
+      new Vector3(command.aimX, this.root.position.y + 1.1, command.aimZ);
+    const delta = target.subtract(origin);
+    // Keep a stable forward shot when the cursor is inside the player silhouette.
+    return Vector3.Dot(delta, this.direction) > 0.2
+      ? delta.normalize()
+      : this.direction;
   }
   get direction() {
     return new Vector3(

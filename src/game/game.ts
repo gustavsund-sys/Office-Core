@@ -1,10 +1,51 @@
-import { resetRound } from "./round";
+import { RCSession } from "./rcSession";
+import { advanceCountdown, finishLocalRound } from "./roundFlow";
+import { applyOnline as applyOnlineImpl } from "./snapshotReconciliation";
+import { tickOnline as tickOnlineImpl } from "./onlineSimulation";
+import {
+  resize as resizeImpl,
+  updateCamera as updateCameraImpl,
+} from "./cameraController";
+import {
+  updateDisarm as updateDisarmImpl,
+  updateLobbyMusic as updateLobbyMusicImpl,
+  setControlScheme as setControlSchemeImpl,
+  setPaused as setPausedImpl,
+  updateBeaconPrompt as updateBeaconPromptImpl,
+} from "./interfaceSession";
+import {
+  showHitHealth as showHitHealthImpl,
+  updateHitHealthBars as updateHitHealthBarsImpl,
+  showDamageNumber as showDamageNumberImpl,
+  updateDamageNumbers as updateDamageNumbersImpl,
+  beaconImpact as beaconImpactImpl,
+  beaconShot as beaconShotImpl,
+} from "./combatPresentation";
+import { startMatch as startMatchImpl } from "./matchSession";
+import { installMultiplayer as installMultiplayerImpl } from "./networkSession";
+
+import { LoadoutUI } from "../ui/loadout";
+
+import { PulseTrapAudio } from "../audio/pulseTrap";
+
+import { BeaconAudio } from "../audio/beacon";
+import { EngagementUI } from "../ui/engagement";
+import { EngagementAudio } from "../audio/engagement";
+import {
+  CombatLedger,
+  emptyPerformance,
+  type PingKind,
+  type TeamPing,
+} from "./engagement";
+import type { Hittable } from "../core/hittable";
+
 import { Disarm } from "./disarm";
 import {
   Color3,
   Color4,
   DirectionalLight,
   Engine,
+  type AbstractEngine,
   FreeCamera,
   GlowLayer,
   HemisphericLight,
@@ -13,16 +54,15 @@ import {
   Vector3,
   Camera,
   Ray,
-  MeshBuilder,
-  Quaternion,
   Matrix,
+  Plane,
 } from "@babylonjs/core";
-import { rotatingCameraPose } from "./rotatingCamera";
+
 import { WEAPONS, type WeaponId } from "../config/weapons";
 import { WeaponAudio } from "../audio/weapons";
 import { CoreMatch } from "./match";
 import { Lobby } from "../ui/lobby";
-import { showVictory, closeVictory, updateReady } from "../ui/victory";
+
 import { CONFIG, TEAMS, type Team } from "../config/game";
 import { World } from "../map/builder";
 import { office01 } from "../maps/office01";
@@ -33,13 +73,16 @@ import { Weapons } from "../weapons/system";
 import { Pickup } from "../pickups/pickup";
 import { HUD } from "../ui/hud";
 import { Debug } from "../debug/debug";
-import { heldWeapon, rocketModel } from "../weapons/models";
-import { connectionError } from "../network/errors";
+
 import { ShotPrediction } from "../network/shotPrediction";
-import { interpolateYaw } from "../network/interpolation";
+
 import { Multiplayer } from "../network/client";
 import { MSG, type Snapshot, type NetInput } from "../../shared/protocol";
 export class Game {
+  rc!: RCSession;
+  loadout!: LoadoutUI;
+  beaconAudio = new BeaconAudio();
+  pulseTrapAudio = new PulseTrapAudio();
   testToolsEnabled =
     new URLSearchParams(location.search).get("devtools") === "1" ||
     new URLSearchParams(location.search).get("playtest") === "1";
@@ -62,6 +105,8 @@ export class Game {
   damageNumbers: { el: HTMLElement; position: Vector3; life: number }[] = [];
   onlineSpawned = false;
   predictedPosition?: Vector3;
+  visualCorrection = Vector3.Zero();
+  lastPositionCorrection = 0;
   predictedVelocity = 0;
   onlinePlayers = new Map<string, Player>();
   onlineTraces: { mesh: import("@babylonjs/core").Mesh; life: number }[] = [];
@@ -71,12 +116,12 @@ export class Game {
     warcry: false,
     jump: false,
     interact: false,
-    slot: 0 as 0 | 1 | 2,
+    slot: 0 as 0 | 1 | 2 | 3,
   };
   networkElapsed = 0;
   nameTimer = 0;
   lobby!: Lobby;
-  engine: Engine;
+  engine: AbstractEngine;
   scene: Scene;
   camera: FreeCamera;
   world: World;
@@ -85,6 +130,15 @@ export class Game {
   weapons: Weapons;
   pickup: Pickup;
   hud: HUD;
+  engagement!: EngagementUI;
+  engagementAudio?: EngagementAudio;
+  localLedger = new CombatLedger();
+  lastTeamPing = -10;
+  localCountdown = 0;
+  localRoundAction?: () => void;
+  countdownSound = 0;
+  botRespawn = 0;
+
   debug: Debug;
   cores: Damageable[];
   match = new CoreMatch();
@@ -95,7 +149,6 @@ export class Game {
   testShootingEnabled = true;
   respawnRemaining = 0;
   busterScreamPlayed = false;
-  targets: Damageable[];
   paused = true;
   time = 0;
   audio?: AudioContext;
@@ -108,88 +161,57 @@ export class Game {
   disarmAudio = new Audio("/audio/disarm.mp3");
   lobbyMuted = localStorage.getItem("officeCore.lobbyMuted") === "true";
   updateDisarm(progress?: number) {
-    this.hud.disarm(progress);
-    this.disarmAudio.loop = true;
-    if (progress !== undefined && this.sound && !this.paused) {
-      if (this.disarmAudio.paused) void this.disarmAudio.play().catch(() => {});
-    } else {
-      this.disarmAudio.pause();
-      this.disarmAudio.currentTime = 0;
-    }
+    return updateDisarmImpl.call(this, progress);
   }
   lobbyMusic = new Audio("/audio/music/office-groove.mp3");
   lobbyMusicBlocked = false;
   lobbyMusicPending = false;
   updateLobbyMusic(unlock = false) {
-    if (unlock) this.lobbyMusicBlocked = false;
-    this.lobbyMusic.loop = true;
-    this.lobbyMusic.volume = this.lobbyMuted ? 0 : 0.35;
-    const inLobby = !this.match.started && !this.match.winner && this.sound;
-    if (!inLobby) {
-      this.lobbyMusic.pause();
-      if (this.match.started) this.lobbyMusic.currentTime = 0;
-      return;
-    }
-    if (
-      !this.lobbyMusic.paused ||
-      this.lobbyMusicBlocked ||
-      this.lobbyMusicPending
-    )
-      return;
-    this.lobbyMusicPending = true;
-    void this.lobbyMusic
-      .play()
-      .catch(() => {
-        this.lobbyMusicBlocked = true;
-      })
-      .finally(() => {
-        this.lobbyMusicPending = false;
-        if (this.match.started || this.match.winner || !this.sound)
-          this.lobbyMusic.pause();
-      });
+    return updateLobbyMusicImpl.call(this);
   }
   cameraTarget = new Vector3();
   shake = 0;
   intrudedTeam?: Team;
   breachTeam?: Team;
   breachUntil = 0;
-  constructor(canvas: HTMLCanvasElement) {
-    this.engine = new Engine(canvas, true, { stencil: true });
+  constructor(canvas: HTMLCanvasElement, engine?: AbstractEngine) {
+    this.engine = engine ?? new Engine(canvas, true, { stencil: true });
     this.engine.setHardwareScalingLevel(
       Math.max(1, window.devicePixelRatio / 1.5),
     );
     this.scene = new Scene(this.engine);
     this.scene.clearColor = Color4.FromHexString("#14232cff");
-    this.scene.ambientColor = new Color3(0.28, 0.32, 0.36);
+    this.scene.ambientColor = new Color3(0.13, 0.16, 0.19);
     const ambient = new HemisphericLight(
       "sky",
       new Vector3(0, 1, 0),
       this.scene,
     );
-    ambient.intensity = 0.65;
-    ambient.groundColor = Color3.FromHexString("#536a75");
+    ambient.intensity = 0.48;
+    ambient.diffuse = Color3.FromHexString("#c6dce9");
+    ambient.groundColor = Color3.FromHexString("#756452");
     const sun = new DirectionalLight(
       "sun",
-      new Vector3(-0.5, -1, 0.4),
+      new Vector3(-0.65, -1, 0.45),
       this.scene,
     );
     sun.position.set(12, 30, -20);
-    sun.intensity = 0.75;
-    sun.diffuse = Color3.FromHexString("#fff0cf");
-    const shadows = new ShadowGenerator(2048, sun);
+    sun.intensity = 1.05;
+    sun.diffuse = Color3.FromHexString("#ffdfb0");
+    const shadows = new ShadowGenerator(1024, sun);
     shadows.usePercentageCloserFiltering = true;
     shadows.filteringQuality = ShadowGenerator.QUALITY_HIGH;
     shadows.bias = 0.0005;
     shadows.normalBias = 0.02;
-    shadows.setDarkness(0.3);
+    shadows.setDarkness(0.18);
     const glow = new GlowLayer("subtle glow", this.scene, {
       mainTextureFixedSize: 512,
     });
-    glow.intensity = 0.28;
-    this.scene.imageProcessingConfiguration.contrast = 1.06;
-    this.scene.imageProcessingConfiguration.exposure = 0.95;
+    glow.intensity = 0.2;
+    this.scene.imageProcessingConfiguration.contrast = 1.12;
+    this.scene.imageProcessingConfiguration.exposure = 1.02;
     this.scene.imageProcessingConfiguration.vignetteEnabled = true;
-    this.scene.imageProcessingConfiguration.vignetteWeight = 1.4;
+    this.scene.imageProcessingConfiguration.vignetteWeight = 1.1;
     this.camera = new FreeCamera(
       "fixed follow",
       new Vector3(0, 23, -13),
@@ -213,6 +235,12 @@ export class Game {
         this.weaponAudio?.playBazookaExplosion(audibleStrength)
       )
         return;
+      if (
+        sound === "plasmaMine" &&
+        this.sound &&
+        this.weaponAudio?.playPlasmaMine(audibleStrength)
+      )
+        return;
       this.explosionSound(audibleStrength);
     };
     this.player = new Player(this.world);
@@ -221,10 +249,15 @@ export class Game {
     this.cores = office01.bases.map(
       (b) => new Damageable(this.world, "core", b.x, b.z, b.team),
     );
-    this.targets = office01.targets.map(
-      (t) => new Damageable(this.world, "target", t.x, t.z),
-    );
     this.hud = new HUD();
+    this.engagement = new EngagementUI(this.world, (kind) =>
+      this.sendTeamPing(kind),
+    );
+    this.localDisarm.onComplete = () => {
+      this.localLedger.add("local", "disarms");
+      this.hud.toast("CORE BUSTER DISARMED · ROUND SAVED");
+      this.engagementAudio?.hit(true);
+    };
     let preferred = true;
     try {
       const saved = localStorage.getItem("office-wars-controls");
@@ -244,7 +277,7 @@ export class Game {
     this.weapons = new Weapons(
       this.player,
       (t, d) => {
-        this.hud.damage(d);
+        this.recordLocalHit("local", t, d);
         if (
           t instanceof Destructible &&
           t.prop.kind === "coreDoor" &&
@@ -289,6 +322,20 @@ export class Game {
       },
     );
     this.lobby = lobby;
+    this.loadout = new LoadoutUI((choice) => {
+      if (this.multiplayer?.room)
+        this.multiplayer.room.send(MSG.loadout, choice);
+      else if (choice) {
+        this.prepareAudio();
+        this.startMatch(
+          (document.querySelector<HTMLInputElement>(
+            'input[name="team"]:checked',
+          )?.value ?? "RED") as Team,
+        );
+        this.setPaused(false);
+      }
+    });
+    document.querySelector("#ui")!.append(this.loadout.el);
     lobby.onChat = (text) => {
       if (this.multiplayer?.room) {
         this.multiplayer.room.send(
@@ -325,6 +372,45 @@ export class Game {
     document.querySelector(".pause-card")!.append(builderLink);
     document.querySelector("#play")!.innerHTML = "STARTA MATCH <span>↗</span>";
     this.pickup = new Pickup(this.world);
+    this.pickup.onAmmo = () => {
+      if (this.sound) this.weaponAudio?.playAmmoPickup();
+    };
+    this.pickup.pulseTraps.onHit = (owner, target, damage) =>
+      this.recordLocalHit(owner, target, damage);
+    this.pickup.pulseTraps.onDetonate = (trap) =>
+      this.world.explosions.burst(
+        new Vector3(trap.x, 0.35, trap.z),
+        "#ff55c3",
+        1.6,
+        "plasmaMine",
+      );
+    this.pickup.pulseTraps.onAvailable = (team) =>
+      this.hud.toast(
+        `Pulse Trap available in ${team === "BLUE" ? "Blue" : "Red"} Weapon drop!`,
+      );
+    this.pickup.beacons.onHit = (owner, target, damage) =>
+      this.recordLocalHit(owner, target, damage);
+    this.pickup.beacons.onEvent = (e) => {
+      if (e.kind === "available")
+        this.hud.toast(
+          `Defensive beacon available in ${e.team === "BLUE" ? "Blue" : "Red"} Weapon drop!`,
+        );
+      if (e.kind === "damage") this.showDamageNumber(e.position, e.damage ?? 0);
+      if (e.kind === "place" || e.kind === "shot")
+        this.beaconAudio.play(
+          e.kind,
+          Vector3.Distance(e.position, this.player.root.position),
+          this.sound,
+        );
+      if (e.kind === "shot" && e.end) this.beaconShot(e.position, e.end);
+      if (e.kind === "impact")
+        this.beaconImpact(
+          e.position,
+          e.material ?? "metal",
+          e.destroyed,
+          e.end,
+        );
+    };
     this.weapons.onCoreBusterDropped = (position) =>
       this.pickup.dropCoreBuster(position);
     this.weapons.onWarcry = () => {
@@ -362,13 +448,14 @@ export class Game {
       .map(([id, data]) => `<button data-equip="${id}">${data.name}</button>`)
       .join(
         "",
-      )}</div><label><input id="test-shooting" type="checkbox" checked> Testspelaren skjuter</label><button id="test-death">TEST: SPELAREN DÖR</button><p>Ljudnivåer</p>${Object.entries(
+      )}</div><button id="test-beacon">DEFENSIVE BEACON</button><button id="test-pulse-trap">PULSE TRAP [3]</button><button id="test-rc-car">RC BOMBER [3]</button><button id="view-test-trap">VISA TESTMINAN</button><label><input id="test-shooting" type="checkbox" checked> Testspelaren skjuter</label><button id="test-death">TEST: SPELAREN DÖR</button><p>Ljudnivåer</p>${Object.entries(
       {
         pistol: "Pistol",
         machineGun: "Kulspruta",
         bazooka: "Bazooka",
         burstGun: "Burst gun",
         pulseGun: "Pulse gun",
+        plasmaMine: "Pulse Trap",
         explosion: "Explosioner",
         bazookaExplosion: "Bazookaexplosion",
         ricochet: "Rikoschetter",
@@ -393,6 +480,66 @@ export class Game {
       .addEventListener("change", (event) => {
         this.testShootingEnabled = (event.target as HTMLInputElement).checked;
       });
+    panel.querySelector("#test-beacon")!.addEventListener("click", () => {
+      if (
+        this.multiplayer ||
+        !this.match.started ||
+        this.match.winner ||
+        this.player.hp <= 0
+      )
+        return;
+      this.pickup.beacons.carried.add("local");
+      this.weapons.carryingBeacon = true;
+      this.hud.toast("DEFENSIVE BEACON · LMB TO PLACE");
+    });
+    panel.querySelector("#test-pulse-trap")!.addEventListener("click", () => {
+      if (
+        this.multiplayer ||
+        !this.match.started ||
+        this.match.winner ||
+        this.player.hp <= 0
+      )
+        return;
+      this.weapons.carryingPulseTrap = true;
+      this.weapons.switchSlot(3);
+      this.hud.toast("PULSE TRAP · [3] SELECT · LMB: PLACE");
+    });
+    panel.querySelector("#test-rc-car")!.addEventListener("click", () => {
+      if (
+        this.multiplayer ||
+        !this.match.started ||
+        this.match.winner ||
+        this.player.hp <= 0 ||
+        this.rc.locked
+      )
+        return;
+      this.weapons.utilityKind = "rcCar";
+      this.weapons.utilityCount = 2;
+      this.weapons.switchSlot(3);
+      this.hud.toast("RC BOMBER · LMB: DEPLOY · W/S + MOUSE: DRIVE");
+    });
+    panel.querySelector("#view-test-trap")!.addEventListener("click", () => {
+      if (
+        this.multiplayer ||
+        !this.match.started ||
+        this.match.winner ||
+        this.player.hp <= 0
+      )
+        return;
+      const trap = this.pickup.pulseTraps.spawnTestTrap(
+        this.match.members[1].team,
+      );
+      this.player.root.position.set(
+        trap.x + (trap.team === "BLUE" ? -6 : 6),
+        0,
+        trap.z,
+      );
+      this.cameraTarget.copyFrom(this.player.root.position);
+      this.input.clear();
+      this.hud.toast(
+        "TEST PULSE TRAP · SÖDRA HÖRNET · GÅ NÄRMARE FÖR DETONATION",
+      );
+    });
     panel.querySelector("#test-death")!.addEventListener("click", () => {
       if (this.match.started && !this.match.winner) this.player.hp = 0;
     });
@@ -441,6 +588,9 @@ export class Game {
     localStorage.setItem("officeCore.audioMixVersion", "1");
     panel.addEventListener("pointerdown", (event) => event.stopPropagation());
     panel.addEventListener("keydown", (event) => event.stopPropagation());
+    this.rc = new RCSession(this.world, this.input, this.player, this.weapons);
+    this.rc.system.onHit = (owner, target, damage) =>
+      this.recordLocalHit(owner, target, damage);
     this.debug = new Debug(this.world, this.player);
     this.cameraTarget.copyFrom(this.player.root.position);
     this.updateCamera(10);
@@ -462,6 +612,11 @@ export class Game {
         this.prepareAudio();
         this.multiplayer.room.send(MSG.start);
         if (this.multiplayer.snapshot?.started) this.setPaused(false);
+        return;
+      }
+      if (!this.match.started && !this.loadout.confirmed) {
+        document.querySelector<HTMLElement>("#overlay")!.style.display = "none";
+        this.loadout.el.hidden = false;
         return;
       }
       const firstSpawn = !this.match.started;
@@ -491,6 +646,7 @@ export class Game {
         if (e.code === "KeyE") this.onlineInput.interact = true;
         if (e.code === "Digit1") this.onlineInput.slot = 1;
         if (e.code === "Digit2") this.onlineInput.slot = 2;
+        if (e.code === "Digit3") this.onlineInput.slot = 3;
         return;
       }
       if (!this.paused && !e.repeat) {
@@ -500,11 +656,17 @@ export class Game {
           !(e.target instanceof HTMLButtonElement)
         ) {
           e.preventDefault();
-          if (this.player.hp > 0 && this.player.jump() && this.sound)
+          if (
+            !this.rc.locked &&
+            this.player.hp > 0 &&
+            this.player.jump() &&
+            this.sound
+          )
             this.weaponAudio?.playMovement("jump");
         }
         if (e.code === "Digit1") this.weapons.switchSlot(1);
         if (e.code === "Digit2") this.weapons.switchSlot(2);
+        if (e.code === "Digit3") this.weapons.switchSlot(3);
         if (e.code === "KeyQ") this.weapons.activateWarcry();
         if (e.code === "KeyE") this.pickup.chooseRequested = true;
       }
@@ -543,1053 +705,45 @@ export class Game {
     this.engine.runRenderLoop(() => this.tick());
   }
   installMultiplayer() {
-    const panel = document.createElement("div");
-    panel.className = "network-lobby";
-    panel.innerHTML =
-      '<h3>OFFICE01 · MULTIPLAYER</h3><p>Välj ditt namn och anslut till en lobby. Därefter väljer du lag och chattar med spelarna.</p><div id="available-rooms">Hämtar OFFICE01…</div><button id="leave-room" hidden>LÄMNA LOBBY</button><p id="network-status" role="status"></p>';
-    this.lobby.el.before(panel);
-    this.lobby.el.hidden = true;
-    const nameField = this.lobby.nameInput.closest("label")!;
-    const musicButton =
-      this.lobby.el.querySelector<HTMLButtonElement>(".lobby-music")!;
-    panel.querySelector("#available-rooms")!.before(nameField);
-    panel.append(musicButton);
-    this.lobby.update([], "RED");
-    this.lobby.el.querySelector(".lobby-status")!.textContent =
-      "VÄLJ NAMN OCH LAG";
-    this.lobby.el.querySelector("small")!.textContent =
-      "Anslut till lobbyn för att se spelare och chatta.";
-    const play = document.querySelector<HTMLButtonElement>("#play")!;
-    play.hidden = true;
-    const net = (this.multiplayer ??= new Multiplayer());
-    let busy = false;
-    panel.querySelector("#leave-room")!.addEventListener("click", async () => {
-      const button = panel.querySelector<HTMLButtonElement>("#leave-room")!;
-      button.disabled = true;
-      try {
-        await this.multiplayer?.leave();
-      } finally {
-        location.reload();
-      }
-    });
-    const leaveInGame = document.createElement("button");
-    leaveInGame.id = "leave-game";
-    leaveInGame.textContent = "LÄMNA LOBBY";
-    leaveInGame.hidden = true;
-    this.hud.el.querySelector("header")!.append(leaveInGame);
-    leaveInGame.addEventListener("click", () => {
-      leaveInGame.disabled = true;
-      panel.querySelector<HTMLButtonElement>("#leave-room")!.click();
-    });
-    const connect = async (id: string) => {
-      if (!this.lobby.validName()) return;
-      if (this.multiplayer?.room || busy) return;
-      busy = true;
-      panel
-        .querySelectorAll<HTMLButtonElement>("[data-room]")
-        .forEach((button) => (button.disabled = true));
-      const net = (this.multiplayer ??= new Multiplayer());
-      net.onStatus = (text) => {
-        panel.querySelector("#network-status")!.textContent = text;
-      };
-      net.onSnapshot = (snapshot) => this.applyOnline(snapshot);
-      net.onEvent = (event) => {
-        // Own shots are presented immediately. Server hits/impacts remain authoritative.
-        if (
-          event.player === net.room?.sessionId &&
-          (event.kind === "shot" || event.kind === "trace")
-        )
-          return;
-        const position = new Vector3(event.x, event.y, event.z);
-        const distance = Vector3.Distance(position, this.player.root.position);
-        if (event.kind === "damage") {
-          this.showDamageNumber(position, event.damage ?? 0);
-          if (event.player) this.showHitHealth(event.player, event.damage ?? 0);
-        }
-        if (event.kind === "scream" && this.sound)
-          this.weaponAudio?.playBusterScream(
-            distance,
-            (position.x - this.player.root.position.x) / Math.max(10, distance),
-          );
-        if (event.kind === "impact") {
-          if (this.sound) this.weaponAudio?.playImpact(distance);
-          for (let i = 0; i < 6; i++) {
-            const spark = MeshBuilder.CreateBox(
-              "online impact",
-              { size: 0.09 },
-              this.scene,
-            );
-            spark.position.copyFrom(
-              position.add(
-                new Vector3(
-                  (Math.random() - 0.5) * 0.45,
-                  Math.random() * 0.35,
-                  (Math.random() - 0.5) * 0.45,
-                ),
-              ),
-            );
-            spark.material = this.world.mat("#ffe8a1", true);
-            spark.isPickable = false;
-            this.onlineTraces.push({ mesh: spark, life: 0.12 });
-          }
-        }
-        if (event.kind === "jump" && this.sound)
-          this.weaponAudio?.playMovement("jump");
-        if (event.kind === "land" && this.sound)
-          this.weaponAudio?.playMovement("land");
-        if (event.kind === "trace") {
-          const muzzle = MeshBuilder.CreateSphere(
-            "online muzzle",
-            { diameter: 0.23, segments: 4 },
-            this.scene,
-          );
-          muzzle.position.copyFrom(position);
-          muzzle.material = this.world.mat("#ffe8a1", true);
-          muzzle.isPickable = false;
-          this.onlineTraces.push({ mesh: muzzle, life: 0.045 });
-          const end = new Vector3(event.endX!, event.endY!, event.endZ!);
-          const mesh =
-            event.weapon === "pulseGun"
-              ? MeshBuilder.CreateTube(
-                  "online pulse",
-                  { path: [position, end], radius: 0.07, tessellation: 8 },
-                  this.scene,
-                )
-              : MeshBuilder.CreateLines(
-                  "online tracer",
-                  { points: [position, end] },
-                  this.scene,
-                );
-          if (event.weapon === "pulseGun")
-            mesh.material = this.world.mat("#ff263e", true);
-          else if ("color" in mesh)
-            mesh.color = Color3.FromHexString("#ffe4a5");
-          mesh.isPickable = false;
-          this.onlineTraces.push({ mesh, life: 0.065 });
-        }
-        if (event.kind === "shot" && this.sound && event.weapon)
-          this.weaponAudio?.playRemoteShot(
-            event.weapon,
-            distance,
-            (event.x - this.player.root.position.x) / Math.max(10, distance),
-            false,
-          );
-        if (event.kind === "explosion")
-          this.world.explosions.burst(
-            position,
-            "#ffcf56",
-            event.power ?? 1,
-            event.sound === "bazookaExplosion" ? "bazookaExplosion" : undefined,
-          );
-        if (event.kind === "death") {
-          this.world.explosions.playerDeath(
-            position,
-            TEAMS[event.team ?? "RED"],
-          );
-          if (this.sound) this.weaponAudio?.playDeath();
-        }
-        if (event.kind === "spawn") {
-          this.world.explosions.playerSpawn(
-            position,
-            TEAMS[event.team ?? "RED"],
-          );
-          if (this.sound) this.weaponAudio?.playSpawn();
-        }
-        if (event.kind === "buster" && event.team === CONFIG.player.team)
-          this.hud.toast("Active Core buster! protect him at all costs!");
-      };
-      net.onChat = (message) => this.lobby.message(message.name, message.text);
-      try {
-        await net.connect(
-          this.match.playerName,
-          document.querySelector<HTMLInputElement>(
-            'input[name="team"]:checked',
-          )!.value,
-          id,
-        );
-        this.inputSequence = Math.max(this.inputSequence, net.sequence + 1);
-        panel
-          .querySelectorAll<HTMLButtonElement>("button")
-          .forEach((button) => (button.disabled = true));
-        const leave = panel.querySelector<HTMLButtonElement>("#leave-room")!;
-        leave.hidden = false;
-        leaveInGame.hidden = false;
-        leave.disabled = false;
-        panel.querySelector<HTMLElement>("#available-rooms")!.hidden = true;
-        panel.querySelector("h3")!.textContent = "SPELLOBBY · OFFICE01";
-        panel.querySelector("p")!.textContent =
-          "Skriv ditt namn och välj den Core du vill försvara.";
-        this.lobby.el.querySelector("legend")!.after(nameField);
-        this.lobby.el.querySelector(".lobby-chat")!.append(musicButton);
-        musicButton.disabled = false;
-        this.lobby.el.hidden = false;
-        play.hidden = false;
-        this.match.started = false;
-        this.match.winner = undefined;
-        document.querySelector<HTMLElement>(".build-panel")!.hidden = true;
-        this.testPlayer?.root.dispose();
-        this.testPlayer = undefined;
-        this.testWeapons = undefined;
-        this.prepareAudio();
-      } catch (error) {
-        net.onStatus(connectionError(error));
-      } finally {
-        busy = false;
-        if (!net.room) void refresh();
-      }
-    };
-    const refresh = async () => {
-      if (net.room || busy) return;
-      try {
-        const rooms = await net.rooms();
-        const list = panel.querySelector<HTMLElement>("#available-rooms")!;
-        list.replaceChildren();
-        for (const room of rooms) {
-          const card = document.createElement("article");
-          card.className = "available-room";
-          const title = document.createElement("strong");
-          title.textContent = room.name;
-          const state = document.createElement("p");
-          state.textContent = `${room.started ? "MATCH PÅGÅR" : "TILLGÄNGLIGT"} · ${room.players.length}/${room.capacity} spelare`;
-          const roster = document.createElement("ul");
-          for (const member of room.players) {
-            const row = document.createElement("li");
-            row.textContent = `${member.name} · ${member.team} CORE`;
-            row.style.color = TEAMS[member.team];
-            roster.append(row);
-          }
-          if (!room.players.length) {
-            const row = document.createElement("li");
-            row.textContent = "Inga spelare ännu. Bli först att ansluta.";
-            roster.append(row);
-          }
-          const join = document.createElement("button");
-          join.dataset.room = room.id;
-          join.textContent = room.started
-            ? "MATCH PÅGÅR"
-            : "ANSLUT TILL OFFICE01";
-          join.disabled = room.started || room.players.length >= room.capacity;
-          join.addEventListener("click", () => void connect(room.id));
-          card.append(title, state, roster, join);
-          list.append(card);
-        }
-        if (!rooms.length)
-          list.textContent =
-            "OFFICE01 förbereds. Listan uppdateras automatiskt.";
-      } catch (error) {
-        panel.querySelector("#network-status")!.textContent =
-          connectionError(error);
-      }
-    };
-    const resume = net.resumeInfo();
-    if (resume?.id) void connect(resume.id);
-    else void refresh();
-    window.setInterval(() => void refresh(), 5000);
+    return installMultiplayerImpl.call(this);
   }
   applyOnline(snapshot: Snapshot) {
-    if ((snapshot.round ?? 1) !== this.currentRound) {
-      this.currentRound = snapshot.round ?? 1;
-      closeVictory();
-      this.match.winner = undefined;
-      resetRound(this.world, this.cores, [this.weapons], this.pickup);
-      this.localDisarm.reset();
-      this.onlineSpawned = false;
-      this.pendingInputs = [];
-      this.setPaused(false);
-    }
-    this.hud.showStats(snapshot.started);
-    this.hud.wins(snapshot.wins ?? { RED: 0, BLUE: 0 }, snapshot.round ?? 1);
-    const own = snapshot.players.find(
-      (p) => p.id === this.multiplayer?.room?.sessionId,
-    );
-    if (!own) return;
-    for (const state of snapshot.players) {
-      const bar = this.hitHealthBars.get(state.id);
-      if (bar) bar.hp = state.hp;
-    }
-    CONFIG.player.team = own.team;
-    this.hud.el.querySelector(".brand small")!.textContent =
-      "ALPHA 0.1 · MULTIPLAYER";
-    this.hud.el.querySelector(".location p")!.textContent =
-      `ONLINE · ${snapshot.players.length} spelare`;
-    this.hud.el.querySelector(".health > span")!.textContent =
-      `PLAYER / ${own.team} TEAM`;
-    this.match.members = snapshot.players.map((p) => ({
-      name: p.name,
-      team: p.team,
-    }));
-    this.lobby.update(this.match.members, own.team);
-    this.lobby.el.querySelector(".lobby-status")!.textContent =
-      `${snapshot.players.length} SPELARE · ONLINE`;
-    this.lobby.el.querySelector("small")!.textContent =
-      "Välj Core och namn. Första spelaren är värd och startar matchen när minst två lag har anslutit.";
-    const play = document.querySelector<HTMLButtonElement>("#play")!;
-    if (!snapshot.started) {
-      const host = snapshot.owner === own.id;
-      const enough = new Set(snapshot.players.map((p) => p.team)).size >= 2;
-      play.disabled = !host || !enough;
-      play.textContent = !host
-        ? "VÄNTAR PÅ VÄRDEN"
-        : enough
-          ? "STARTA MATCH"
-          : "VÄNTAR PÅ ETT ANNAT LAG";
-    } else {
-      play.disabled = false;
-      play.textContent = "FORTSÄTT SPELA";
-    }
-    if (snapshot.started && !this.match.started) {
-      this.match.started = true;
-      this.updateLobbyMusic();
-      this.setPaused(false);
-      this.lobby.el.disabled = true;
-    }
-    this.pendingInputs = this.pendingInputs.filter(
-      (input) => (input.seq ?? 0) > own.ack,
-    );
-    if (
-      !this.onlineSpawned ||
-      own.hp <= 0 ||
-      Vector3.Distance(
-        this.player.root.position,
-        new Vector3(own.x, own.y, own.z),
-      ) > 8
-    )
-      this.pendingInputs = [];
-    this.player.root.position.set(own.x, own.y, own.z);
-    this.player.verticalVelocity = own.verticalVelocity;
-    if (snapshot.started && own.hp > 0)
-      for (const input of this.pendingInputs) {
-        if (input.jump) this.player.jump();
-        this.player.update(input, 1 / 30);
-      }
-    this.predictedPosition = this.player.root.position.clone();
-    this.predictedVelocity = this.player.verticalVelocity;
-    this.onlineSpawned = true;
-    this.cores.forEach((core) => {
-      const state = snapshot.cores.find((c) => c.team === core.team);
-      if (state) {
-        core.setActive(state.active);
-        if (core.hp > state.hp) core.damage(core.hp - state.hp);
-        core.hp = state.hp;
-      }
-    });
-    snapshot.props.forEach((hp, index) => {
-      const prop = this.world.destructibles[index];
-      if (prop && prop.hp > hp) prop.damage(prop.hp - hp, "coreBuster", false);
-    });
-    const health = snapshot.pickups.filter(
-      (p) => p.type === "medkit" || p.type === "superMedkit",
-    );
-    this.pickup.healthDrops.forEach((drop, index) =>
-      drop.root.setEnabled(health[index]?.active ?? false),
-    );
-    const ammo = snapshot.pickups.filter((p) => p.type === "ammo");
-    this.pickup.ammoDrops.forEach((drop, index) =>
-      drop.root.setEnabled(ammo[index]?.active ?? false),
-    );
-    const weapons = snapshot.pickups.filter(
-      (p) => p.type === "weapon" && !p.dropped,
-    );
-    this.pickup.endpoints
-      .filter((p) => !p.dropped)
-      .forEach((drop, index) =>
-        drop.root.setEnabled(weapons[index]?.active ?? false),
-      );
-    if (snapshot.winner && !this.match.winner) {
-      this.match.winner = snapshot.winner;
-      this.setPaused(true);
-      showVictory(
-        snapshot.winner,
-        this.match.members.filter((m) => m.team === snapshot.winner),
-        () => {
-          if (snapshot.seriesWinner) this.multiplayer?.room?.send(MSG.restart);
-          else this.multiplayer?.room?.send(MSG.ready);
-        },
-        !!snapshot.seriesWinner,
-        snapshot.wins,
-      );
-    }
-    if (snapshot.winner) updateReady(snapshot.players, snapshot.ready ?? []);
+    return applyOnlineImpl.call(this, snapshot);
   }
   tickOnline(dt: number) {
-    const net = this.multiplayer!,
-      snapshot = net.snapshot;
-    this.time += dt;
-    if (this.predictedPosition) {
-      this.player.root.position.copyFrom(this.predictedPosition);
-      this.player.verticalVelocity = this.predictedVelocity;
-    }
-    this.networkElapsed += dt;
-    const command = this.input.command(this.world, this.player.root.position);
-    this.onlinePressed ||= command.pressed;
-    if (
-      command.pressed &&
-      !this.paused &&
-      this.weapons.carryingCoreBuster &&
-      this.player.grounded
-    )
-      this.pendingPlantAt = this.time;
-    this.player.root.rotation.y = Math.atan2(
-      command.aimX - this.player.root.position.x,
-      command.aimZ - this.player.root.position.z,
-    );
-    const predictedShot = this.shotPrediction.update(
-      this.weapons.id,
-      dt,
-      command.fire,
-      command.pressed,
-      !!snapshot?.started &&
-        net.connected &&
-        !this.paused &&
-        this.player.hp > 0 &&
-        this.weapons.ammo > 0 &&
-        this.weapons.reloadRemaining <= 0,
-    );
-    if (predictedShot) {
-      this.player.recoil = 1;
-      this.player.animate(!!(command.moveX || command.moveZ), 0);
-      if (predictedShot.audio && this.sound)
-        this.weaponAudio?.play(this.weapons.id);
-      const start = this.player.root.position
-        .add(new Vector3(0, 1.1, 0))
-        .add(this.player.direction.scale(0.65));
-      const muzzle = MeshBuilder.CreateSphere(
-        "predicted muzzle",
-        { diameter: 0.23, segments: 4 },
-        this.scene,
-      );
-      muzzle.position.copyFrom(start);
-      muzzle.material = this.world.mat("#ffe8a1", true);
-      muzzle.isPickable = false;
-      this.onlineTraces.push({ mesh: muzzle, life: 0.045 });
-      if (this.weapons.id === "bazooka") {
-        const mesh = rocketModel(this.world);
-        const origin = this.player.root.position
-          .add(new Vector3(0, 1.1, 0))
-          .add(this.player.direction.scale(0.45));
-        mesh.position.copyFrom(origin);
-        mesh.isPickable = false;
-        this.predictedRockets.push({
-          mesh,
-          start: origin,
-          direction: this.player.direction.clone(),
-          age: 0,
-        });
-      }
-      if (this.weapons.id !== "bazooka") {
-        const ray = new Ray(
-          start,
-          this.player.direction,
-          WEAPONS[this.weapons.id].range,
-        );
-        const hit = this.scene.pickWithRay(
-          ray,
-          (mesh) =>
-            mesh.isEnabled() &&
-            !this.player.bodyMeshes.includes(
-              mesh as import("@babylonjs/core").Mesh,
-            ) &&
-            (!!mesh.metadata?.solid || !!mesh.metadata?.damageable),
-        );
-        const end =
-          hit?.pickedPoint ??
-          start.add(this.player.direction.scale(ray.length));
-        const tracer =
-          this.weapons.id === "pulseGun"
-            ? MeshBuilder.CreateTube(
-                "predicted pulse",
-                { path: [start, end], radius: 0.07, tessellation: 8 },
-                this.scene,
-              )
-            : MeshBuilder.CreateLines(
-                "predicted tracer",
-                { points: [start, end] },
-                this.scene,
-              );
-        if (this.weapons.id === "pulseGun")
-          tracer.material = this.world.mat("#ff263e", true);
-        else if ("color" in tracer)
-          tracer.color = Color3.FromHexString("#ffe4a5");
-        tracer.isPickable = false;
-        this.onlineTraces.push({ mesh: tracer, life: 0.065 });
-      }
-    }
-    this.networkElapsed = Math.min(this.networkElapsed, 0.1);
-    while (this.networkElapsed >= 1 / 30) {
-      this.networkElapsed -= 1 / 30;
-      const length = Math.max(1, Math.hypot(command.moveX, command.moveZ));
-      const input: NetInput = {
-        seq: this.inputSequence++,
-        aimX: command.aimX,
-        aimZ: command.aimZ,
-        ...this.onlineInput,
-        moveX: this.paused ? 0 : command.moveX / length,
-        moveZ: this.paused ? 0 : command.moveZ / length,
-        fire: !this.paused && command.fire,
-        pressed: !this.paused && this.onlinePressed,
-      };
-      net.send(input);
-      if (snapshot?.started && this.player.hp > 0 && net.connected) {
-        this.pendingInputs.push(input);
-        if (this.pendingInputs.length > 30) this.pendingInputs.shift();
-        if (input.jump) this.player.jump();
-        this.player.update(input, 1 / 30);
-      }
-      this.onlinePressed = false;
-      this.onlineInput = {
-        warcry: false,
-        jump: false,
-        interact: false,
-        slot: 0,
-      };
-    }
-    this.predictedPosition = this.player.root.position.clone();
-    this.predictedVelocity = this.player.verticalVelocity;
-    if (
-      snapshot?.started &&
-      !this.paused &&
-      this.player.hp > 0 &&
-      net.connected
-    )
-      this.player.simulate(command, this.networkElapsed);
-    if (snapshot) {
-      for (const [id, player] of this.onlinePlayers)
-        if (!snapshot.players.some((p) => p.id === id)) {
-          player.root.dispose();
-          this.onlinePlayers.delete(id);
-          this.onlineModels.delete(id);
-        }
-      const steps: { id: string; x: number; z: number; moving: boolean }[] = [];
-      const renderAt = performance.now() - 85;
-      const before =
-        [...net.history].reverse().find((frame) => frame.at <= renderAt) ??
-        net.history[0];
-      const after =
-        net.history.find((frame) => frame.at >= renderAt) ?? net.history.at(-1);
-      const fraction =
-        before && after && after.at > before.at
-          ? Math.max(
-              0,
-              Math.min(1, (renderAt - before.at) / (after.at - before.at)),
-            )
-          : 1;
-      for (const latest of snapshot.players) {
-        const own = latest.id === net.room?.sessionId;
-        const a = before?.snapshot.players.find((p) => p.id === latest.id);
-        const b = after?.snapshot.players.find((p) => p.id === latest.id);
-        const state =
-          !own &&
-          a &&
-          b &&
-          a.hp > 0 &&
-          b.hp > 0 &&
-          Math.hypot(a.x - b.x, a.z - b.z) < 8
-            ? {
-                ...latest,
-                x: a.x + (b.x - a.x) * fraction,
-                y: a.y + (b.y - a.y) * fraction,
-                z: a.z + (b.z - a.z) * fraction,
-                yaw: interpolateYaw(a.yaw, b.yaw, fraction),
-              }
-            : latest;
-
-        let player = own ? this.player : this.onlinePlayers.get(state.id);
-        if (!player) {
-          player = new Player(this.world);
-          player.root.position.set(state.x, state.y, state.z);
-          this.onlinePlayers.set(state.id, player);
-        }
-        player.root.setEnabled(state.hp > 0);
-        player.hp = state.hp;
-        player.invulnerable = state.invulnerable ?? 0;
-        player.setBarrier(player.invulnerable > 0 && player.hp > 0);
-        const target = new Vector3(state.x, state.y, state.z);
-        const moving = Vector3.Distance(player.root.position, target) > 0.04;
-        if (!own)
-          player.root.position.copyFrom(
-            Vector3.Lerp(
-              player.root.position,
-              target,
-              Vector3.Distance(player.root.position, target) > 8 ? 1 : 1,
-            ),
-          );
-        if (own)
-          player.root.rotation.y = Math.atan2(
-            command.aimX - player.root.position.x,
-            command.aimZ - player.root.position.z,
-          );
-        else {
-          player.root.rotation.y = state.yaw;
-          player.animate(moving, dt);
-        }
-        player.torso.material = this.world.mat(TEAMS[state.team]);
-        if (this.onlineModels.get(state.id) !== state.weapon) {
-          player.setWeaponModel(state.weapon);
-          this.onlineModels.set(state.id, state.weapon);
-        }
-        if (own) {
-          this.weapons.id = state.weapon;
-          this.weapons.warcryAvailable = state.warcryAvailable ?? false;
-          this.weapons.specialWeapon = state.special;
-          this.weapons.ammo = state.ammo;
-          this.weapons.bazookaReserve = state.reserve;
-          this.weapons.reloadRemaining = state.reload;
-        }
-        steps.push({ id: state.id, x: state.x, z: state.z, moving });
-      }
-      this.weaponAudio?.updateFootsteps(
-        steps,
-        this.player.root.position,
-        this.sound && !this.paused,
-      );
-      const objects = [
-        ...snapshot.bombs.map((b) => ({
-          ...b,
-          key: `bomb:${b.id}`,
-          weapon: "coreBuster" as WeaponId,
-        })),
-        ...snapshot.rockets.map((r) => ({
-          ...r,
-          key: `rocket:${r.id}`,
-          weapon: "bazooka" as WeaponId,
-        })),
-        ...snapshot.pickups
-          .filter((p) => p.dropped && p.active)
-          .map((p) => ({
-            ...p,
-            key: `drop:${p.x}:${p.z}`,
-            weapon: "coreBuster" as WeaponId,
-          })),
-      ];
-      for (const object of objects) {
-        let mesh = this.onlineObjects.get(object.key);
-        if (!mesh) {
-          const prediction =
-            object.weapon === "bazooka" &&
-            "owner" in object &&
-            object.owner === net.room?.sessionId
-              ? this.predictedRockets.shift()
-              : undefined;
-          mesh =
-            prediction?.mesh ??
-            (object.weapon === "bazooka"
-              ? rocketModel(this.world)
-              : heldWeapon(this.world, object.weapon));
-          this.onlineObjects.set(object.key, mesh);
-        }
-        if (object.weapon === "bazooka") {
-          const delta = new Vector3(object.x, object.y, object.z).subtract(
-            mesh.position,
-          );
-          if (
-            delta.length() > 0.01 &&
-            !(
-              "owner" in object &&
-              object.owner === net.room?.sessionId &&
-              mesh.rotationQuaternion
-            )
-          )
-            mesh.rotationQuaternion = Quaternion.FromLookDirectionLH(
-              delta.normalize(),
-              Vector3.Up(),
-            );
-        }
-        const target = new Vector3(object.x, object.y, object.z);
-        if (object.weapon === "bazooka" && mesh.position.length() > 0) {
-          mesh.position.copyFrom(
-            Vector3.Lerp(mesh.position, target, 1 - Math.exp(-25 * dt)),
-          );
-          if (Math.random() < dt * 25) {
-            const smoke = MeshBuilder.CreateSphere(
-              "online rocket trail",
-              { diameter: 0.16, segments: 4 },
-              this.scene,
-            );
-            smoke.position.copyFrom(mesh.position);
-            smoke.material = this.world.mat("#778085");
-            smoke.isPickable = false;
-            this.onlineTraces.push({ mesh: smoke, life: 0.6 });
-          }
-        } else mesh.position.copyFrom(target);
-      }
-      for (const [key, mesh] of this.onlineObjects)
-        if (!objects.some((o) => o.key === key)) {
-          mesh.dispose();
-          this.onlineObjects.delete(key);
-        }
-      const spatial = (p: { x: number; z: number }) => {
-        const d = Math.hypot(
-          p.x - this.player.root.position.x,
-          p.z - this.player.root.position.z,
-        );
-        return {
-          distance: d,
-          pan: (p.x - this.player.root.position.x) / Math.max(10, d),
-          blocked: false,
-        };
-      };
-      this.weaponAudio?.setBusterClock(
-        !this.paused && this.sound,
-        snapshot.bombs.map((b) => ({ id: String(b.id), ...spatial(b) })),
-      );
-      const alarmTeams =
-        snapshot.alarms ?? (snapshot.alarm ? [snapshot.alarm] : []);
-      const ownAlarm = alarmTeams.includes(CONFIG.player.team as Team)
-        ? (CONFIG.player.team as Team)
-        : alarmTeams[0];
-      this.world.updateAlarm(ownAlarm, this.time);
-      this.weaponAudio?.setCoreAlarms(
-        !this.paused && this.sound
-          ? alarmTeams.map((team) => {
-              const base = office01.bases.find((b) => b.team === team)!;
-              return { id: team, ...spatial(base) };
-            })
-          : [],
-      );
-      const timer =
-        document.querySelector<HTMLElement>("#network-bomb-timer") ??
-        document.createElement("div");
-      timer.id = "network-bomb-timer";
-      timer.style.cssText =
-        "position:fixed;bottom:170px;left:50%;transform:translateX(-50%);color:#ffda61;background:#14252ee8;padding:12px 18px;border:1px solid #ffda61;border-radius:6px;font-size:20px;font-weight:bold;z-index:75;pointer-events:none";
-      document.querySelector("#ui")!.append(timer);
-      timer.replaceChildren();
-      timer.hidden =
-        !snapshot.bombs.length && this.pendingPlantAt === undefined;
-      const ownBombs = snapshot.bombs.filter(
-        (b) => b.owner === net.room?.sessionId,
-      );
-      if (
-        ownBombs.length ||
-        (this.pendingPlantAt !== undefined &&
-          this.time - this.pendingPlantAt > 1)
-      )
-        this.pendingPlantAt = undefined;
-      const visibleBombs = ownBombs.length ? ownBombs : snapshot.bombs;
-      const timers =
-        this.pendingPlantAt !== undefined
-          ? [
-              {
-                timer: 25 - (this.time - this.pendingPlantAt),
-                owner: net.room?.sessionId,
-              },
-              ...visibleBombs,
-            ]
-          : visibleBombs;
-      for (const bomb of timers) {
-        const row = document.createElement("div");
-        row.textContent = `${bomb.owner === net.room?.sessionId ? "DIN CORE BUSTER" : "CORE BUSTER"} · ${Math.ceil(bomb.timer)} s `;
-        const bar = document.createElement("progress");
-        bar.max = 25;
-        bar.value = bomb.timer;
-        row.append(bar);
-        timer.append(row);
-      }
-      for (const [id, player] of this.onlinePlayers)
-        if (!snapshot.players.some((p) => p.id === id)) {
-          player.root.dispose();
-          this.onlinePlayers.delete(id);
-        }
-    }
-    for (const rocket of this.predictedRockets) {
-      rocket.age += dt;
-      const distance = rocket.age * 9.9;
-      rocket.mesh.position.copyFrom(
-        rocket.start.add(rocket.direction.scale(distance)),
-      );
-      rocket.mesh.position.y += Math.sin((distance / 40) * Math.PI) * 0.75;
-      rocket.mesh.rotationQuaternion = Quaternion.FromLookDirectionLH(
-        rocket.direction,
-        Vector3.Up(),
-      );
-      if (rocket.age > 1.5) rocket.mesh.dispose();
-    }
-    this.predictedRockets = this.predictedRockets.filter((r) => r.age <= 1.5);
-    this.updateDamageNumbers(dt);
-    this.updateHitHealthBars();
-    for (const trace of this.onlineTraces) trace.life -= dt;
-    this.onlineTraces = this.onlineTraces.filter((trace) => {
-      if (trace.life > 0) return true;
-      trace.mesh.dispose();
-      return false;
-    });
-    this.pickup.ammoDrops.forEach((drop) => (drop.sign.rotation.y += dt * 1.1));
-    this.pickup.endpoints.forEach((drop) => (drop.root.rotation.y += dt));
-    this.updateCamera(dt);
-    this.world.explosions.update(dt);
-    this.cores.forEach((core) => core.update(dt, this.time));
-    this.world.destructibles.forEach((prop) => prop.update(dt));
-    if (snapshot) {
-      this.hud.scoreboard(snapshot.players);
-      const self = snapshot.players.find(
-        (p) => p.id === this.multiplayer?.room?.sessionId,
-      );
-      this.updateDisarm(self?.disarm);
-      const threat = snapshot.bombs.flatMap((b) =>
-        office01.bases.filter(
-          (core) => Math.hypot(b.x - core.x, b.z - core.z) <= 5,
-        ),
-      )[0];
-      if (threat) this.hud.plantedWarning(threat.team);
-      else if (snapshot.alarms?.length)
-        this.hud.breachWarning(snapshot.alarms[0]);
-    }
-    this.hud.update(dt, this.cores, this.weapons, this.player);
-    this.scene.render();
+    return tickOnlineImpl.call(this, dt);
   }
-  showHitHealth(id: string, damage: number) {
-    let bar = this.hitHealthBars.get(id);
-    if (!bar) {
-      const el = document.createElement("div"),
-        fill = document.createElement("div");
-      el.style.cssText =
-        "position:absolute;width:64px;height:8px;background:#4f1724;border:1px solid #f0ece5;border-radius:3px;overflow:hidden;pointer-events:none;z-index:85;transform:translate(-50%,-50%);box-shadow:0 1px 4px #000";
-      fill.style.cssText = "height:100%;background:#65dc7b";
-      el.append(fill);
-      document.querySelector("#ui")!.append(el);
-      bar = {
-        el,
-        fill,
-        hp:
-          this.multiplayer?.snapshot?.players.find((p) => p.id === id)?.hp ??
-          100,
-        until: 0,
-      };
-      this.hitHealthBars.set(id, bar);
-    }
-    bar.hp = Math.max(0, bar.hp - damage);
-    bar.until = this.time + 2;
+  showHitHealth(id: string, damage: number, currentHp?: number) {
+    return showHitHealthImpl.call(this, id, damage, currentHp);
   }
   updateHitHealthBars() {
-    for (const [id, bar] of this.hitHealthBars) {
-      const player =
-        id === this.multiplayer?.room?.sessionId
-          ? this.player
-          : this.onlinePlayers.get(id);
-      if (this.time >= bar.until || !player) {
-        bar.el.remove();
-        this.hitHealthBars.delete(id);
-        continue;
-      }
-      const position = player.root.position.add(new Vector3(0, 2.3, 0));
-      const point = Vector3.Project(
-        position,
-        Matrix.Identity(),
-        this.scene.getTransformMatrix(),
-        this.camera.viewport.toGlobal(
-          this.engine.getRenderWidth(),
-          this.engine.getRenderHeight(),
-        ),
-      );
-      bar.el.style.left = `${point.x}px`;
-      bar.el.style.top = `${point.y}px`;
-      bar.el.hidden = point.z < 0 || point.z > 1 || bar.hp <= 0;
-      bar.fill.style.width = `${Math.max(0, Math.min(100, bar.hp))}%`;
-      bar.fill.style.background = bar.hp > 30 ? "#65dc7b" : "#ff334b";
-    }
+    return updateHitHealthBarsImpl.call(this);
   }
   showDamageNumber(position: Vector3, damage: number) {
-    const el = document.createElement("div");
-    el.textContent = `−${Math.round(damage)}`;
-    el.style.cssText =
-      "position:absolute;color:#ff334b;font-size:24px;font-weight:900;text-shadow:0 2px 4px #000;pointer-events:none;z-index:90;transform:translate(-50%,-50%)";
-    document.querySelector("#ui")!.append(el);
-    this.damageNumbers.push({ el, position: position.clone(), life: 1.2 });
+    return showDamageNumberImpl.call(this, position, damage);
   }
   updateDamageNumbers(dt: number) {
-    for (const number of this.damageNumbers) {
-      number.life -= dt;
-      number.position.y += dt * 0.8;
-      const point = Vector3.Project(
-        number.position,
-        Matrix.Identity(),
-        this.scene.getTransformMatrix(),
-        this.camera.viewport.toGlobal(
-          this.engine.getRenderWidth(),
-          this.engine.getRenderHeight(),
-        ),
-      );
-      number.el.style.left = `${point.x}px`;
-      number.el.style.top = `${point.y}px`;
-      number.el.style.opacity = String(Math.min(1, number.life * 2));
-      number.el.hidden = point.z < 0 || point.z > 1;
-      if (number.life <= 0) number.el.remove();
-    }
-    this.damageNumbers = this.damageNumbers.filter((n) => n.life > 0);
+    return updateDamageNumbersImpl.call(this, dt);
   }
   startMatch(team: Team) {
-    this.match.start(team);
-    CONFIG.player.team = team;
-    const base = office01.bases.find((base) => base.team === team)!;
-    this.player.root.position.set(base.spawn.x, 0, base.spawn.z);
-    this.player.torso.material = this.world.mat(TEAMS[team]);
-    this.world.explosions.playerSpawn(this.player.root.position, TEAMS[team]);
-    this.cores.forEach((core) =>
-      core.setActive(this.match.isActive(core.team!)),
-    );
-    if (this.testToolsEnabled) {
-      const other = this.match.members[1];
-      const otherBase = office01.bases.find(
-        (base) => base.team === other.team,
-      )!;
-      this.testPlayer = new Player(this.world);
-      this.testPlayer.root.position.set(
-        otherBase.spawn.x,
-        0,
-        otherBase.spawn.z,
-      );
-      this.testPlayer.torso.material = this.world.mat(TEAMS[other.team]);
-      this.testWeapons = new Weapons(
-        this.testPlayer,
-        () => {},
-        () => {
-          if (!this.sound || !this.testPlayer) return;
-          const origin = this.testPlayer.root.position.add(
-            new Vector3(0, 1.1, 0),
-          );
-          const listener = this.player.root.position.add(
-            new Vector3(0, 1.1, 0),
-          );
-          const delta = listener.subtract(origin);
-          const distance = delta.length();
-          const hit =
-            distance > 0
-              ? this.scene.pickWithRay(
-                  new Ray(origin, delta.scale(1 / distance), distance),
-                  (mesh) =>
-                    mesh.isEnabled() &&
-                    (!!mesh.metadata?.solid || !!mesh.metadata?.damageable),
-                )
-              : null;
-          const blocked = !!hit?.hit;
-          this.weaponAudio?.playRemoteShot(
-            "machineGun",
-            distance,
-            (origin.x - listener.x) / Math.max(10, distance),
-            blocked,
-          );
-        },
-      );
-      this.testWeapons.equip("machineGun");
-      this.testWeapons.ammo = Infinity;
-      this.world.label(
-        "TEST PLAYER",
-        otherBase.spawn.x,
-        otherBase.spawn.z - 2,
-        TEAMS[other.team],
-        3,
-      );
-    }
-    document.querySelector(".health > span")!.textContent =
-      `PLAYER / ${team} TEAM`;
-    document.querySelector(".team-choice")!.setAttribute("disabled", "");
-    this.cameraTarget.copyFrom(this.player.root.position);
-    this.hud.toast(`${team} TEAM · LAST CORE STANDING WINS`);
+    return startMatchImpl.call(this, team);
   }
   setControlScheme(aimRelative: boolean, save = true) {
-    this.input.aimRelativeMovement = aimRelative;
-    this.input.clear();
-    document.querySelector("#movement-mode")!.textContent = aimRelative
-      ? "Siktstyrd"
-      : "Klassisk";
-    document
-      .querySelectorAll<HTMLInputElement>('input[name="controls"]')
-      .forEach(
-        (radio) =>
-          (radio.checked = radio.value === (aimRelative ? "aim" : "classic")),
-      );
-    if (save)
-      try {
-        localStorage.setItem(
-          "office-wars-controls",
-          aimRelative ? "aim" : "classic",
-        );
-      } catch {
-        /* Keep the choice for this session even without storage. */
-      }
+    return setControlSchemeImpl.call(this, aimRelative);
   }
   setPaused(value: boolean) {
-    if (this.match.winner && !value) return;
-    this.paused = value;
-    if (value) {
-      this.disarmAudio.pause();
-      this.weaponAudio?.releaseMachineGun(false);
-      this.weaponAudio?.setAlarm(false);
-      this.weaponAudio?.setBusterClock(false);
-      this.weaponAudio?.updateFootsteps([], this.player.root.position, false);
-    }
-    this.input.active = !value;
-    this.input.clear();
-    if (value && this.input.locked) document.exitPointerLock();
-
-    (document.querySelector("#overlay") as HTMLElement).style.display = value
-      ? "grid"
-      : "none";
-    document.querySelector("#play")!.innerHTML =
-      this.multiplayer?.room && !this.multiplayer.snapshot?.started
-        ? "STARTA MATCH <span>↗</span>"
-        : "FORTSÄTT SPELA <span>↗</span>";
-    document.body.classList.toggle("playing", !value);
+    return setPausedImpl.call(this, value);
   }
   resize() {
-    this.engine.resize();
-    const aspect = this.engine.getRenderWidth() / this.engine.getRenderHeight();
-    const half = CONFIG.camera.viewSize / 2;
-    this.camera.orthoTop = half;
-    this.camera.orthoBottom = -half;
-    this.camera.orthoLeft = -half * aspect;
-    this.camera.orthoRight = half * aspect;
+    return resizeImpl.call(this);
   }
   updateCamera(dt: number) {
-    const c = CONFIG.camera;
-    if (this.input.mode === "thirdPerson") {
-      const pose = rotatingCameraPose(
-        this.player.root.position,
-        this.input.yaw,
-      );
-      this.camera.position.copyFrom(pose.position);
-      this.camera.setTarget(pose.target);
-      this.player.root.getChildMeshes().forEach((m) => (m.visibility = 1));
-      if (this.shake > 0) {
-        this.camera.position.x += Math.sin(this.time * 91) * this.shake * 0.35;
-        this.shake = Math.max(0, this.shake - dt * 0.9);
-      }
-      return;
-    }
-    this.player.root.getChildMeshes().forEach((m) => (m.visibility = 1));
-    const desired = this.player.root.position.add(
-      new Vector3(0, 0, c.lookAhead),
-    );
-    const edge = office01.size / 2;
-    const limitX = Math.max(0, edge - (this.camera.orthoRight ?? 18));
-    const limitZ = Math.max(
-      0,
-      edge - c.viewSize / 2 / Math.sin((c.angle * Math.PI) / 180),
-    );
-    desired.x = Math.max(-limitX, Math.min(limitX, desired.x));
-    desired.z = Math.max(-limitZ, Math.min(limitZ, desired.z));
-    Vector3.LerpToRef(
-      this.cameraTarget,
-      desired,
-      1 - Math.exp(-c.smoothing * dt),
-      this.cameraTarget,
-    );
-    const h = c.height * c.distance;
-    this.camera.position.copyFrom(
-      this.cameraTarget.add(
-        new Vector3(0, h, -h / Math.tan((c.angle * Math.PI) / 180)),
-      ),
-    );
-    this.camera.setTarget(this.cameraTarget);
-    if (this.shake > 0) {
-      this.camera.position.x += Math.sin(this.time * 91) * this.shake;
-      this.camera.position.z += Math.cos(this.time * 73) * this.shake;
-      this.shake = Math.max(0, this.shake - dt * 0.9);
-    }
+    return updateCameraImpl.call(this, dt);
   }
   tick() {
     this.updateLobbyMusic();
     const dt = Math.min(this.engine.getDeltaTime() / 1000, 0.05);
+    advanceCountdown.call(this, dt);
     if (this.multiplayer?.room) {
       this.tickOnline(dt);
       return;
@@ -1603,6 +757,8 @@ export class Game {
           TEAMS[CONFIG.player.team as Team],
         );
         this.weapons.dropCoreBuster();
+        this.weapons.utilityCount = 0;
+        this.weapons.pulseTrapSelected = false;
         this.respawnRemaining = 5;
         this.player.root.setEnabled(false);
       }
@@ -1615,6 +771,7 @@ export class Game {
           this.player.root.position.set(base.spawn.x, 0, base.spawn.z);
           this.player.verticalVelocity = 0;
           this.player.hp = CONFIG.player.hp;
+          this.localLedger.damage.delete("local");
           this.player.root.setEnabled(true);
           this.world.explosions.playerSpawn(
             this.player.root.position,
@@ -1623,7 +780,46 @@ export class Game {
           if (this.sound) this.weaponAudio?.playSpawn();
         }
       }
-      const command = this.input.command(this.world, this.player.root.position);
+      let command = this.input.command(this.world, this.player.root.position);
+      const rcActors = [
+        {
+          id: "local",
+          team: CONFIG.player.team as Team,
+          player: this.player,
+          weapons: this.weapons,
+        },
+        ...(this.testPlayer && this.testWeapons
+          ? [
+              {
+                id: "bot",
+                team: this.match.members[1].team,
+                player: this.testPlayer,
+                weapons: this.testWeapons,
+              },
+            ]
+          : []),
+      ];
+      const remote = this.rc.local(command, dt, rcActors);
+      if (remote)
+        command = {
+          ...command,
+          facingYaw: this.player.root.rotation.y,
+          moveX: 0,
+          moveZ: 0,
+          fire: false,
+          pressed: false,
+        };
+      this.rc.render(
+        dt,
+        this.rc.system.snapshot(),
+        "local",
+        rcActors.map((a) => ({
+          player: a.player,
+          remote: this.rc.system.controlling(a.id),
+        })),
+        this.sound && !this.paused,
+        this.player.hp > 0,
+      );
       if (this.player.hp <= 0) {
         command.moveX = 0;
         command.moveZ = 0;
@@ -1653,6 +849,7 @@ export class Game {
         ],
         this.player.root.position,
         this.sound,
+        (x, z) => this.isCarpet(x, z),
       );
       const p = this.player.root.position;
       this.intrudedTeam = office01.bases.find(
@@ -1664,28 +861,42 @@ export class Game {
       )?.team;
       this.updateCamera(dt);
 
-      if (this.testPlayer && this.testWeapons && this.testShootingEnabled) {
+      if (this.testPlayer && this.testPlayer.hp <= 0) {
+        if (!this.botRespawn) {
+          this.botRespawn = 5;
+          this.testPlayer.root.setEnabled(false);
+        }
+        this.botRespawn = Math.max(0.00001, this.botRespawn - dt);
+        if (this.botRespawn <= 0.00001) {
+          this.botRespawn = 0;
+          this.testPlayer.hp = 100;
+          this.testPlayer.root.setEnabled(true);
+          this.localLedger.damage.delete("bot");
+        }
+      }
+      if (
+        this.testPlayer &&
+        this.testPlayer.hp > 0 &&
+        this.testWeapons &&
+        this.testShootingEnabled
+      ) {
         this.testFireTimer -= dt;
         if (this.testFireTimer <= 0) {
           this.testFiring = !this.testFiring;
           this.testFireTimer = this.testFiring
             ? 0.25 + Math.random() * 0.6
             : 1.5 + Math.random() * 3;
-          if (this.testFiring)
-            this.testPlayer.root.rotation.y =
-              Math.atan2(
-                -this.testPlayer.root.position.x,
-                -this.testPlayer.root.position.z,
-              ) +
-              (Math.random() - 0.5) * 0.7;
         }
         const bot = {
           moveX: 0,
           moveZ: 0,
-          aimX: 0,
-          aimZ: 0,
-          facingYaw: this.testPlayer.root.rotation.y,
-          fire: this.testFiring,
+          aimX: this.player.root.position.x,
+          aimZ: this.player.root.position.z,
+          facingYaw: Math.atan2(
+            this.player.root.position.x - this.testPlayer.root.position.x,
+            this.player.root.position.z - this.testPlayer.root.position.z,
+          ),
+          fire: this.testFiring && this.player.hp > 0,
           pressed: false,
         };
         this.testPlayer.update(bot, dt);
@@ -1699,8 +910,42 @@ export class Game {
         dt,
       );
       if (disarming) this.pickup.chooseRequested = false;
+      const beaconActor = {
+        id: "local",
+        team: CONFIG.player.team as Team,
+        player: this.player,
+        weapons: this.weapons,
+        pulseTrapSelected: this.weapons.pulseTrapSelected,
+      };
+      const placingTrap =
+        this.weapons.utilityKind !== "rcCar" &&
+        this.weapons.pulseTrapSelected &&
+        command.pressed;
+      if (placingTrap && !disarming) this.pickup.pulseTraps.place(beaconActor);
+      const placingBeacon =
+        !placingTrap &&
+        this.pickup.beacons.carried.has("local") &&
+        command.pressed;
+      if (placingBeacon && !disarming) this.pickup.beacons.place(beaconActor);
+      if (
+        this.pickup.chooseRequested &&
+        this.pickup.pulseTraps.acquire(beaconActor)
+      ) {
+        this.pickup.chooseRequested = false;
+        this.hud.toast("PULSE TRAP · [3] SELECT · LMB: PLACE");
+      }
+      if (
+        this.pickup.chooseRequested &&
+        this.pickup.beacons.acquire(beaconActor)
+      ) {
+        this.pickup.chooseRequested = false;
+        this.hud.toast("DEFENSIVE BEACON · LMB TO PLACE");
+      }
+      this.weapons.carryingBeacon = this.pickup.beacons.carried.has("local");
       this.weapons.update(
-        disarming ? { ...command, fire: false, pressed: false } : command,
+        disarming || placingBeacon || placingTrap
+          ? { ...command, fire: false, pressed: false }
+          : command,
         dt,
       );
       if (!command.fire || this.weapons.id !== "machineGun")
@@ -1708,54 +953,49 @@ export class Game {
       this.pickup.update(dt, this.time, this.weapons, () =>
         this.hud.toast("PICKUP COLLECTED"),
       );
-      this.cores.concat(this.targets).forEach((t) => t.update(dt, this.time));
+      this.pickup.beacons.update(dt, [
+        beaconActor,
+        ...(this.testPlayer
+          ? [
+              {
+                id: "bot",
+                team: this.match.members[1].team,
+                player: this.testPlayer,
+              },
+            ]
+          : []),
+      ]);
+      this.pickup.pulseTraps.update(dt, [
+        beaconActor,
+        ...(this.testPlayer && this.testWeapons
+          ? [
+              {
+                id: "bot",
+                team: this.match.members[1].team,
+                player: this.testPlayer,
+                weapons: this.testWeapons,
+              },
+            ]
+          : []),
+      ]);
+      this.cores.forEach((t) => t.update(dt, this.time));
       this.world.destructibles.forEach((o) => o.update(dt));
       this.world.explosions.update(dt);
-      const winner = this.match.evaluate(this.cores);
-      if (winner) {
-        this.teamWins[winner]++;
-        this.setPaused(true);
-        showVictory(
-          winner,
-          this.match.members.filter((member) => member.team === winner),
-          () => {
-            if (this.teamWins[winner] >= 3) {
-              location.reload();
-              return;
-            }
-            closeVictory();
-            this.match.winner = undefined;
-            this.currentRound++;
-            resetRound(
-              this.world,
-              this.cores,
-              [this.weapons, ...(this.testWeapons ? [this.testWeapons] : [])],
-              this.pickup,
-            );
-            this.localDisarm.reset();
-            this.respawnRemaining = 0;
-            for (const [i, player] of [
-              this.player,
-              this.testPlayer,
-            ].entries()) {
-              if (player) {
-                const base = office01.bases.find(
-                  (b) => b.team === this.match.members[i].team,
-                )!;
-                player.root.position.set(base.spawn.x, 0, base.spawn.z);
-              }
-            }
-            this.setPaused(false);
-          },
-          this.teamWins[winner] >= 3,
-          this.teamWins,
-        );
-      }
+      finishLocalRound.call(this);
     }
     const alarmTeam =
       this.intrudedTeam ??
       (this.time < this.breachUntil ? this.breachTeam : undefined);
-    this.world.updateAlarm(this.paused ? undefined : alarmTeam, this.time);
+    const ownCore = this.cores.find((c) => c.team === CONFIG.player.team);
+    this.world.updateAlarm(
+      this.paused
+        ? undefined
+        : ownCore && ownCore.hp <= 350
+          ? ownCore.team
+          : alarmTeam,
+      this.time,
+      ownCore ? Math.max(0, 1 - ownCore.hp / 350) : 0,
+    );
     const spatial = (position: { x: number; y?: number; z: number }) => {
       const origin = new Vector3(position.x, position.y ?? 1.1, position.z);
       const listener = this.player.root.position.add(new Vector3(0, 1.1, 0));
@@ -1790,6 +1030,7 @@ export class Game {
       !this.paused && this.sound,
       this.weapons.charges.map((charge) => ({
         id: String(charge.mesh.uniqueId),
+        timer: charge.timer,
         ...spatial(charge.mesh.position),
       })),
     );
@@ -1806,7 +1047,8 @@ export class Game {
         ? []
         : this.match.members.map((p, i) => ({
             ...p,
-            kills: i === 0 ? this.localKills : 0,
+            ...(this.localLedger.totals.get(i === 0 ? "local" : "bot") ??
+              emptyPerformance()),
           })),
     );
     this.updateDisarm(
@@ -1827,6 +1069,24 @@ export class Game {
         ),
       )[0];
     if (threat) this.hud.plantedWarning(threat.team);
+    this.updateDamageNumbers(dt);
+    this.updateHitHealthBars();
+    this.pickup.pulseTraps.animate(
+      this.pulseTrapAudio.update(
+        this.paused ? 0 : dt,
+        this.sound && !this.paused && this.match.started && !this.match.winner,
+        this.player.root.position,
+        this.pickup.pulseTraps.snapshot(),
+      ),
+    );
+    this.beaconAudio.update(
+      dt,
+      this.sound && !this.paused,
+      this.player.root.position,
+      this.pickup.beacons.snapshot(),
+    );
+    this.updateBeaconPrompt();
+    this.updateEngagement(dt);
     this.hud.update(
       this.paused ? 0 : dt,
       this.cores,
@@ -1841,6 +1101,221 @@ export class Game {
       this.cores,
     );
     this.scene.render();
+  }
+  beaconImpact(
+    position: Vector3,
+    material: string,
+    destroyed?: boolean,
+    reflected?: Vector3,
+  ) {
+    return beaconImpactImpl.call(
+      this,
+      position,
+      material,
+      destroyed,
+      reflected,
+    );
+  }
+  beaconShot(start: Vector3, end: Vector3) {
+    return beaconShotImpl.call(this, start, end);
+  }
+  updateBeaconPrompt() {
+    return updateBeaconPromptImpl.call(this);
+  }
+  isCarpet(x: number, z: number) {
+    return !office01.corridors.some(
+      (r) => Math.abs(x - r.x) <= r.w / 2 && Math.abs(z - r.z) <= r.d / 2,
+    );
+  }
+  sendTeamPing(kind: PingKind) {
+    if (
+      this.paused ||
+      !this.match.started ||
+      this.player.hp <= 0 ||
+      this.time - this.lastTeamPing < 1.2
+    )
+      return;
+    this.lastTeamPing = this.time;
+    const ray = this.scene.createPickingRay(
+      this.input.pointer.x,
+      this.input.pointer.y,
+      Matrix.Identity(),
+      this.camera,
+    );
+    const distance = ray.intersectsPlane(new Plane(0, 1, 0, 0));
+    const aim =
+      distance !== null
+        ? ray.origin.add(ray.direction.scale(distance))
+        : this.player.root.position;
+    const cmd = { aimX: aim.x, aimZ: aim.z };
+    const base = office01.bases.find((b) => b.team === CONFIG.player.team)!;
+    const ping: TeamPing = {
+      kind,
+      x:
+        kind === "help"
+          ? this.player.root.position.x
+          : kind === "defend"
+            ? base.x
+            : cmd.aimX,
+      z:
+        kind === "help"
+          ? this.player.root.position.z
+          : kind === "defend"
+            ? base.z
+            : cmd.aimZ,
+      name: this.match.playerName,
+      team: CONFIG.player.team,
+    };
+    if (
+      !Number.isFinite(ping.x) ||
+      !Number.isFinite(ping.z) ||
+      Math.abs(ping.x) >= 200 ||
+      Math.abs(ping.z) >= 200
+    )
+      return;
+    if (this.multiplayer?.room) this.multiplayer.room.send(MSG.teamPing, ping);
+    else {
+      this.engagement.ping(ping);
+      this.engagementAudio?.tone(650, 0.08, 0.035);
+    }
+  }
+  playCountdown(seconds?: number) {
+    const value = seconds === undefined ? 0 : Math.ceil(seconds);
+    if (value && value !== this.countdownSound) {
+      if (this.engagementAudio) this.engagementAudio.active = this.sound;
+      this.engagementAudio?.tone(430 + value * 80, 0.12, 0.06);
+    }
+    this.countdownSound = value;
+  }
+  updateEngagement(dt: number) {
+    const active = this.match.started && !this.paused && !this.match.winner;
+    const snapshot = this.multiplayer?.snapshot;
+    const hp =
+      snapshot?.cores.find((c) => c.team === CONFIG.player.team)?.hp ??
+      this.cores.find((c) => c.team === CONFIG.player.team)?.hp ??
+      1000;
+    const bombs =
+      snapshot?.bombs ??
+      [this.weapons, ...(this.testWeapons ? [this.testWeapons] : [])].flatMap(
+        (w) =>
+          w.charges.map((c) => ({
+            x: c.mesh.position.x,
+            z: c.mesh.position.z,
+            timer: c.timer,
+          })),
+      );
+    const threats = bombs
+      .flatMap((b) =>
+        office01.bases
+          .filter((core) => Math.hypot(b.x - core.x, b.z - core.z) <= 5)
+          .map((core) => ({ team: core.team, timer: b.timer })),
+      )
+      .sort((a, b) => a.timer - b.timer);
+    const hit = document.querySelector<HTMLElement>("#hit-confirm")!;
+    if (this.input.mode === "topDown") {
+      hit.style.left = `${this.input.pointer.x}px`;
+      hit.style.top = `${this.input.pointer.y}px`;
+    }
+    for (const core of this.cores)
+      document
+        .querySelector(`#hp-${core.team}`)
+        ?.closest(".core")
+        ?.classList.toggle(
+          "critical",
+          core.active && core.hp > 0 && core.hp <= 350,
+        );
+    this.engagement.update(dt, active, hp / 1000, threats[0]);
+    this.engagementAudio?.update(
+      dt,
+      this.sound && (active || !!this.localCountdown || !!snapshot?.countdown),
+      this.player.root.position,
+      active ? hp / 1000 : 1,
+      active ? threats[0]?.timer : undefined,
+    );
+  }
+  bindLocalTarget(player: Player, id: string) {
+    const target = {
+      get hp() {
+        return player.hp;
+      },
+      get position() {
+        return player.root.position.add(new Vector3(0, 1, 0));
+      },
+      canDamageFrom: () => true,
+      damage: (amount: number) => {
+        if (player.hp > 0 && player.invulnerable <= 0) {
+          const damage = Math.min(player.hp, amount);
+          player.hp = Math.max(0, player.hp - amount);
+          if (id === "local") this.hud.damage(damage);
+          else this.showHitHealth(id, damage, player.hp);
+          this.showDamageNumber(
+            player.root.position.add(new Vector3(0, 2, 0)),
+            damage,
+          );
+        }
+      },
+    };
+    for (const mesh of player.bodyMeshes) {
+      mesh.metadata = { damageable: target };
+      mesh.isPickable = true;
+    }
+  }
+  recordLocalHit(id: string, target: Hittable, damage: number) {
+    const victim = [
+      ["local", this.player],
+      ["bot", this.testPlayer],
+    ] as const;
+    const entry = victim.find(([, player]) =>
+      player?.bodyMeshes.some((m) => m.metadata?.damageable === target),
+    );
+    const material = entry
+      ? "player"
+      : target instanceof Destructible
+        ? target.prop.kind === "glass"
+          ? "glass"
+          : ["server", "coreDoor"].includes(target.prop.kind)
+            ? "metal"
+            : "wood"
+        : "metal";
+    const position =
+      (target as { position?: Vector3 }).position ?? this.player.root.position;
+    this.engagement.impact(position, material, target.hp <= 0);
+    this.engagementAudio?.impact(
+      material,
+      Vector3.Distance(position, this.player.root.position),
+      target.hp <= 0,
+    );
+    if (id === "local") {
+      this.engagement.confirm();
+      this.engagementAudio?.hit();
+    }
+    if (
+      target instanceof Damageable &&
+      target.kind === "core" &&
+      target.team !==
+        (id === "local" ? CONFIG.player.team : this.match.members[1]?.team)
+    )
+      this.localLedger.add(id, "coreDamage", damage);
+    if (entry && entry[0] !== id) {
+      this.localLedger.hit(id, entry[0], damage, this.time);
+      if (target.hp <= 0) {
+        const base = office01.bases.find(
+          (b) =>
+            b.team ===
+            (id === "local" ? CONFIG.player.team : this.match.members[1]?.team),
+        )!;
+        this.localLedger.kill(
+          id,
+          entry[0],
+          this.time,
+          Math.hypot(position.x - base.x, position.z - base.z) <= 12,
+        );
+        if (id === "local") {
+          this.engagement.confirm(true);
+          this.engagementAudio?.hit(true);
+        }
+      }
+    }
   }
   explosionSound(strength: number) {
     if (!this.sound || !this.audio || strength <= 0) return;
@@ -1880,6 +1355,7 @@ export class Game {
   prepareAudio() {
     this.audio ??= new AudioContext();
     this.weaponAudio ??= new WeaponAudio(this.audio);
+    this.engagementAudio ??= new EngagementAudio(this.audio);
     document
       .querySelectorAll<HTMLInputElement>("[data-level]")
       .forEach((slider) =>

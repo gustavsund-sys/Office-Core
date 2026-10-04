@@ -99,7 +99,43 @@ try {
   b.send(MSG.team, "BLUE");
   await wait(a, (s) => s.players.some((p) => p.team === "BLUE"));
   a.send(MSG.start);
+  const preparing = await wait(a, s => !!s.preparing);
+  assert.equal(preparing.started, false);
+  a.send(MSG.loadout, { weapon: "machineGun", skill: "pulseTrap" });
+  await wait(a, s => !!s.players.find(p => p.id === a.sessionId)?.loadout);
+  b.send(MSG.loadout, { weapon: "pulseGun", skill: "superMedkit" });
   const started = await wait(a, (s) => s.started);
+  const redLoadout = started.players.find(p => p.id === a.sessionId)!;
+  const blueLoadout = started.players.find(p => p.id === b.sessionId)!;
+  assert.equal(redLoadout.weapon, "machineGun");
+  assert.equal(redLoadout.utilityKind, "pulseTrap");
+  assert.equal(redLoadout.utilityCount, 2);
+  assert.equal(blueLoadout.weapon, "pulseGun");
+  assert.equal(blueLoadout.utilityKind, "superMedkit");
+  assert.equal(blueLoadout.utilityCount, 2);
+  let enemyPings = 0,
+    ownPings = 0;
+  b.onMessage(MSG.teamPing, () => enemyPings++);
+  const teamPing = new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error("Team ping timed out")),
+      5000,
+    );
+    a.onMessage(
+      MSG.teamPing,
+      (ping: { kind: string; name: string; team: string }) => {
+        ownPings++;
+        assert.equal(ping.name, "Alice");
+        assert.equal(ping.team, "RED");
+        clearTimeout(timeout);
+        resolve();
+      },
+    );
+  });
+  a.send(MSG.teamPing, { kind: "defend", x: 0, z: 0 });
+  await teamPing;
+  a.send(MSG.teamPing, { kind: "defend", x: 0, z: 0 });
+  a.send(MSG.teamPing, { kind: "enemy", x: NaN, z: Infinity });
   a.send(MSG.input, {
     moveX: NaN,
     moveZ: Infinity,
@@ -140,6 +176,8 @@ try {
     (s) => s.players.find((p) => p.id === a.sessionId)!.z > before.z + 0.5,
   );
   clearInterval(interval);
+  assert.equal(enemyPings, 0, "Enemy team cannot see private pings");
+  assert.equal(ownPings, 1, "Ping spam is rate-limited");
   assert.ok(
     moved.players.find((p) => p.id === a.sessionId)!.ack >= 0,
     "Server acknowledges prediction inputs",

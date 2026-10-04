@@ -13,7 +13,8 @@
     "check:server": "tsc -p tsconfig.server.json",
     "deploy:web": "sh scripts/deploy-web.sh",
     "deploy:server": "sh scripts/deploy-server.sh",
-    "test:multiplayer": "node --import tsx scripts/multiplayer-smoke.ts"
+    "test:multiplayer": "node --import tsx scripts/multiplayer-smoke.ts",
+    "test:cache": "node --test scripts/cache.test.mjs"
   },
   "dependencies": {
     "@babylonjs/core": "^8.0.0",

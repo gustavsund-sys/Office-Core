@@ -3,6 +3,21 @@ import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      output: {
+        onlyExplicitManualChunks: true,
+        manualChunks(id) {
+          if (id.includes("node_modules/@babylonjs/")) return "engine";
+          if (
+            id.includes("node_modules/@firebase/") ||
+            id.includes("node_modules/firebase/")
+          )
+            return "identity";
+        },
+      },
+    },
+  },
   plugins: [
     {
       name: "office-core-versioned-cache",
@@ -21,16 +36,30 @@ export default defineConfig({
                 .slice(0, 16);
           }
         };
-        walk("assets");
-        walk("audio");
+        for (const directory of [
+          "assets",
+          "audio",
+          "branding",
+          "loadout",
+          "models",
+          "textures",
+        ])
+          walk(directory);
         const version = createHash("sha256")
           .update(JSON.stringify(files))
           .digest("hex")
           .slice(0, 16);
+        const bootFiles = [
+          ...readFileSync("dist/index.html", "utf8").matchAll(
+            /(?:src|href)="(\/assets\/[^" ]+)"/g,
+          ),
+        ]
+          .map((m) => m[1])
+          .filter((p) => files[p]);
         const template = readFileSync("scripts/service-worker.js", "utf8");
         writeFileSync(
           "dist/sw.js",
-          `const VERSION=${JSON.stringify(version)};const FILES=${JSON.stringify(files)};\n${template}`,
+          `const VERSION=${JSON.stringify(version)};const FILES=${JSON.stringify(files)};const BOOT_FILES=${JSON.stringify(bootFiles)};\n${template}`,
         );
         writeFileSync(
           "dist/game-version.json",

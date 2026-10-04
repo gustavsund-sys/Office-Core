@@ -1,0 +1,12 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Office Core · RC Bomber</title><style>html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#14262c}canvas{width:100%;height:100%;display:block}</style></head><body><canvas></canvas><script type="module">
+import {Engine,Scene,ArcRotateCamera,Vector3,Color4,HemisphericLight,DirectionalLight,ShadowGenerator,MeshBuilder,GlowLayer} from '@babylonjs/core';
+import {World} from '/src/map/builder';import {rcCarModel} from '/src/game/rcCarModel';
+const engine=new Engine(document.querySelector('canvas'),true);const scene=new Scene(engine);scene.clearColor=new Color4(.055,.09,.1,1);
+const camera=new ArcRotateCamera('preview',Math.PI*.32,1.23,2.9,new Vector3(0,.43,0),scene);camera.fov=.7;camera.minZ=.03;
+const fill=new HemisphericLight('fill',new Vector3(0,1,0),scene);fill.intensity=.7;
+const key=new DirectionalLight('office key',new Vector3(-.6,-1,.4),scene);key.position.set(3,5,-3);key.intensity=1.2;const shadows=new ShadowGenerator(1024,key);shadows.useBlurExponentialShadowMap=true;shadows.blurKernel=16;
+const world=new World(scene,shadows);const floor=MeshBuilder.CreateGround('office floor',{width:20,height:20},scene);floor.material=world.finish('#607375','floor');floor.receiveShadows=true;
+for(const x of [-1.8,1.8]){const wall=world.box('office panel',x,1.2,-1.9,1.4,2.4,.15,'#788384');wall.receiveShadows=true;world.box('team light',x,1.5,-1.79,1.2,.03,.03,x<0?'#dd5663':'#37cee3',false,true);}
+const car=rcCarModel(world);car.root.getChildMeshes().forEach(m=>shadows.addShadowCaster(m));new GlowLayer('lens glow',scene,{blurKernelSize:16}).intensity=.3;
+engine.runRenderLoop(()=>scene.render());window.addEventListener('resize',()=>engine.resize());
+</script></body></html>

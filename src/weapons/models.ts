@@ -19,6 +19,12 @@ export function heldWeapon(world: World, id: WeaponId): Mesh {
     const mesh = world.box(name, x, y, z, w, h, d, color, false, glow);
     mesh.parent = root;
     mesh.isPickable = false;
+    if (!glow)
+      mesh.material = world.finish(
+        color,
+        /grip|stock|rest/.test(name) ? "polymer" : "metal",
+      );
+    world.shadows.removeShadowCaster(mesh);
     return mesh;
   };
   const tube = (
@@ -35,7 +41,7 @@ export function heldWeapon(world: World, id: WeaponId): Mesh {
     );
     mesh.rotation.x = Math.PI / 2;
     mesh.position.z = z;
-    mesh.material = world.mat(color);
+    mesh.material = world.finish(color, "metal");
     mesh.parent = root;
     mesh.isPickable = false;
     return mesh;
@@ -128,6 +134,96 @@ export function heldWeapon(world: World, id: WeaponId): Mesh {
     tube("rifle barrel", 0.55, 0.1, burst ? 0.5 : 0.7, "#1d2b33");
     box("rifle top rail", 0, 0.14, 0.08, 0.1, 0.08, 0.38, "#8b9da1");
     if (burst) box("burst sight", 0, 0.22, 0, 0.12, 0.12, 0.2, "#ad9bff");
+  }
+  // Small silhouette details stay behind the existing muzzle plane.
+  if (id === "pistol") {
+    box("front sight", 0, 0.1, 0.27, 0.035, 0.045, 0.045, "#d0cfac");
+    box("rear sight", 0, 0.1, -0.1, 0.11, 0.04, 0.035, "#263641");
+    box("ejection port", 0.077, 0.025, 0.08, 0.012, 0.055, 0.12, "#172731");
+    for (const side of [-1, 1])
+      for (let i = 0; i < 3; i++)
+        box(
+          "slide serration",
+          side * 0.078,
+          0,
+          -0.08 + i * 0.045,
+          0.012,
+          0.105,
+          0.012,
+          "#3d515d",
+        );
+    box("trigger guard front", 0, -0.13, 0.12, 0.075, 0.11, 0.025, "#394d59");
+    box("trigger guard base", 0, -0.185, 0.07, 0.075, 0.025, 0.13, "#394d59");
+  } else if (id === "machineGun" || id === "burstGun") {
+    for (const z of [0.35, 0.48, 0.61])
+      tube("barrel cooling collar", z, 0.14, 0.045, "#64777b");
+    for (const z of [-0.04, 0.04, 0.12, 0.2])
+      box("rail tooth", 0, 0.192, z, 0.13, 0.025, 0.025, "#334952");
+    box("ejection port", 0.107, 0.025, 0.03, 0.014, 0.085, 0.18, "#14262d");
+    box("charging handle", 0.16, 0.04, -0.12, 0.1, 0.045, 0.055, "#829497");
+    for (const side of [-1, 1])
+      for (const z of [-0.2, 0.22])
+        box(
+          "receiver fastener",
+          side * 0.107,
+          -0.04,
+          z,
+          0.018,
+          0.035,
+          0.035,
+          "#b3bab0",
+        );
+    box("stock butt pad", 0, -0.02, -0.63, 0.19, 0.25, 0.04, "#172c36");
+    box("trigger guard", 0, -0.2, 0.045, 0.1, 0.035, 0.16, "#50636b");
+  } else if (id === "bazooka") {
+    for (const z of [-0.5, 0.5])
+      tube("launcher reinforcement band", z, 0.375, 0.07, "#8c9469");
+    box("launcher ID plate", 0.177, 0.015, -0.15, 0.012, 0.12, 0.27, "#b8bd94");
+    for (const z of [-0.25, -0.13, -0.01])
+      box(
+        "launcher plate mark",
+        0.185,
+        0.018,
+        z,
+        0.009,
+        0.06,
+        0.022,
+        "#415247",
+      );
+    box("sight lens", 0, 0.28, 0.338, 0.045, 0.06, 0.016, "#8dd1cb", true);
+    for (const z of [0.28, 0.36, 0.44])
+      box("grip rib", 0, -0.33, z, 0.145, 0.026, 0.025, "#536360");
+  } else if (id === "pulseGun") {
+    for (const side of [-1, 1])
+      for (let i = 0; i < 4; i++)
+        box(
+          "pulse cooling vent",
+          side * 0.136,
+          -0.015,
+          -0.04 + i * 0.075,
+          0.015,
+          0.09,
+          0.025,
+          "#485169",
+        );
+    box(
+      "pulse charge indicator",
+      0,
+      0.125,
+      0.04,
+      0.08,
+      0.015,
+      0.2,
+      "#ff7498",
+      true,
+    );
+    box("pulse rear cap", 0, 0, -0.19, 0.28, 0.24, 0.04, "#6c7587");
+  } else if (id === "coreBuster") {
+    for (const x of [-0.16, 0.16])
+      box("timer screw", x, 0.35, 0.442, 0.035, 0.035, 0.025, "#b7b9aa");
+    for (const x of [-0.085, 0, 0.085])
+      box("timer digit", x, 0.343, 0.468, 0.022, 0.045, 0.009, "#ffdfad", true);
+    box("bomb safety stripe", 0, 0.13, 0.457, 0.26, 0.07, 0.02, "#d9b45b");
   }
   return root;
 }

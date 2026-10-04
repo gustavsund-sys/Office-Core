@@ -1,0 +1,6 @@
+{
+  "acceleration": "rc acc.mp3",
+  "motor": "rc static.mp3",
+  "stop": "rc stop.mp3",
+  "selection": "User-provided clips, unchanged; static loop uses 100ms seamless overlap. Same acceleration and release sounds in both directions."
+}

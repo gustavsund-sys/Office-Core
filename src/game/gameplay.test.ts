@@ -794,3 +794,82 @@ test("warcry requires a carried buster, lasts four seconds and resets only on ac
     s.engine.dispose();
   }
 });
+
+test("shots leave the weapon muzzle and converge on the aim point", () => {
+  const s = setup();
+  try {
+    for (const id of [
+      "pistol",
+      "machineGun",
+      "burstGun",
+      "pulseGun",
+      "bazooka",
+    ] as const) {
+      s.weapon.equip(id);
+      for (const yaw of [0, Math.PI / 2, Math.PI]) {
+        s.player.root.rotation.y = yaw;
+        s.sync();
+        const origin = s.player.shotOrigin;
+        assert.ok(Vector3.Distance(origin, s.player.muzzlePosition) < 0.0001);
+        assert.ok(Vector3.Distance(origin, s.player.root.position) > 1);
+        const target = s.player.root.position.add(s.player.direction.scale(10));
+        target.y = 1.1;
+        const direction = s.player.shotDirection(
+          { ...idle, aimX: target.x, aimZ: target.z },
+          origin,
+        );
+        assert.ok(
+          Vector3.Distance(
+            origin.add(direction.scale(Vector3.Distance(origin, target))),
+            target,
+          ) < 0.0001,
+        );
+      }
+    }
+  } finally {
+    s.engine.dispose();
+  }
+});
+
+test("a barrel protruding through cover cannot damage a target behind it", () => {
+  const s = setup();
+  try {
+    const target = new Damageable(s.world, "target", 0, 5);
+    s.world.box("close cover", 0, 1, 0.6, 3, 2, 0.15, "#888888", true);
+    s.sync();
+    assert.ok(s.player.muzzlePosition.z > 0.675);
+    assert.ok(s.player.shotOrigin.z < 0.525);
+    s.weapon.update({ ...idle, fire: true, pressed: true }, 0.01);
+    assert.equal(target.hp, 100);
+  } finally {
+    s.engine.dispose();
+  }
+});
+
+test("office decorations follow destruction and reset without adding hit surfaces", () => {
+  const s = setup();
+  try {
+    const start = s.scene.meshes.length;
+    s.world.propDetails("desk", 0, 5, 2, 1);
+    const details = s.scene.meshes.slice(start) as Mesh[];
+    const desk = new Destructible(
+      s.world,
+      { kind: "desk", x: 0, z: 5, destructible: true },
+      details,
+      [],
+      s.world.explosions,
+    );
+    assert.ok(details.length > 5);
+    assert.ok(details.every((m) => !m.isPickable && !m.metadata?.damageable));
+    desk.damage(100, undefined, false);
+    assert.ok(details.every((m) => !m.isEnabled()));
+    desk.reset();
+    assert.ok(
+      details.every(
+        (m) => m.isEnabled() && !m.isPickable && !s.world.solids.includes(m),
+      ),
+    );
+  } finally {
+    s.engine.dispose();
+  }
+});

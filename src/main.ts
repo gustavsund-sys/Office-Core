@@ -1,15 +1,20 @@
 import { installGameCache } from "./network/cache";
 import "./ui/style.css";
-import { Game } from "./game/game";
 import { applyMap, parseMap, STORAGE_KEY } from "./maps/layout";
 
 async function start() {
+  const loading = document.createElement("div");
+  loading.className = "game-loading";
+  loading.setAttribute("role", "status");
+  loading.textContent = "Laddar Office Core…";
+  document.body.append(loading);
+  await installGameCache();
   const params = new URLSearchParams(location.search);
   if (params.get("playtest") === "1") {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (!saved)
-      throw new Error("Spara en karta i kartbyggaren innan du provspelar.");
-    applyMap(parseMap(JSON.parse(saved)));
+    // A fresh browser origin can playtest the bundled map without an editor save.
+    if (saved) applyMap(parseMap(JSON.parse(saved)));
+    else applyMap(parseMap((await import("../server/map.json")).default));
   } else {
     const url = new URL(
       import.meta.env.VITE_GAME_SERVER_URL || "ws://127.0.0.1:2567",
@@ -36,9 +41,40 @@ async function start() {
   if (params.get("builder") === "1") {
     const { MapEditor } = await import("./map/editor");
     new MapEditor();
-  } else new Game(document.querySelector<HTMLCanvasElement>("#game")!);
+  } else {
+    loading.textContent = "Förbereder karta och grafik…";
+    const { Game } = await import("./game/game");
+    const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
+    let engine: import("@babylonjs/core").AbstractEngine | undefined;
+    const requestedRenderer = params.get("renderer");
+    if (requestedRenderer !== "webgl") {
+      loading.textContent = "Startar WebGPU…";
+      const { WebGPUEngine } = await import("@babylonjs/core");
+      let gpu: import("@babylonjs/core").WebGPUEngine | undefined;
+      try {
+        if (await WebGPUEngine.IsSupportedAsync) {
+          gpu = new WebGPUEngine(canvas, { antialias: true, stencil: true });
+          await gpu.initAsync();
+          engine = gpu;
+        }
+      } catch (error) {
+        gpu?.dispose();
+        console.warn("WebGPU initialization failed; using WebGL.", error);
+      }
+    }
+    new Game(canvas, engine);
+    {
+      const badge = document.createElement("div");
+      badge.textContent = engine ? "RENDERER · WEBGPU" : "RENDERER · WEBGL";
+      badge.style.cssText =
+        "position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:200;color:#b7f5ef;background:#10232be8;padding:5px 10px;border-radius:4px;font:12px monospace;pointer-events:none";
+      document.body.append(badge);
+    }
+  }
+  loading.remove();
 }
 void start().catch((error) => {
+  document.querySelector(".game-loading")?.remove();
   console.error(error);
   const ui = document.querySelector("#ui")!;
   ui.innerHTML =
@@ -48,4 +84,3 @@ void start().catch((error) => {
       ? error.message
       : "Kontrollera anslutningen och WebGL och försök igen.";
 });
-installGameCache();

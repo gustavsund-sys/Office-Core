@@ -114,3 +114,53 @@ Kartbyggaren har också Med-kit (+50 HP, högst 100) och Super Med-kit (fyller t
 Lobbychat uses each participant's chosen name; a non-empty name (up to 24 characters) is required before joining. Lobby music has its own persistent mute toggle. The upper-right scoreboard shows server-authoritative enemy kills for every participant. Core attack alerts identify the team, and a planted Core Buster within 5 meters displays a disarm warning until removed or detonated. Press E within 1.2 meters of a planted bomb to start a 10-second disarm; stay nearby and do not fire. Leaving, jumping or dying interrupts progress. The progress bar and supplied disarm.mp3 sound run during disarming. Chat allows up to 240 characters per message and one message per second; chat history is temporary and scoped to the current lobby.
 
 Matches are first-to-three series. A destroyed Core awards one round win; the round pauses on a Next round screen showing every player's Ready status. Everyone must confirm before the same room starts its next round. Health, Cores, furniture, doors, inventory, pickups, bombs and rockets reset; names, teams and kill totals remain. Team wins and round number appear above the kill list. At three wins, the final winner is presented with Return to Lobby. Returning closes the completed room so all participants can rejoin the lobby for a fresh series.
+
+### Defensive Beacon
+
+Each Red/Blue weapon drop supplies one Defensive Beacon. Use **E** to collect it and **LMB** to deploy it on clear floor. It occupies a separate carry slot and preserves the selected weapon and its ammunition. While carrying the robot, gunfire is disabled; deployment restores the selected weapon. An unplaced beacon is lost on death/disconnection.
+
+The team-bound turret scans with a red aiming laser and locks onto the nearest visible enemy within **15 m**. It charges **3 seconds** between aligned **25 HP** shots and fires every **1 second** while pursuing a visible enemy without settled aim. It remembers the last visible position for **4 seconds** after an enemy takes cover, but never fires without line of sight. Losing sight resets the charge. Changing its target restarts the charge. It fires along the actual barrel direction without waiting for perfect alignment. Servo tracking lags behind moving players, so shots can miss, hit cover and create visible material fragments, reflected sparks and ricochet audio. The server raycast determines the actual hit and damage. It has **100 HP**, a health bar and charge indicator, and can be destroyed by weapon fire. Each supply point respawns **180 seconds after collection**, announcing its Red/Blue weapon drop to everyone. Round resets remove deployed robots and refill the supply points. Supplied placement/shot sounds and 28 compact servo clips from the movement recording play with distance attenuation and follow the game's sound toggle. Scanning uses distinct pan/tilt movements with pauses; each movement uses its corresponding audio clip duration, and servo audio stops when movement stops. Destruction produces an explosion with debris. A team-bound guard appears beside the opponent in local playtests.
+
+### Multiplayer performance (2026-10-03)
+
+- Inputs: at most three fixed 1/30-second movement steps per tick, limited by accumulated real simulation time (100 ms cap). Stale movement commands are compacted; discrete actions retain their order and aim. Queue is bounded to 64 inputs and stale/disconnected input expires after 300 ms.
+- Snapshots: server timestamps at 20 Hz, negotiated immutable field/array deltas with baseline sequence checks and full-state recovery. Player identity, score and inventory fields travel only when changed. Existing non-negotiating clients still receive full states. A shared baseline is encoded once per broadcast.
+- Rendering: adaptive 65–160 ms interpolation based on arrival jitter; small local reconciliation errors decay visually. HUD score DOM changes only with values. Tracers and muzzle flashes use capped reusable mesh pools.
+- Beacons: simple authoritative colliders, no server visual tracking rays, staggered nearest-target searches at about 10 Hz. Actual firing always rechecks line of sight and casts the precise barrel ray.
+- Hitscan: up to 200 ms of player pose rewind; current walls remain authoritative. Life IDs prevent rewinding across respawns. Rockets and explosions are not rewound.
+
+Local regression/load checks (no production traffic):
+```sh
+PORT=2568 DEV_ALLOW_GUEST=true pnpm server
+GAME_SERVER_URL=ws://127.0.0.1:2568 LOCAL_AUTH=true pnpm test:multiplayer
+node --import tsx scripts/network-smoke.ts
+```
+The eight-client smoke test includes 100 ms input bursts and verifies delta reconstruction and input acknowledgements. One local run measured 85% fewer JSON snapshot bytes (1.18 MB versus 8.09 MB equivalent full states); this excludes transport overhead/events and is not an internet latency or GPU benchmark.
+
+### Browser asset cache
+
+Production builds version images, audio, model files, textures and compiled game assets by their content hash. The service worker stores downloaded files in Cache Storage and reuses unchanged files across releases. Byte-range audio requests reuse a complete cached audio file. Live server/map data remains uncached. Initial game startup waits for service-worker control when available; browsers may evict storage or disable it, in which case normal downloads continue. Vite development mode intentionally disables the service worker so edits appear immediately. Verify cache behavior with `pnpm test:cache`.
+
+### Client structure and snapshot streams (2026-10-04)
+
+`Game` composes the scene and runs the frame loop. Modules use explicit `Pick<Game, ...>` context contracts and type-only imports; shared runtime state remains owned by `Game`.
+
+- `matchSession.ts`, `roundFlow.ts`, `matchPresentation.ts`: initial deployment, local round transitions/countdown and online equipment/lobby presentation.
+- `networkSession.ts`: lobby transport, connection lifecycle and incoming events.
+- `snapshotReconciliation.ts`: authoritative state application and local correction.
+- `onlineSimulation.ts`: input prediction, remote interpolation and network scene updates.
+- `interfaceSession.ts`, `combatPresentation.ts`, `cameraController.ts`: interaction/pause/audio controls, projected hit feedback and camera updates.
+
+Clients negotiate `{stream: 2}` through `netReady`. `network/streams.ts` separates fast pose/health/projectile changes from change-only identity, inventory, score, pickup and match data. Both lanes share a sequence envelope so actions and equipment changes remain coherent and are delivered immediately. Shot events retain their independent event messages. Reload, protection, disarm, bomb, drop and round countdown timers use server-time anchors, with a 75 ms correction tolerance. Receivers reconstruct current timer values on each fast frame without repeating timer numbers. A missing baseline requests a full recovery frame. Older delta/full clients remain supported.
+
+The server encodes each streamed frame once for all current clients; clients missing that frame's baseline receive the matching full state and timer anchors. Run `PORT=2568 DEV_ALLOW_GUEST=true pnpm server`, then `TEST_RTT_MS=200 TEST_JITTER_MS=40 node --import tsx scripts/network-smoke.ts`. Set `TEST_LEGACY=true` to compare the older delta protocol. These are local synthetic checks, not production capacity measurements.
+
+### RC Bomber skill
+
+Choose **RC Bomber** during deployment to receive two cars in skill slot **3**. Select 3 and click **LMB** on clear floor to deploy. **W/S** drive forward/reverse; horizontal mouse movement sets the desired heading. The camera follows low and diagonally behind the buggy, shortening its distance when a wall obstructs the camera. The pilot stays stationary and displays FPV goggles and a transmitter to other players. Jump, gunfire, interactions and weapon switching are blocked while controlling it.
+
+**LMB** detonates the car. The camera immediately switches to a fixed overhead view at the blast for **3 seconds**, then restores the player camera and equipped special weapon. The blast has **4 m** range and up to **120 HP** damage with falloff and cover checks, using the existing bazooka explosion sound. The car has **50 HP** and can also be shot to detonate it. Death, disconnect and round transitions clear control state. The renderer uses sprung chassis lean and rotating/steering wheels; tread rings are merged to reduce draw calls. The server uses a single simple car collider.
+
+`game/rcCar.ts` owns authoritative physics and damage, `rcCarModel.ts` builds the buggy/pilot equipment/debris, and `rcSession.ts` handles local camera, rendering and sound. The supplied recording is trimmed into acceleration (1.16–1.80 s) and a low-variation motor loop (30.1–31.3 s), totalling about 20 KB. Acceleration plays on gas press or direction change; holding the key continues the separate motor loop. Sound stops on release, pause and detonation.
+
+Local multiplayer check: start `PORT=2568 DEV_ALLOW_GUEST=true pnpm server`, then run `node --import tsx scripts/rc-multiplayer-smoke.ts`. The local playtest panel also includes **RC BOMBER [3]**.

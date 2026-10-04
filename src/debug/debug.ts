@@ -53,12 +53,25 @@ export class Debug {
     w: Weapons,
     p: Pickup,
     cores: Damageable[],
+    network?: {
+      ping: number;
+      jitter: number;
+      buffer: number;
+      pending: number;
+      correction: number;
+      sentRate: number;
+      ackAge: number;
+      snapshotAge: number;
+    },
   ) {
     if (!this.enabled) return;
     this.bounds.forEach((m, i) =>
       m.setEnabled(this.world.obstacles.includes(this.obstacles[i])),
     );
     const v = player.root.position;
-    this.el.textContent = `DEBUG / F2\nFPS ${fps.toFixed(0)}\nPLAYER ${v.x.toFixed(2)}, ${v.z.toFixed(2)} / HP ${player.hp}\nCAMERA ${JSON.stringify(CONFIG.camera)}\nWEAPON ${w.id} / AMMO ${w.ammo}\nWEAPON DROPS ${p.endpoints.length} / AMMO DROPS ${p.ammoDrops.length}\n${cores.map((c) => `${c.team} ${c.hp}`).join(" · ")}\nPINK = COLLISION BOUNDS\nTELEPORT: 1 Reception / 2 Red / 3 Blue`;
+    const net = network
+      ? `\nPING ${network.ping.toFixed(0)} ms / JITTER ${network.jitter.toFixed(0)} ms\nINTERPOLATION ${network.buffer.toFixed(0)} ms / INPUTS PENDING ${network.pending}\nSENT ${network.sentRate}/s / ACK AGE ${network.ackAge.toFixed(0)} ms / SNAPSHOT AGE ${network.snapshotAge.toFixed(0)} ms\nPOSITION CORRECTION ${network.correction.toFixed(3)} m`
+      : "";
+    this.el.textContent = `DEBUG / F2\nFPS ${fps.toFixed(0)}${net}\nPLAYER ${v.x.toFixed(2)}, ${v.z.toFixed(2)} / HP ${player.hp}\nCAMERA ${JSON.stringify(CONFIG.camera)}\nWEAPON ${w.id} / AMMO ${w.ammo}\nWEAPON DROPS ${p.endpoints.length} / AMMO DROPS ${p.ammoDrops.length}\n${cores.map((c) => `${c.team} ${c.hp}`).join(" · ")}\nPINK = COLLISION BOUNDS\nTELEPORT: 1 Reception / 2 Red / 3 Blue`;
   }
 }

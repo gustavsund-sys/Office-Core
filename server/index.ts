@@ -48,7 +48,13 @@ const http = createServer(async (req, res) => {
   }
   if (req.url === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok", activeRooms: OfficeRoom.active }));
+    res.end(
+      JSON.stringify({
+        status: "ok",
+        activeRooms: OfficeRoom.active,
+        performance: [...OfficeRoom.measurements].map((m) => m.report()),
+      }),
+    );
     return;
   }
   if (req.url === "/rooms" && req.method === "GET") {

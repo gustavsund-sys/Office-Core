@@ -177,6 +177,11 @@ test("first-to-three series waits for every player and resets the world between 
       room.ready.add("bob");
       room.tryNextRound();
       if (win < 3) {
+        assert.equal(room.round, win);
+        assert.ok(Math.abs(room.snapshot().countdown! - 3) < 1e-6);
+        room.tick(2.9);
+        assert.equal(room.round, win);
+        room.tick(0.11);
         assert.equal(room.round, win + 1);
         assert.equal(room.winner, undefined);
         assert.equal(prop.hp, prop.maxHp);

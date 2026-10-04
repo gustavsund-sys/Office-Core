@@ -47,8 +47,10 @@ export class Destructible implements Hittable {
         material,
         emissive: material.emissiveColor.clone(),
       });
-      mesh.metadata = { damageable: this };
-      mesh.isPickable = true;
+      if (!mesh.metadata?.visualOnly) {
+        mesh.metadata = { damageable: this };
+        mesh.isPickable = true;
+      }
     }
     // Low furniture still needs a shootable body at the common weapon height.
     const obstacle = obstacles[0];
@@ -113,8 +115,10 @@ export class Destructible implements Hittable {
     this.flash = 0;
     for (const mesh of this.meshes) {
       mesh.setEnabled(true);
-      this.world.shadows.addShadowCaster(mesh);
-      if (!this.world.solids.includes(mesh)) this.world.solids.push(mesh);
+      if (!mesh.metadata?.visualOnly) {
+        this.world.shadows.addShadowCaster(mesh);
+        if (!this.world.solids.includes(mesh)) this.world.solids.push(mesh);
+      }
     }
     for (const obstacle of this.obstacles)
       if (!this.world.obstacles.includes(obstacle))

@@ -4,6 +4,7 @@ import type { Player } from "../player/player";
 export class Disarm {
   target?: { owner: Weapons; charge: Weapons["charges"][number] };
   elapsed = 0;
+  onComplete?: () => void;
   update(
     player: Player,
     owners: Weapons[],
@@ -59,6 +60,7 @@ export class Disarm {
     charge.mesh.dispose();
     owner.charges.splice(owner.charges.indexOf(charge), 1);
     this.reset();
+    this.onComplete?.();
     return true;
   }
   reset() {

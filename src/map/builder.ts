@@ -1,5 +1,8 @@
 import {
   Color3,
+  Texture,
+  RawTexture,
+  VertexBuffer,
   DynamicTexture,
   Mesh,
   MeshBuilder,
@@ -8,6 +11,9 @@ import {
   StandardMaterial,
   Vector3,
   ShadowGenerator,
+  LoadAssetContainerAsync,
+  type AssetContainer,
+  TransformNode,
 } from "@babylonjs/core";
 import { OBJECTS } from "../maps/layout";
 import { office01 } from "../maps/office01";
@@ -16,9 +22,12 @@ import { Destructible } from "../core/destructible";
 import { TEAMS, type Team } from "../config/game";
 import type { Obstacle } from "../game/collision";
 export class World {
+  authoritative = false;
+  private palmAsset?: Promise<AssetContainer>;
   obstacles: Obstacle[] = [];
   solids: Mesh[] = [];
   materials = new Map<string, StandardMaterial>();
+  surfaceTextures = new Map<string, Texture>();
   destructibles: Destructible[] = [];
   explosions: Explosions;
   alarmLights = new Map<
@@ -41,6 +50,50 @@ export class World {
     this.materials.set(key, m);
     return m;
   }
+  finish(color: string, surface: "metal" | "polymer") {
+    const key = `${color}:${surface}`;
+    const cached = this.materials.get(key);
+    if (cached) return cached;
+    const material = this.mat(color).clone(key);
+    material.specularColor = new Color3(
+      ...(surface === "metal"
+        ? ([0.35, 0.38, 0.4] as const)
+        : ([0.09, 0.09, 0.09] as const)),
+    );
+    material.specularPower = surface === "metal" ? 48 : 14;
+    if (typeof document !== "undefined") {
+      let texture = this.surfaceTextures.get(surface);
+      if (!texture) {
+        // A repeatable 64px microtexture shared by every weapon and machine.
+        const data = new Uint8Array(64 * 64 * 4);
+        let seed = 1729;
+        for (let y = 0; y < 64; y++)
+          for (let x = 0; x < 64; x++) {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            const grain = (seed >>> 24) / 255;
+            const value =
+              surface === "metal"
+                ? 224 + grain * 10 + Math.sin(y * 2.1) * 8
+                : 225 + grain * 22;
+            data.fill(value, (y * 64 + x) * 4, (y * 64 + x) * 4 + 3);
+            data[(y * 64 + x) * 4 + 3] = 255;
+          }
+        texture = RawTexture.CreateRGBATexture(
+          data,
+          64,
+          64,
+          this.scene,
+          true,
+          false,
+        );
+        texture.wrapU = texture.wrapV = Texture.WRAP_ADDRESSMODE;
+        this.surfaceTextures.set(surface, texture);
+      }
+      material.diffuseTexture = texture;
+    }
+    this.materials.set(key, material);
+    return material;
+  }
   box(
     name: string,
     x: number,
@@ -59,7 +112,58 @@ export class World {
       this.scene,
     );
     m.position.set(x, y, z);
-    m.material = this.mat(color, glow);
+    m.material =
+      !glow &&
+      /^(server|vending|coffee|machine front|frame|skirting|chair pedestal|monitor stand|monitor base)$/.test(
+        name,
+      )
+        ? this.finish(color, "metal")
+        : this.mat(color, glow);
+    const surface = /^(wall|column)$/.test(name)
+      ? "plaster"
+      : /^(desk|counter|meetingTable|archive shelf|shelf ledge|wood pallet)$/.test(
+            name,
+          )
+        ? "wood"
+        : /^(walkable floor|base carpet|sofa|sofa back|fabric partition|chair seat|chair back)$/.test(
+              name,
+            )
+          ? "carpet"
+          : undefined;
+    if (surface && !glow && typeof document !== "undefined") {
+      const key = `${color}:${surface}`;
+      let material = this.materials.get(key);
+      if (!material) {
+        material = this.mat(color).clone(key);
+        let texture = this.surfaceTextures.get(surface);
+        if (!texture) {
+          texture = new Texture(`/textures/${surface}.jpg`, this.scene);
+          texture.wrapU = texture.wrapV = Texture.WRAP_ADDRESSMODE;
+          texture.anisotropicFilteringLevel = 4;
+          this.surfaceTextures.set(surface, texture);
+        }
+        material.diffuseTexture = texture;
+        this.materials.set(key, material);
+      }
+      m.material = material;
+      // Repeat in world units rather than stretching the tile across long corridors.
+      const uv = m.getVerticesData(VertexBuffer.UVKind)!;
+      const dimensions = [
+        [w, h],
+        [w, h],
+        [d, h],
+        [d, h],
+        [w, d],
+        [w, d],
+      ];
+      const tile = surface === "wood" ? 2 : 4;
+      for (let face = 0; face < 6; face++)
+        for (let vertex = 0; vertex < 4; vertex++) {
+          uv[face * 8 + vertex * 2] *= dimensions[face][0] / tile;
+          uv[face * 8 + vertex * 2 + 1] *= dimensions[face][1] / tile;
+        }
+      m.setVerticesData(VertexBuffer.UVKind, uv);
+    }
     m.receiveShadows = true;
     m.isPickable = solid;
     if (h > 0.2) this.shadows.addShadowCaster(m);
@@ -102,11 +206,14 @@ export class World {
     m.isPickable = false;
     return m;
   }
-  updateAlarm(team: Team | undefined, time: number) {
-    const flash = Math.pow(Math.max(0, Math.sin(time * Math.PI * 3)), 2);
+  updateAlarm(team: Team | undefined, time: number, urgency = 0) {
+    const flash = Math.pow(
+      Math.max(0, Math.sin(time * Math.PI * (3 + urgency * 4))),
+      2,
+    );
     for (const [owner, { light, material }] of this.alarmLights) {
       const level = owner === team ? flash : 0;
-      light.intensity = level * 8;
+      light.intensity = level * (8 + urgency * 5);
       material.emissiveColor.set(0.12 + level * 0.88, 0.015, 0.015);
     }
   }
@@ -152,7 +259,7 @@ export class World {
           3.5,
         );
         this.label(
-          "Weapon drop zone",
+          sx < 0 ? "RED Weapon drop" : "BLUE Weapon drop",
           sx * 49 * office01.stretch,
           sz * 30,
           "#ffdc66",
@@ -394,6 +501,7 @@ export class World {
           this.box("arm", x + dx, 0.7, z, 0.2, 0.45, 1.1, "#c5926b");
       } else if (p.kind === "plant") {
         this.box("planter", x, 0.35, z, w, 0.7, d, "#c2b6a1", true);
+        const foliage: Mesh[] = [];
         for (let i = 0; i < 5; i++) {
           const m = MeshBuilder.CreateSphere(
             "leaves",
@@ -409,7 +517,9 @@ export class World {
           m.material = this.mat(i % 2 ? "#4b947d" : "#72ad82");
           m.isPickable = false;
           this.shadows.addShadowCaster(m);
+          foliage.push(m);
         }
+        if (typeof document !== "undefined") void this.replacePalm(x, z, foliage);
       } else if (p.kind === "glass") {
         const m = this.box("glass", x, 1, z, w, 2, d, "#8bd0d4", true);
         const mat = this.mat("#8bd0d4");
@@ -465,6 +575,7 @@ export class World {
             );
           }
       }
+      this.propDetails(p.kind, x, z, w, d);
       if (p.rotation) {
         const angle = (p.rotation * Math.PI) / 180,
           c = Math.round(Math.cos(angle)),
@@ -498,6 +609,238 @@ export class World {
     }
     this.label("COMBAT ATRIUM", 0, 14, "#d3d8c6", 7);
     this.label("BREAKABLE COVER", 0, 10, "#edcb89", 4);
+  }
+  private async replacePalm(x: number, z: number, fallback: Mesh[]) {
+    try {
+      this.palmAsset ??= import("@babylonjs/loaders/glTF").then(() =>
+        LoadAssetContainerAsync("/models/nipa-palm-young.glb", this.scene),
+      );
+      const asset = await this.palmAsset;
+      if (this.scene.isDisposed) return;
+      const instance = asset.instantiateModelsToScene(name => `nipa palm ${name}`, false);
+      const root = instance.rootNodes[0] as TransformNode;
+      const meshes = root.getChildMeshes();
+      let minY = Infinity, maxY = -Infinity;
+      for (const mesh of meshes) {
+        mesh.computeWorldMatrix(true);
+        const bounds = mesh.getBoundingInfo().boundingBox;
+        minY = Math.min(minY, bounds.minimumWorld.y);
+        maxY = Math.max(maxY, bounds.maximumWorld.y);
+      }
+      const scale = 1.65 / Math.max(0.01, maxY - minY);
+      root.scaling.scaleInPlace(scale);
+      root.position.set(x, 0.68 - minY * scale, z);
+      root.rotation.y = Math.sin(x * 17 + z * 11) * Math.PI;
+      for (const old of fallback) {
+        old.visibility = 0;
+        this.shadows.removeShadowCaster(old);
+      }
+      const owner = this.destructibles.find(d => d.prop.kind === "plant" && d.prop.x === x && d.prop.z === z);
+      for (const mesh of meshes) {
+        mesh.isPickable = false;
+        mesh.receiveShadows = true;
+        mesh.metadata = { visualOnly: true };
+        this.shadows.addShadowCaster(mesh);
+        owner?.meshes.push(mesh as Mesh);
+        if (owner && owner.hp <= 0) mesh.setEnabled(false);
+      }
+    } catch (error) {
+      console.warn("Nipa Palm unavailable; keeping original foliage", error);
+    }
+  }
+  propDetails(kind: string, x: number, z: number, w: number, d: number) {
+    const detail = (
+      name: string,
+      dx: number,
+      y: number,
+      dz: number,
+      width: number,
+      height: number,
+      depth: number,
+      color: string,
+    ) => {
+      const mesh = this.box(
+        name,
+        x + dx,
+        y,
+        z + dz,
+        width,
+        height,
+        depth,
+        color,
+      );
+      mesh.isPickable = false;
+      mesh.metadata = { visualOnly: true };
+      // Tiny decoration needs no individual shadow draw call.
+      this.shadows.removeShadowCaster(mesh);
+      return mesh;
+    };
+    if (["desk", "counter", "meetingTable"].includes(kind)) {
+      detail(
+        "table edge band",
+        0,
+        0.89,
+        -d / 2 - 0.008,
+        w,
+        0.045,
+        0.022,
+        "#756851",
+      );
+      for (const dx of [-w * 0.27, w * 0.27]) {
+        detail(
+          "drawer seam",
+          dx,
+          0.6,
+          -d * 0.326,
+          w * 0.28,
+          0.016,
+          0.025,
+          "#253c48",
+        );
+        const handle = detail(
+          "drawer handle",
+          dx,
+          0.53,
+          -d * 0.34,
+          0.2,
+          0.035,
+          0.045,
+          "#a7b6ba",
+        );
+        handle.material = this.finish("#a7b6ba", "metal");
+      }
+      if (kind === "desk") {
+        detail("monitor stand", 0, 1.12, 0.2, 0.12, 0.2, 0.1, "#394e59");
+        detail("monitor base", 0, 1.055, 0.2, 0.4, 0.025, 0.23, "#394e59");
+        for (let row = 0; row < 3; row++)
+          detail(
+            "keyboard key row",
+            0,
+            1.085,
+            -0.28 + row * 0.07,
+            0.57,
+            0.014,
+            0.033,
+            "#839397",
+          );
+        detail("mouse", 0.48, 1.08, -0.17, 0.12, 0.065, 0.2, "#bcc6c1");
+        detail(
+          "paper stack",
+          -w * 0.32,
+          1.062,
+          -0.05,
+          0.34,
+          0.025,
+          0.42,
+          "#e5dfc9",
+        );
+        detail(
+          "paper heading",
+          -w * 0.32,
+          1.077,
+          -0.13,
+          0.23,
+          0.005,
+          0.025,
+          "#738b97",
+        );
+        detail("screen taskbar", 0, 1.25, 0.113, 0.72, 0.028, 0.01, "#305b70");
+      }
+    } else if (kind === "sofa") {
+      for (const dx of [-w / 6, w / 6])
+        detail(
+          "cushion seam",
+          dx,
+          0.809,
+          -0.08,
+          0.018,
+          0.01,
+          d * 0.66,
+          "#805d4c",
+        );
+      detail(
+        "sofa piping",
+        0,
+        0.75,
+        -d / 2 - 0.008,
+        w * 0.9,
+        0.025,
+        0.018,
+        "#d19b74",
+      );
+      for (const dx of [-w * 0.36, w * 0.36])
+        detail("sofa foot", dx, 0.1, -d * 0.3, 0.14, 0.18, 0.14, "#2b3d46");
+    } else if (
+      ["server", "vending", "coffee", "printer", "waterCooler"].includes(kind)
+    ) {
+      for (let i = 0; i < 4; i++)
+        detail(
+          "machine ventilation",
+          w * 0.28,
+          0.28 + i * 0.07,
+          -d / 2 - 0.024,
+          w * 0.23,
+          0.024,
+          0.018,
+          "#122530",
+        );
+      detail(
+        "service panel seam",
+        -w * 0.35,
+        0.7,
+        -d / 2 - 0.023,
+        0.016,
+        0.55,
+        0.02,
+        "#1d3440",
+      );
+      detail(
+        "service label",
+        -w * 0.2,
+        0.4,
+        -d / 2 - 0.04,
+        0.16,
+        0.09,
+        0.012,
+        "#c9c9b2",
+      );
+    } else if (kind === "boxes" || kind === "pallet") {
+      for (const dx of [-w * 0.25, w * 0.25]) {
+        detail(
+          "shipping label",
+          dx,
+          1.55,
+          -d * 0.426,
+          0.22,
+          0.19,
+          0.014,
+          "#e5dfc9",
+        );
+        for (let i = 0; i < 3; i++)
+          detail(
+            "label print",
+            dx,
+            1.51 + i * 0.035,
+            -d * 0.426 - 0.01,
+            0.14,
+            0.014,
+            0.01,
+            "#5d605b",
+          );
+      }
+    } else if (kind === "partition") {
+      for (const dx of [-w * 0.38, w * 0.38])
+        detail(
+          "partition support foot",
+          dx,
+          0.06,
+          0,
+          0.18,
+          0.12,
+          d + 0.32,
+          "#3a505b",
+        );
+    }
   }
   officeObject(kind: string, x: number, z: number, w: number, d: number) {
     const box = (

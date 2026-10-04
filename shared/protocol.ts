@@ -1,9 +1,13 @@
 import type { Team } from "../src/config/game";
 import type { WeaponId } from "../src/config/weapons";
 export const MSG = {
+  loadout: "loadout",
+  netReady: "netReady",
+  teamPing: "teamPing",
   ready: "ready",
   chat: "chat",
   input: "input",
+  motionDiagnostics: "motionDiagnostics",
   ping: "ping",
   start: "start",
   restart: "restart",
@@ -18,8 +22,11 @@ export interface AvailableRoom {
   players: { name: string; team: Team }[];
   capacity: number;
   started: boolean;
+  preparing?: boolean;
 }
 export interface NetInput {
+  rc?: import("../src/game/rcCar").RCCommand;
+  viewTime?: number;
   seq?: number;
   moveX: number;
   moveZ: number;
@@ -30,9 +37,19 @@ export interface NetInput {
   jump: boolean;
   interact: boolean;
   warcry?: boolean;
-  slot: 0 | 1 | 2;
+  slot: 0 | 1 | 2 | 3;
 }
 export interface NetPlayer {
+  rcRemote?: boolean;
+  beacon?: boolean;
+  loadout?: import("../src/game/loadout").Loadout;
+  utilityKind?: "pulseTrap" | "superMedkit" | "rcCar";
+  utilityCount?: number;
+  pulseTrap?: boolean;
+  pulseTrapSelected?: boolean;
+  assists?: number;
+  disarms?: number;
+  coreDamage?: number;
   kills?: number;
   disarm?: number;
   ack: number;
@@ -54,6 +71,20 @@ export interface NetPlayer {
   reload: number;
 }
 export interface Snapshot {
+  rcCars?: import("../src/game/rcCar").RCCarState[];
+  seq?: number;
+  serverTime?: number;
+  placedMedkits?: import("../src/game/pulseTrap").PlacedMedkit[];
+  pulseTraps?: import("../src/game/pulseTrap").PulseTrapState[];
+  pulseTrapDrops?: import("../src/game/pulseTrap").PulseTrapDrop[];
+  beacons?: import("../src/game/beacon").BeaconState[];
+  beaconDrops?: import("../src/game/beacon").BeaconDrop[];
+  countdown?: number;
+  roundStats?: ({
+    id: string;
+    name: string;
+    team: Team;
+  } & import("../src/game/engagement").Performance)[];
   round?: number;
   wins?: Record<Team, number>;
   ready?: string[];
@@ -83,12 +114,26 @@ export interface Snapshot {
   alarms?: Team[];
   alarm?: Team;
   started: boolean;
+  preparing?: boolean;
   winner?: Team;
 }
 export interface NetEvent {
+  material?: "player" | "metal" | "glass" | "wood";
+  destroyed?: boolean;
   damage?: number;
   inputSeq?: number;
   kind:
+    | "rcExplosion"
+    | "ammoPickup"
+    | "pulseTrapAvailable"
+    | "beaconImpact"
+    | "beaconPlace"
+    | "beaconShot"
+    | "beaconAvailable"
+    | "beaconDamage"
+    | "hit"
+    | "kill"
+    | "disarmed"
     | "trace"
     | "shot"
     | "death"
@@ -118,7 +163,9 @@ export function validInput(value: unknown): value is NetInput {
     Object.keys(value).some(
       (key) =>
         ![
+          "rc",
           "seq",
+          "viewTime",
           "moveX",
           "moveZ",
           "aimX",
@@ -135,6 +182,19 @@ export function validInput(value: unknown): value is NetInput {
     return false;
   const v = value as NetInput;
   return (
+    (v.rc === undefined ||
+      (typeof v.rc === "object" &&
+        v.rc !== null &&
+        Object.keys(v.rc).every((k) =>
+          ["throttle", "yaw", "detonate"].includes(k),
+        ) &&
+        Number.isFinite(v.rc.throttle) &&
+        Math.abs(v.rc.throttle) <= 1 &&
+        Number.isFinite(v.rc.yaw) &&
+        Math.abs(v.rc.yaw) <= Math.PI &&
+        typeof v.rc.detonate === "boolean")) &&
+    (v.viewTime === undefined ||
+      (Number.isFinite(v.viewTime) && v.viewTime >= 0)) &&
     (v.seq === undefined || (Number.isSafeInteger(v.seq) && v.seq >= 0)) &&
     [v.moveX, v.moveZ, v.aimX, v.aimZ].every(Number.isFinite) &&
     Math.abs(v.moveX) <= 1 &&
@@ -145,6 +205,6 @@ export function validInput(value: unknown): value is NetInput {
       (x) => typeof x === "boolean",
     ) &&
     (v.warcry === undefined || typeof v.warcry === "boolean") &&
-    [0, 1, 2].includes(v.slot)
+    [0, 1, 2, 3].includes(v.slot)
   );
 }

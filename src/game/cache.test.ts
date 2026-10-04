@@ -12,6 +12,8 @@ test("versioned cache reuses unchanged content, fetches revisions and retains tw
     open: async (name: string) => {
       if (!stores.has(name)) stores.set(name, new Map());
       return {
+        match: async (request: Request) =>
+          stores.get(name)!.get(request.url)?.clone(),
         put: async (request: Request, response: Response) => {
           stores.get(name)!.set(request.url, response.clone());
         },
@@ -35,6 +37,7 @@ test("versioned cache reuses unchanged content, fetches revisions and retains tw
       addEventListener: (name: string, fn: (typeof handlers)[string]) => {
         handlers[name] = fn;
       },
+      registration: { active: undefined },
       skipWaiting: async () => {},
       clients: {
         claim: async () => {},
@@ -50,13 +53,14 @@ test("versioned cache reuses unchanged content, fetches revisions and retains tw
       },
     };
     runInNewContext(
-      `const VERSION=${JSON.stringify(version)};const FILES={"/assets/map.js":${JSON.stringify(hash)}};\n` +
+      `const VERSION=${JSON.stringify(version)};const BOOT_FILES=["/assets/map.js"];const FILES={"/assets/map.js":${JSON.stringify(hash)}};\n` +
         readFileSync("scripts/service-worker.js", "utf8"),
       {
         self,
         caches,
         Request,
         Response,
+        Headers,
         URL,
         fetch: async () => {
           downloads++;
@@ -78,10 +82,10 @@ test("versioned cache reuses unchanged content, fetches revisions and retains tw
   assert.equal(reloads, 0);
   await install("two", "same");
   assert.equal(downloads, 1);
-  assert.equal(reloads, 1);
+  assert.equal(reloads, 0);
   await install("three", "changed");
   assert.equal(downloads, 2);
-  assert.equal(reloads, 2);
+  assert.equal(reloads, 0);
   assert.deepEqual(
     [...stores.keys()],
     ["office-core-two", "office-core-three"],

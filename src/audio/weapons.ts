@@ -8,6 +8,7 @@ export class WeaponAudio {
     bazooka: 1,
     burstGun: 1,
     pulseGun: 1,
+    plasmaMine: 1,
     explosion: 1,
     bazookaExplosion: 1,
     ricochet: 1,
@@ -26,12 +27,18 @@ export class WeaponAudio {
   buffers = new Map<string, AudioBuffer>();
   private footstepVoices = new Map<
     string,
-    { source: AudioBufferSourceNode; gain: GainNode; pan: StereoPannerNode }
+    {
+      source: AudioBufferSourceNode;
+      gain: GainNode;
+      pan: StereoPannerNode;
+      filter: BiquadFilterNode;
+    }
   >();
   updateFootsteps(
     emitters: { id: string; x: number; z: number; moving: boolean }[],
     listener: { x: number; z: number },
     enabled: boolean,
+    carpet: (x: number, z: number) => boolean = () => false,
   ) {
     const audible = new Set<string>();
     const buffer = this.buffers.get("footsteps");
@@ -52,17 +59,36 @@ export class WeaponAudio {
           source.buffer = buffer;
           source.loop = true;
           gain.gain.value = 0;
-          source.connect(gain).connect(pan).connect(this.master);
+          const filter = this.context.createBiquadFilter();
+          filter.type = "lowpass";
+          filter.frequency.value = 7500;
+          source
+            .connect(filter)
+            .connect(gain)
+            .connect(pan)
+            .connect(this.master);
           source.onended = () => {
             source.disconnect();
+            filter.disconnect();
             gain.disconnect();
             pan.disconnect();
           };
           source.start();
-          voice = { source, gain, pan };
+          voice = { source, gain, pan, filter };
           this.footstepVoices.set(emitter.id, voice);
         }
-        const attenuation = Math.pow(1 - distance / 18, 2);
+        const soft = carpet(emitter.x, emitter.z);
+        voice.filter.frequency.setTargetAtTime(
+          soft ? 1200 : 7500,
+          this.context.currentTime,
+          0.05,
+        );
+        voice.source.playbackRate.setTargetAtTime(
+          soft ? 0.86 : 1.05,
+          this.context.currentTime,
+          0.08,
+        );
+        const attenuation = Math.pow(1 - distance / 18, 2) * (soft ? 0.55 : 1);
         voice.gain.gain.setTargetAtTime(
           0.65 * this.levels.footsteps * attenuation,
           this.context.currentTime,
@@ -156,9 +182,19 @@ export class WeaponAudio {
       distance: number;
       pan: number;
       blocked: boolean;
+      timer?: number;
     }[] = [],
   ) {
     this.updateSpatialLoops("clock", "busterClock", active ? emitters : [], 1);
+    for (const emitter of emitters) {
+      const voice = this.spatialLoops.get("clock:" + emitter.id);
+      if (voice)
+        voice.source.playbackRate.setTargetAtTime(
+          emitter.timer !== undefined && emitter.timer <= 10 ? 1.6 : 1,
+          this.context.currentTime,
+          0.1,
+        );
+    }
   }
   private tapVoice?: { source: AudioBufferSourceNode; gain: GainNode };
   private noise: AudioBuffer;
@@ -188,6 +224,7 @@ export class WeaponAudio {
         "bazooka",
         "pulseGun",
         "burstGun",
+        "plasmaMine",
         "explosion",
         "bazookaExplosion",
         "coreAlarm",
@@ -200,10 +237,12 @@ export class WeaponAudio {
         "death1",
         "death2",
         "death3",
+        "reload",
         "spawn",
       ].map(async (name) => {
         try {
           const folder = [
+            "plasmaMine",
             "explosion",
             "bazookaExplosion",
             "coreAlarm",
@@ -216,6 +255,7 @@ export class WeaponAudio {
             "death1",
             "death2",
             "death3",
+            "reload",
             "spawn",
           ].includes(name)
             ? "effects"
@@ -228,7 +268,7 @@ export class WeaponAudio {
             await response.arrayBuffer(),
           );
           if (name === "machineGun") this.prepareMachineGun(decoded);
-          else if (name === "ricochet")
+          else if (name === "ricochet" || name === "plasmaMine")
             this.buffers.set(name, this.trimLeadingSilence(decoded));
           else this.buffers.set(name, decoded);
         } catch {
@@ -341,6 +381,9 @@ export class WeaponAudio {
       0.02,
     );
   }
+  playAmmoPickup() {
+    return this.sample("reload", 0.8);
+  }
   playSpawn() {
     return this.sample("spawn", this.levels.spawn);
   }
@@ -378,6 +421,9 @@ export class WeaponAudio {
   playBazookaExplosion(strength: number) {
     return this.sample("bazookaExplosion", Math.max(0, strength) * 1.6);
   }
+  playPlasmaMine(strength: number) {
+    return this.sample("plasmaMine", Math.max(0, strength) * 1.3);
+  }
   playExplosion(strength: number) {
     return this.sample("explosion", Math.max(0, strength) * 1.6);
   }
@@ -392,9 +438,24 @@ export class WeaponAudio {
     );
   }
   setCoreAlarms(
-    emitters: { id: string; distance: number; pan: number; blocked: boolean }[],
+    emitters: {
+      id: string;
+      distance: number;
+      pan: number;
+      blocked: boolean;
+      urgency?: number;
+    }[],
   ) {
     this.updateSpatialLoops("alarm", "coreAlarm", emitters, 0.85);
+    for (const emitter of emitters) {
+      const voice = this.spatialLoops.get("alarm:" + emitter.id);
+      if (voice)
+        voice.source.playbackRate.setTargetAtTime(
+          1 + (emitter.urgency ?? 0) * 0.5,
+          this.context.currentTime,
+          0.2,
+        );
+    }
   }
   setAlarm(active: boolean, spatial = { distance: 0, pan: 0, blocked: false }) {
     this.updateSpatialLoops(

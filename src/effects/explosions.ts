@@ -9,6 +9,7 @@ import {
 import type { World } from "../map/builder";
 interface Particle {
   mesh: Mesh;
+  sharedTextures?: boolean;
   velocity: Vector3;
   spin: Vector3;
   life: number;
@@ -35,6 +36,7 @@ export class Explosions {
     // Bound transient GPU resources during rapid destruction.
     while (this.particles.length > 220) this.remove(this.particles.shift()!);
     const scene = this.world.scene;
+    const plasma = sound === "plasmaMine";
     const add = (
       mesh: Mesh,
       kind: Particle["kind"],
@@ -61,14 +63,18 @@ export class Explosions {
       { diameter: 1, segments: 6 },
       scene,
     );
-    flash.material = this.world.mat("#ffca70", true).clone("burst material");
+    flash.material = this.world
+      .mat(plasma ? "#b9f7ff" : "#ffca70", true)
+      .clone("burst material");
     add(flash, "flash", 0.22);
     const ring = MeshBuilder.CreateTorus(
       "shockwave",
       { diameter: 1, thickness: 0.055, tessellation: 40 },
       scene,
     );
-    ring.material = this.world.mat("#ffe8ad", true).clone("ring material");
+    ring.material = this.world
+      .mat(plasma ? "#ff55c3" : "#ffe8ad", true)
+      .clone("ring material");
     add(ring, "ring", 0.45);
     ring.position.y = 0.12;
     for (let i = 0; i < 22; i++) {
@@ -82,7 +88,18 @@ export class Explosions {
         scene,
       );
       chunk.material = this.world
-        .mat(i % 4 === 0 ? "#ffc068" : color)
+        .mat(
+          plasma
+            ? i % 3 === 0
+              ? "#63eaff"
+              : i % 3 === 1
+                ? "#ff55c3"
+                : "#b7c9cf"
+            : i % 4 === 0
+              ? "#ffc068"
+              : color,
+          plasma && i % 3 !== 2,
+        )
         .clone("debris material");
       const a = Math.random() * Math.PI * 2,
         speed = (2 + Math.random() * 5) * power;
@@ -104,7 +121,15 @@ export class Explosions {
         scene,
       );
       const mat = new StandardMaterial("smoke material", scene);
-      mat.diffuseColor = Color3.FromHexString(i % 2 ? "#45515b" : "#859393");
+      mat.diffuseColor = Color3.FromHexString(
+        plasma
+          ? i % 2
+            ? "#69527d"
+            : "#7e8faa"
+          : i % 2
+            ? "#45515b"
+            : "#859393",
+      );
       mat.specularColor = Color3.Black();
       mat.alpha = 0.6;
       smoke.material = mat;
@@ -121,7 +146,7 @@ export class Explosions {
     }
     if (this.lights.length < 4) {
       const light = new PointLight("explosion light", position.clone(), scene);
-      light.diffuse = Color3.FromHexString("#ffc57d");
+      light.diffuse = Color3.FromHexString(plasma ? "#df70ff" : "#ffc57d");
       light.range = 8;
       light.intensity = 5;
       this.lights.push({ light, life: 0.18 });
@@ -215,7 +240,14 @@ export class Explosions {
     }
   }
   private remove(p: Particle) {
-    p.mesh.dispose(false, true);
+    if (p.sharedTextures) {
+      const materials = new Set([
+        p.mesh.material,
+        ...p.mesh.getChildMeshes().map((m) => m.material),
+      ]);
+      p.mesh.dispose(false, false);
+      for (const material of materials) material?.dispose(false, false);
+    } else p.mesh.dispose(false, true);
   }
   update(dt: number) {
     for (const p of this.particles) {

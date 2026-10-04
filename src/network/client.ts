@@ -1,3 +1,6 @@
+import { SnapshotReceiver, type StreamPacket } from "./streams";
+import { decodeSnapshot, type SnapshotDelta } from "./snapshots";
+import { NetworkTiming } from "./timing";
 import { Client, type Room } from "colyseus.js";
 import { initializeApp } from "firebase/app";
 import { getAuth, signInAnonymously, connectAuthEmulator } from "firebase/auth";
@@ -8,6 +11,9 @@ import {
   type NetInput,
   type AvailableRoom,
 } from "../../shared/protocol";
+// Diagnostics can be disabled for a comparison build.
+const motionDiagnosticsEnabled =
+  import.meta.env.VITE_MOTION_DIAGNOSTICS !== "false";
 const app = initializeApp({
   apiKey: "AIzaSyAkgVLtGKDqojp40IdtA4ewaER_HyoIBRk",
   authDomain: "officecore-ad307.firebaseapp.com",
@@ -20,6 +26,7 @@ const auth = getAuth(app);
 if (import.meta.env.VITE_AUTH_EMULATOR_URL)
   connectAuthEmulator(auth, import.meta.env.VITE_AUTH_EMULATOR_URL);
 export class Multiplayer {
+  timing = new NetworkTiming();
   sequence = 0;
   leaving = false;
   constructor() {
@@ -78,9 +85,30 @@ export class Multiplayer {
   room?: Room;
   connected = false;
   rtt = 0;
+  private sentAt: number[] = [];
+  lastAck = -1;
+  lastAckAt = 0;
+  lastSnapshotAt = 0;
+  private nextMotionReport = 0;
+  private lastMotionReport = 0;
+  private maxPending = 0;
+  private maxFrameMs = 0;
+  private maxSnapshotGapMs = 0;
+  private maxSnapshotHandlerMs = 0;
+  private decodeFailures = 0;
+  private lastPacketAt = 0;
+  private maxPacketGapMs = 0;
+  private nextResync = 0;
+  get sentRate() {
+    return this.sentAt.filter((t) => t >= performance.now() - 1000).length;
+  }
+  get ackAge() {
+    return this.lastAckAt ? performance.now() - this.lastAckAt : 0;
+  }
   nextPing = 0;
   snapshot?: Snapshot;
   history: { at: number; snapshot: Snapshot }[] = [];
+  onTeamPing: (ping: import("../game/engagement").TeamPing) => void = () => {};
   onChat: (message: { name: string; text: string }) => void = () => {};
   onSnapshot: (snapshot: Snapshot) => void = () => {};
   onEvent: (event: NetEvent) => void = () => {};
@@ -106,17 +134,73 @@ export class Multiplayer {
     this.bind(room);
   }
   bind(room: Room) {
+    this.lastAck = -1;
+    this.lastAckAt = this.lastSnapshotAt = this.lastPacketAt = 0;
+    this.lastMotionReport = this.nextMotionReport = this.nextResync = 0;
+    this.maxPending =
+      this.maxFrameMs =
+      this.maxPacketGapMs =
+      this.maxSnapshotGapMs =
+      this.maxSnapshotHandlerMs =
+      this.decodeFailures =
+        0;
+    this.sentAt = [];
     this.history = [];
+    this.snapshot = undefined;
+    this.timing = new NetworkTiming();
     this.room = room;
     this.connected = true;
     this.saveResume();
     this.onStatus("ANSLUTEN TILL OFFICE01");
-    room.onMessage(MSG.snapshot, (snapshot: Snapshot) => {
-      this.history.push({ at: performance.now(), snapshot });
-      if (this.history.length > 12) this.history.shift();
-      this.snapshot = snapshot;
-      this.onSnapshot(snapshot);
-    });
+    const receiver = new SnapshotReceiver();
+    room.onMessage(
+      MSG.snapshot,
+      (packet: Snapshot | SnapshotDelta | StreamPacket) => {
+        const receivedAt = performance.now();
+        if (motionDiagnosticsEnabled && this.lastPacketAt)
+          this.maxPacketGapMs = Math.max(
+            this.maxPacketGapMs,
+            receivedAt - this.lastPacketAt,
+          );
+        if (motionDiagnosticsEnabled) this.lastPacketAt = receivedAt;
+        const snapshot =
+          "stream" in packet
+            ? receiver.decode(packet)
+            : decodeSnapshot(this.snapshot, packet);
+        if (!snapshot) {
+          if (motionDiagnosticsEnabled) this.decodeFailures++;
+          if (receivedAt >= this.nextResync) {
+            this.nextResync = receivedAt + 250;
+            this.room?.send(MSG.netReady, { stream: 2 });
+          }
+          return;
+        }
+        const serverTime = snapshot.serverTime ?? performance.now();
+        this.timing.observe(serverTime, performance.now());
+        this.history.push({ at: serverTime, snapshot });
+        if (this.history.length > 12) this.history.shift();
+        if (motionDiagnosticsEnabled && this.lastSnapshotAt)
+          this.maxSnapshotGapMs = Math.max(
+            this.maxSnapshotGapMs,
+            receivedAt - this.lastSnapshotAt,
+          );
+        this.lastSnapshotAt = receivedAt;
+        const own = snapshot.players.find((p) => p.id === room.sessionId);
+        if (own && own.ack !== this.lastAck) {
+          this.lastAck = own.ack;
+          this.lastAckAt = this.lastSnapshotAt;
+        }
+        this.snapshot = snapshot;
+        this.onSnapshot(snapshot);
+        if (motionDiagnosticsEnabled)
+          this.maxSnapshotHandlerMs = Math.max(
+            this.maxSnapshotHandlerMs,
+            performance.now() - receivedAt,
+          );
+      },
+    );
+    room.send(MSG.netReady, { stream: 2 });
+    room.onMessage(MSG.teamPing, (ping) => this.onTeamPing(ping));
     room.onMessage(MSG.chat, (message: { name: string; text: string }) =>
       this.onChat(message),
     );
@@ -152,8 +236,61 @@ export class Multiplayer {
       );
     });
   }
+  reportMotion(
+    fps: number,
+    pending: number,
+    correction: number,
+    frameMs = 0,
+    renderer = "unknown",
+  ) {
+    if (!motionDiagnosticsEnabled) return;
+    const now = performance.now();
+    this.maxPending = Math.max(this.maxPending, pending);
+    this.maxFrameMs = Math.max(this.maxFrameMs, frameMs);
+    const alarm =
+      this.maxPending >= 12 ||
+      this.ackAge > 150 ||
+      this.maxFrameMs > 100 ||
+      this.decodeFailures > 0;
+    if (
+      !this.connected ||
+      (now < this.nextMotionReport &&
+        (!alarm || now - this.lastMotionReport < 1000))
+    )
+      return;
+    this.lastMotionReport = now;
+    this.nextMotionReport = now + 5000;
+    this.room?.send(MSG.motionDiagnostics, {
+      fps,
+      pending,
+      correction,
+      sentRate: this.sentRate,
+      ackAge: this.ackAge,
+      snapshotAge: this.lastSnapshotAt ? now - this.lastSnapshotAt : 0,
+      clientAck: this.lastAck,
+      sentSeq: this.sequence,
+      packetAge: this.lastPacketAt ? now - this.lastPacketAt : 0,
+      maxPending: this.maxPending,
+      maxFrameMs: this.maxFrameMs,
+      maxPacketGapMs: this.maxPacketGapMs,
+      maxSnapshotGapMs: this.maxSnapshotGapMs,
+      maxSnapshotHandlerMs: this.maxSnapshotHandlerMs,
+      decodeFailures: this.decodeFailures,
+      predictionBlocked: pending >= 64 ? 1 : 0,
+      version: `pc-motion-v4-${renderer === "WebGPUEngine" ? "webgpu" : renderer === "Engine" ? "webgl" : "unknown"}`,
+    });
+    this.maxPending =
+      this.maxFrameMs =
+      this.maxPacketGapMs =
+      this.maxSnapshotGapMs =
+      this.maxSnapshotHandlerMs =
+      this.decodeFailures =
+        0;
+  }
   send(input: NetInput) {
     if (this.connected) {
+      this.sentAt.push(performance.now());
+      this.sentAt = this.sentAt.filter((t) => t >= performance.now() - 1000);
       this.sequence = Math.max(this.sequence, input.seq ?? 0);
       this.room?.send(MSG.input, input);
       if (Date.now() >= this.nextPing) {

@@ -23,6 +23,11 @@ export function resetRound(
     w.rockets = [];
     for (const t of w.trail) t.mesh.dispose();
     w.trail = [];
+    w.carryingBeacon = false;
+    w.remoteControlled = false;
+    w.utilityCount = 0;
+    w.pulseTrapSelected = false;
+    w.player.gun.setEnabled(true);
     w.specialWeapon = undefined;
     w.warcryAvailable = false;
     w.player.invulnerable = 0;

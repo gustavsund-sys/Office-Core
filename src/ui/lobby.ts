@@ -71,7 +71,14 @@ export class Lobby {
     while (list.children.length > 100) list.firstElementChild!.remove();
     list.scrollTop = list.scrollHeight;
   }
+  private rosterKey = "";
   update(members: MatchMember[], selected: Team) {
+    const key = JSON.stringify([
+      selected,
+      members.map((p) => [p.name, p.team]),
+    ]);
+    if (key === this.rosterKey) return;
+    this.rosterKey = key;
     for (const card of Array.from(
       this.el.querySelectorAll<HTMLElement>("[data-team]"),
     )) {
