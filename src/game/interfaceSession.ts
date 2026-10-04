@@ -33,7 +33,7 @@ export function updateDisarm(this: Context, progress?: number) {
 export function updateLobbyMusic(this: Context, unlock = false) {
   if (unlock) this.lobbyMusicBlocked = false;
   this.lobbyMusic.loop = true;
-  this.lobbyMusic.volume = this.lobbyMuted ? 0 : 0.35;
+  this.lobbyMusic.volume = this.lobbyMuted ? 0 : 0.7;
   const inLobby = !this.match.started && !this.match.winner && this.sound;
   if (!inLobby) {
     this.lobbyMusic.pause();

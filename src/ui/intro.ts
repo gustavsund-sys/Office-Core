@@ -39,7 +39,7 @@ export function showTutorial(): Promise<void> {
 export async function showIntro(force = false) {
   try { if (!force && localStorage.getItem(INTRO_PREFERENCE) === "1") return; } catch { /* Storage may be unavailable. */ }
   const el = modal("onboarding intro-screen", "Office Core intro");
-  el.innerHTML = `<video playsinline muted preload="metadata" poster="/branding/office-core-lobby-wide.webp" aria-label="Office Core introfilm"></video><div class="intro-shade"></div><div class="intro-brand"><span class="onboarding-kicker">WELCOME TO THE OFFICE</span><img src="/branding/office-core-primary.webp" alt="Office Core" /></div><button class="intro-sound">Slå på ljud</button><div class="intro-actions"><p class="intro-status" role="status"></p><label><input type="checkbox" class="intro-remember"> Visa inte igen</label><div><button class="intro-skip">Skip intro →</button><button class="intro-tutorial">Skip and show tutorial</button></div></div>`;
+  el.innerHTML = `<video playsinline preload="metadata" poster="/branding/office-core-lobby-wide.webp" aria-label="Office Core introfilm"></video><div class="intro-shade"></div><div class="intro-launch"><div class="launch-core" aria-hidden="true"><i></i><i></i><span>◆</span></div><span class="onboarding-kicker">YOUR NEXT WORKDAY STARTS HERE</span><p>Två lag. En arbetsplats. Total kontorskaos.</p><button class="intro-start"><span class="launch-key" aria-hidden="true">▶</span><span>STARTA OFFICE CORE</span><span class="launch-arrow" aria-hidden="true">↗</span></button><div class="launch-ready"><i></i> SYSTEM READY · HEADQUARTERS / 01</div></div><div class="intro-brand"><span class="onboarding-kicker">WELCOME TO THE OFFICE</span><img src="/branding/office-core-primary.webp" alt="Office Core" /></div><button class="intro-sound" hidden>Stäng av ljud</button><div class="intro-actions"><p class="intro-status" role="status"></p><label class="intro-remember-label" hidden><input type="checkbox" class="intro-remember"> Visa inte igen</label><div><button class="intro-skip" hidden>Skip intro →</button><button class="intro-tutorial" hidden>Skip and show tutorial</button></div></div>`;
   const video = el.querySelector("video")!;
   const remember = el.querySelector<HTMLInputElement>(".intro-remember")!;
   try { remember.checked = localStorage.getItem(INTRO_PREFERENCE) === "1"; } catch { /* Storage may be unavailable. */ }
@@ -62,10 +62,34 @@ export async function showIntro(force = false) {
     el.querySelector<HTMLButtonElement>(".intro-skip")!.onclick = () => { void finish(); };
     el.querySelector<HTMLButtonElement>(".intro-tutorial")!.onclick = () => { void finish(true); };
     const sound = el.querySelector<HTMLButtonElement>(".intro-sound")!;
-    sound.onclick = () => { video.muted = !video.muted; sound.textContent = video.muted ? "Slå på ljud" : "Stäng av ljud"; void video.play().catch(() => {}); };
+    sound.onclick = () => {
+      video.muted = video.paused ? false : !video.muted;
+      sound.textContent = video.muted ? "Slå på ljud" : "Stäng av ljud";
+      void video.play().then(() => { el.querySelector(".intro-status")!.textContent = ""; }).catch(() => {
+        sound.textContent = "Starta med ljud";
+      });
+    };
     video.onended = () => { void finish(); };
     video.onerror = () => { el.querySelector(".intro-status")!.textContent = "Filmen kunde inte laddas. Du kan fortsätta till spelet eller öppna tutorialen."; };
-    el.querySelector<HTMLButtonElement>(".intro-skip")!.focus();
-    void video.play().catch(() => { el.querySelector(".intro-status")!.textContent = "Tryck på ljudknappen för att starta filmen, eller välj Skip intro."; });
+    const launch = el.querySelector<HTMLElement>(".intro-launch")!;
+    const start = el.querySelector<HTMLButtonElement>(".intro-start")!;
+    start.onclick = () => {
+      video.muted = false;
+      // Call play directly from the real click, before awaiting anything.
+      const playback = video.play();
+      el.querySelector<HTMLButtonElement>(".intro-skip")!.hidden = false;
+      el.querySelector<HTMLButtonElement>(".intro-tutorial")!.hidden = false;
+      el.querySelector<HTMLElement>(".intro-remember-label")!.hidden = false;
+      launch.classList.add("launched");
+      launch.setAttribute("aria-hidden", "true");
+      start.disabled = true;
+      sound.hidden = false;
+      sound.focus();
+      void playback.catch(() => {
+        sound.textContent = "Starta med ljud";
+        el.querySelector(".intro-status")!.textContent = "Tryck på Starta med ljud, eller välj Skip intro.";
+      });
+    };
+    start.focus();
   });
 }

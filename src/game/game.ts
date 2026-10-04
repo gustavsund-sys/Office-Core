@@ -163,7 +163,7 @@ export class Game {
   updateDisarm(progress?: number) {
     return updateDisarmImpl.call(this, progress);
   }
-  lobbyMusic = new Audio("/audio/music/office-groove.mp3");
+  lobbyMusic = new Audio("/audio/music/tactical-pulse.mp3");
   lobbyMusicBlocked = false;
   lobbyMusicPending = false;
   updateLobbyMusic(unlock = false) {

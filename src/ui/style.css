@@ -2582,3 +2582,36 @@ kbd {
 .tutorial-copy nav { display: flex; justify-content: space-between; gap: 10px; margin-top: 25px; }
 .tutorial-copy .tutorial-close { border: 0; padding: 12px 0 0; background: transparent; color: #91acb5; font-size: 12px; }
 @media (max-width: 650px) { .tutorial-card { grid-template-columns: 1fr; } .tutorial-art { min-height: 0; height: 160px; } .tutorial-copy { padding: 20px; } .tutorial-copy h1 { font-size: 30px; } .intro-actions { left: 15px; right: 15px; bottom: 20px; } .intro-actions button { margin: 5px 0 0; } .intro-brand { left: 15px; } .intro-sound { right: 15px; } }
+
+.intro-launch { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; background: radial-gradient(ellipse at 30% 50%, #d13e392b, transparent 50%), radial-gradient(ellipse at 70% 50%, #29b8e42b, transparent 50%), linear-gradient(#07131c9c, #06131af5); transition: opacity .45s, transform .45s; }
+.intro-launch.launched { opacity: 0; transform: scale(1.04); pointer-events: none; }
+.intro-launch h1 { font: 900 clamp(48px, 9vw, 105px)/.95 "Barlow Condensed", Impact, sans-serif; letter-spacing: 2px; margin: 20px 0 12px; text-shadow: 0 5px 0 #0006; }
+.intro-launch h1 em { font-style: normal; color: #77dce9; }
+.intro-launch p { font-size: 15px; color: #bdcfd6; margin: 0 15px 30px; text-align: center; }
+.launch-core { width: 88px; height: 88px; display: grid; place-items: center; position: relative; margin-bottom: 28px; }
+.launch-core span { font-size: 48px; color: #91f5ff; text-shadow: 0 0 25px #42dfff, 0 0 60px #42dfff88; animation: core-breathe 2.8s ease-in-out infinite; }
+.launch-core i { position: absolute; inset: 0; border: 2px solid #71dce477; transform: rotate(45deg); }
+.launch-core i:nth-child(2) { inset: -9px; border-color: #ed736858; animation: core-orbit 14s linear infinite; }
+.onboarding .intro-start { position: relative; display: flex; align-items: center; gap: 22px; padding: 20px 25px; min-width: min(440px, 90vw); text-align: left; border: 1px solid #a2eeef; border-left: 5px solid #ff8a70; border-radius: 3px; background: linear-gradient(110deg, #23516a, #173b49); box-shadow: 0 0 35px #44cbd42b, inset 0 1px 0 #ffffff35, 0 6px 0 #030f18; transition: transform .15s, box-shadow .15s, background .15s; }
+.onboarding .intro-start:hover { transform: translateY(-3px); background: linear-gradient(110deg, #307594, #235767); box-shadow: 0 0 50px #44cbd455, inset 0 1px 0 #ffffff35, 0 9px 0 #030f18; }
+.onboarding .intro-start:active { transform: translateY(3px); box-shadow: 0 0 25px #44cbd42b; }
+.intro-start > span:nth-child(2) { font: 800 27px/1 "Barlow Condensed", Impact, sans-serif; letter-spacing: 1px; }
+.intro-start small { display: block; font: 700 9px/1.4 Inter, sans-serif; color: #99ccd6; letter-spacing: 1.6px; margin-top: 8px; }
+.launch-key { font-size: 22px; color: #ffb595; }
+.launch-arrow { margin-left: auto; font-size: 30px; color: #9cebf1; }
+.launch-ready { font: 10px monospace; letter-spacing: 1.5px; color: #7899a8; margin-top: 25px; }
+.launch-ready i { display: inline-block; height: 5px; width: 5px; border-radius: 50%; background: #91e2b2; margin-right: 6px; box-shadow: 0 0 8px #91e2b2; }
+@keyframes core-breathe { 50% { transform: scale(.88); opacity: .65; } }
+@keyframes core-orbit { to { transform: rotate(405deg); } }
+@media (prefers-reduced-motion: reduce) { .launch-core span, .launch-core i { animation: none; } .intro-launch, .onboarding .intro-start { transition: none; } }
+@media (max-height: 650px) { .launch-core { width: 50px; height: 50px; margin-bottom: 18px; } .intro-launch h1 { font-size: 48px; margin: 12px 0; } .intro-launch p { margin-bottom: 15px; } .intro-actions { bottom: 12px; } }
+
+/* Let the original artwork and logo lead the launch screen. */
+.intro-screen:not(:has(.intro-launch.launched)) video { object-fit: contain; }
+.intro-launch { justify-content: flex-end; padding-bottom: max(65px, calc(11vh - 40px)); background: linear-gradient(180deg, #07131c15 0%, #07131c08 45%, #06131a88 85%, #06131acc 100%); }
+.intro-launch .launch-core, .intro-launch > .onboarding-kicker, .intro-launch > p { display: none; }
+@media (max-height: 650px) { .intro-launch { padding-bottom: 50px; } }
+
+.onboarding button[hidden] { display: none !important; }
+
+.onboarding .intro-remember-label[hidden] { display: none !important; }
