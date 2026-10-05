@@ -1,3 +1,5 @@
+import type { ExplosionPack } from "./cc0Comparison";
+import { SpriteExplosions, localSpriteVFX } from "./spriteExplosions";
 import {
   Mesh,
   MeshBuilder,
@@ -7,6 +9,22 @@ import {
   Color3,
 } from "@babylonjs/core";
 import type { World } from "../map/builder";
+export type ExplosionStyle = "normal" | "large" | "plasma";
+export function explosionPresentation(
+  power: number,
+  sound?: string,
+  style?: ExplosionStyle,
+) {
+  return {
+    power:
+      style === "normal"
+        ? 1
+        : style === "large" || style === "plasma"
+          ? 2.2
+          : power,
+    plasma: style === "plasma" || sound === "plasmaMine",
+  };
+}
 interface Particle {
   mesh: Mesh;
   sharedTextures?: boolean;
@@ -21,6 +39,32 @@ export class Explosions {
   visuals = true;
   amount = 1;
   random: () => number = Math.random;
+  spriteMode = false;
+  private sprites?: SpriteExplosions;
+  setSpriteMode(enabled: boolean) {
+    this.update(10);
+    this.spriteMode = enabled;
+    if (enabled) this.sprites ??= new SpriteExplosions(this.world.scene);
+  }
+  setExplosionPack(pack: ExplosionPack) {
+    this.setSpriteMode(true);
+    if (this.sprites) this.sprites.preparePack(pack);
+  }
+  muzzle(position: Vector3, energy = false) {
+    if (!this.visuals || !this.spriteMode || !this.sprites) return false;
+    this.sprites.muzzle(position, energy);
+    return true;
+  }
+  impact(
+    position: Vector3,
+    material = "metal",
+    destroyed = false,
+    strength = 1,
+  ) {
+    if (!this.visuals || !this.spriteMode || !this.sprites) return false;
+    this.sprites.impact(position, material, destroyed, this.amount, strength);
+    return true;
+  }
   lights: { light: PointLight; life: number }[] = [];
   constructor(
     public world: World,
@@ -28,11 +72,45 @@ export class Explosions {
       position: Vector3,
       power: number,
       sound?: string,
+      style?: ExplosionStyle,
     ) => void = () => {},
-  ) {}
-  burst(position: Vector3, color: string, power = 1, sound?: string) {
+  ) {
+    if (localSpriteVFX()) this.setExplosionPack("hybrid");
+  }
+  burst(
+    position: Vector3,
+    color: string,
+    power = 1,
+    sound?: string,
+    style?: ExplosionStyle,
+  ) {
     if (!this.visuals) {
-      this.onBurst(position, power, sound);
+      this.onBurst(position, power, sound, style);
+      return;
+    }
+    if (this.spriteMode && this.sprites) {
+      const presentation = explosionPresentation(power, sound, style);
+      const plasma = presentation.plasma;
+      const detail = this.sprites.burst(
+        position,
+        color,
+        presentation.power,
+        plasma,
+        this.amount,
+        this.random,
+      );
+      if (detail.light && this.lights.length < 2) {
+        const light = new PointLight(
+          "LOD explosion light",
+          position.clone(),
+          this.world.scene,
+        );
+        light.diffuse = Color3.FromHexString(plasma ? "#df70ff" : "#ffc57d");
+        light.range = 6;
+        light.intensity = 3;
+        this.lights.push({ light, life: 0.12 });
+      }
+      this.onBurst(position, power, sound, style);
       return;
     }
     // Bound transient GPU resources during rapid destruction.
@@ -153,7 +231,7 @@ export class Explosions {
       light.intensity = 5;
       this.lights.push({ light, life: 0.18 });
     }
-    this.onBurst(position, power, sound);
+    this.onBurst(position, power, sound, style);
   }
   playerDeath(position: Vector3, teamColor: string) {
     while (this.particles.length > 220) this.remove(this.particles.shift()!);
@@ -252,6 +330,7 @@ export class Explosions {
     } else p.mesh.dispose(false, true);
   }
   update(dt: number) {
+    this.sprites?.update(dt);
     for (const p of this.particles) {
       p.life -= dt;
       if (p.life <= 0) {

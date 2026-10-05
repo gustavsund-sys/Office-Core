@@ -71,7 +71,7 @@ export function tickOnline(this: Context, dt: number) {
   }
   this.networkElapsed += dt;
   const command = this.input.command(this.world, this.player.root.position);
-  const rcInput = this.rc.control(command.pressed);
+  const rcInput = this.rc.control(command.pressed, dt);
   if (this.rc.locked) {
     command.moveX = 0;
     command.moveZ = 0;
@@ -114,11 +114,13 @@ export function tickOnline(this: Context, dt: number) {
       this.weaponAudio?.play(this.weapons.id);
     const start = this.player.shotOrigin;
     const direction = this.player.shotDirection(command, start);
-    const muzzle = pooledFlash(this.scene, 0.23);
-    muzzle.position.copyFrom(start);
-    muzzle.material = this.world.mat("#ffe8a1", true);
-    muzzle.isPickable = false;
-    this.onlineTraces.push({ mesh: muzzle, life: 0.045 });
+    if (!this.world.explosions.muzzle(start, this.weapons.id === "pulseGun")) {
+      const muzzle = pooledFlash(this.scene, 0.23);
+      muzzle.position.copyFrom(start);
+      muzzle.material = this.world.mat("#ffe8a1", true);
+      muzzle.isPickable = false;
+      this.onlineTraces.push({ mesh: muzzle, life: 0.045 });
+    }
     if (this.weapons.id === "bazooka") {
       const mesh = rocketModel(this.world);
       const origin = start.clone();

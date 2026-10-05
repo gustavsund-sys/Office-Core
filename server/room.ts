@@ -206,7 +206,7 @@ export class OfficeRoom extends Room {
         z: c.z,
       });
     this.world.explosions.visuals = false;
-    this.world.explosions.onBurst = (position, power, sound) =>
+    this.world.explosions.onBurst = (position, power, sound, style) =>
       this.event({
         kind: "explosion",
         x: position.x,
@@ -214,6 +214,7 @@ export class OfficeRoom extends Room {
         z: position.z,
         power,
         sound,
+        explosionStyle: style,
       });
     this.onMessage(MSG.activity, (client) => {
       const p = this.participants.get(client.sessionId);
@@ -419,7 +420,8 @@ export class OfficeRoom extends Room {
     });
     this.onMessage(MSG.loadout, (client, choice) => {
       const p = this.participants.get(client.sessionId);
-      if (!this.permit(client) || !p || (this.started && !p.awaitingLoadout)) return;
+      if (!this.permit(client) || !p || (this.started && !p.awaitingLoadout))
+        return;
       if (choice !== null && !validLoadout(choice)) return;
       p.loadout = choice === null ? undefined : { ...choice };
       if (this.started && p.awaitingLoadout && p.loadout) {
@@ -509,18 +511,18 @@ export class OfficeRoom extends Room {
     }
   }
   checkInactivity(now = Date.now()) {
-      for (const client of this.clients) {
-        const p = this.participants.get(client.sessionId);
-        if (!p || p.idleExpired) continue;
-        const state = inactivityState(p.lastActivity ?? now, now);
-        if (state.expired) {
-          p.idleExpired = true;
-          client.leave(IDLE_CLOSE_CODE);
-        } else if (state.warn) {
-          p.activityWarned = true;
-          client.send(MSG.idle, { remaining: state.remaining });
-        }
+    for (const client of this.clients) {
+      const p = this.participants.get(client.sessionId);
+      if (!p || p.idleExpired) continue;
+      const state = inactivityState(p.lastActivity ?? now, now);
+      if (state.expired) {
+        p.idleExpired = true;
+        client.leave(IDLE_CLOSE_CODE);
+      } else if (state.warn) {
+        p.activityWarned = true;
+        client.send(MSG.idle, { remaining: state.remaining });
       }
+    }
   }
   onJoin(
     client: Client,
@@ -1005,12 +1007,19 @@ export class OfficeRoom extends Room {
         const placingTrap =
           p.weapons.utilityKind !== "rcCar" &&
           p.weapons.pulseTrapSelected &&
-          input.pressed;
+          (input.pressed || input.interact);
         if (placingTrap && !disarming) this.pickup.pulseTraps.place(actor);
         const placing =
-          !placingTrap && this.pickup.beacons.carried.has(id) && input.pressed;
+          !placingTrap &&
+          this.pickup.beacons.carried.has(id) &&
+          (input.pressed || input.interact);
         if (placing && !disarming) this.pickup.beacons.place(actor);
+        const placingBuster =
+          !disarming && p.weapons.carryingCoreBuster && input.interact;
         const collected =
+          !placing &&
+          !placingTrap &&
+          !placingBuster &&
           !disarming &&
           input.interact &&
           (this.pickup.pulseTraps.acquire(actor) ||
@@ -1020,11 +1029,18 @@ export class OfficeRoom extends Room {
         p.weapons.update(
           disarming || placing || placingTrap
             ? { ...input, fire: false, pressed: false }
-            : input,
+            : placingBuster
+              ? { ...input, pressed: true }
+              : input,
           stepDt,
         );
         this.pickup.chooseRequested =
-          input.interact && !disarming && !collected;
+          input.interact &&
+          !disarming &&
+          !collected &&
+          !placing &&
+          !placingTrap &&
+          !placingBuster;
         this.pickup.update(0, this.time, p.weapons, () => {});
       }
       p.input.pressed = false;

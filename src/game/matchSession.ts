@@ -18,6 +18,7 @@ type Context = Pick<
   | "cameraTarget"
   | "cores"
   | "hud"
+  | "engagement"
   | "loadout"
   | "match"
   | "pickup"
@@ -55,6 +56,8 @@ export function startMatch(this: Context, team: Team) {
       this.testPlayer,
       (target, damage) => this.recordLocalHit("bot", target, damage),
       () => {
+        if (this.testPlayer)
+          this.engagement.shotOutsideView(this.testPlayer.root.position, "bot");
         if (!this.sound || !this.testPlayer) return;
         const origin = this.testPlayer.root.position.add(
           new Vector3(0, 1.1, 0),

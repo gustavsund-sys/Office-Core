@@ -142,7 +142,8 @@ export class HUD {
       healthValue.textContent = healthText;
       const bar = this.el.querySelector<HTMLElement>(".healthline")!;
       bar.style.width = `${hp}%`;
-      bar.style.backgroundColor = hp <= 25 ? "#ff4545" : hp <= 50 ? "#ffba60" : "#ee7c6e";
+      bar.style.backgroundColor =
+        hp <= 25 ? "#ff4545" : hp <= 50 ? "#ffba60" : "#ee7c6e";
       bar.setAttribute("aria-label", `${healthText} HP av 100`);
     }
 
@@ -202,20 +203,20 @@ export class HUD {
               (weapons.id === "bazooka" ? ` / ${weapons.bazookaReserve}` : "")
             : "∞";
     this.el.querySelector("#mode")!.textContent = weapons.remoteControlled
-      ? "W/S: DRIVE · MOUSE: STEER · LMB: DETONATE"
+      ? "W/S: DRIVE · A/D: STEER · E: DETONATE"
       : weapons.pulseTrapSelected
         ? weapons.utilityKind === "rcCar"
-          ? "LMB: DEPLOY · W/S + MOUSE · LMB: DETONATE"
+          ? "LMB: DEPLOY · WASD: DRIVE · E: DETONATE"
           : weapons.utilityKind === "superMedkit"
-            ? "LMB: PLACE · RESTORES 100 HP"
-            : "LMB: PLACE · 5m TRIGGER · 50 HP MAX"
+            ? "LMB / E: PLACE · RESTORES 100 HP"
+            : "LMB / E: PLACE · 5m TRIGGER · 50 HP MAX"
         : weapons.carryingBeacon
-          ? "LMB: PLACE · 15m RANGE · 100 HP"
+          ? "LMB / E: PLACE · 15m RANGE · 100 HP"
           : weapons.reloadRemaining > 0
             ? `RELOADING · ${weapons.reloadRemaining.toFixed(1)}s`
             : weapons.ammo === 0
               ? "EMPTY · FIND AMMO"
-              : `${weapons.id === "coreBuster" ? "LMB: PLACE · 25s FUSE" : weapons.id === "burstGun" ? "5-SHOT BURST" : WEAPONS[weapons.id].automatic ? "AUTOMATIC" : "SEMI-AUTO"} / ${WEAPONS[weapons.id].damage} DMG`;
+              : `${weapons.id === "coreBuster" ? "LMB / E: PLACE · 25s FUSE" : weapons.id === "burstGun" ? "5-SHOT BURST" : WEAPONS[weapons.id].automatic ? "AUTOMATIC" : "SEMI-AUTO"} / ${WEAPONS[weapons.id].damage} DMG`;
     let inventory = this.el.querySelector<HTMLDivElement>("#inventory-slots");
     if (!inventory) {
       inventory = document.createElement("div");

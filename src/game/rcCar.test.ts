@@ -236,3 +236,40 @@ test("RC visual prediction bridges network gaps, caps stale motion and respects 
   assert.ok(stopped.z <= 0.051);
   assert.equal(state.z, 0);
 });
+
+test("RC keyboard controls turn with A/D and detonate with E, not fire", async () => {
+  const { RCSession } = await import("./rcSession");
+  const keys = new Set<string>(["KeyW", "KeyD"]);
+  const context = {
+    states: [{ owner: "test", yaw: 0 }],
+    owner: "test",
+    input: { keys, remoteSteer: -1 },
+  };
+  const control = (fire: boolean) =>
+    RCSession.prototype.control.call(context as never, fire)!;
+  assert.equal(control(true).detonate, false);
+  assert.equal(control(false).throttle, 1);
+  assert.ok(control(false).yaw > 0);
+  keys.clear();
+  keys.add("KeyS");
+  keys.add("KeyA");
+  assert.equal(control(false).throttle, -1);
+  assert.ok(control(false).yaw < 0);
+  keys.add("KeyE");
+  assert.equal(control(false).detonate, true);
+});
+
+test("RC steering ramps with hold time and stays independent of frame rate", async () => {
+  const { rampRCSteering } = await import("./rcSession");
+  const simulate = (fps: number, seconds: number) => {
+    let steer = 0;
+    for (let i = 0; i < Math.round(fps * seconds); i++)
+      steer = rampRCSteering(steer, 1, 1 / fps);
+    return steer;
+  };
+  assert.ok(simulate(60, 0.1) < 0.2);
+  assert.equal(simulate(60, 1), 1);
+  assert.ok(Math.abs(simulate(30, 0.5) - simulate(120, 0.5)) < 0.001);
+  assert.ok(rampRCSteering(1, -1, 1 / 60) < 0);
+  assert.ok(rampRCSteering(1, 0, 0.1) < 0.5);
+});

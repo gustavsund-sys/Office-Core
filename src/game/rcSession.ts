@@ -1,4 +1,4 @@
-import { Camera, Ray, Vector3, TransformNode } from "@babylonjs/core";
+import { Camera, Ray, Vector3, TransformNode, Matrix } from "@babylonjs/core";
 import type { FreeCamera } from "@babylonjs/core";
 import type { World } from "../map/builder";
 import type { Player, Input, PlayerCommand } from "../player/player";
@@ -13,6 +13,11 @@ import {
 } from "./rcCar";
 import { rcPilotGear, rcCarDebris } from "./rcCarModel";
 import { RCAudio } from "../audio/rcCar";
+export function rampRCSteering(current: number, direction: number, dt: number) {
+  if (direction && current * direction < 0) current = 0;
+  const step = Math.max(0, Math.min(0.1, dt)) / (direction ? 0.65 : 0.16);
+  return current + Math.max(-step, Math.min(step, direction - current));
+}
 export class RCSession {
   system: RCCars;
   visuals: RCVisuals;
@@ -21,10 +26,13 @@ export class RCSession {
   owner = "local";
   watch?: { position: Vector3; remaining: number };
   private driving = false;
+  private steering = 0;
   private gears = new Map<Player, TransformNode>();
   private previousCamera?: number;
   private previousFov?: number;
   el = document.createElement("div");
+  private instructionCar?: number;
+  private instructionRemaining?: number;
   constructor(
     public world: World,
     public input: Input,
@@ -39,18 +47,25 @@ export class RCSession {
     this.el.hidden = true;
     document.querySelector("#ui")!.append(this.el);
   }
-  control(pressed: boolean): RCCommand | undefined {
+  control(pressed: boolean, dt = 1 / 60): RCCommand | undefined {
     const car = this.states.find((s) => s.owner === this.owner);
-    if (!car) return undefined;
-    const steer =
-      Math.abs(this.input.remoteSteer) < 0.06 ? 0 : this.input.remoteSteer;
+    if (!car) {
+      this.steering = 0;
+      return undefined;
+    }
+    const direction =
+      Number(this.input.keys.has("KeyD")) - Number(this.input.keys.has("KeyA"));
+    this.steering = rampRCSteering(this.steering ?? 0, direction, dt);
+    const steer = this.steering;
     const targetYaw = car.yaw + steer * 0.9;
+    const detonate = this.input.remoteDetonate || this.input.keys.has("KeyE");
+    this.input.remoteDetonate = false;
     return {
       throttle:
         Number(this.input.keys.has("KeyW")) -
         Number(this.input.keys.has("KeyS")),
       yaw: Math.atan2(Math.sin(targetYaw), Math.cos(targetYaw)),
-      detonate: pressed,
+      detonate,
     };
   }
 
@@ -63,7 +78,7 @@ export class RCSession {
       command.pressed;
     this.system.command(
       actors[0],
-      existing ? this.control(command.pressed) : undefined,
+      existing ? this.control(command.pressed, dt) : undefined,
       deploy,
     );
     this.system.update(dt, actors);
@@ -104,6 +119,21 @@ export class RCSession {
       this.weapons.utilityCount > 0 &&
       this.weapons.pulseTrapSelected;
     this.input.setRemote(this.driving, enabled ? dt : 0);
+    if (own?.id !== this.instructionCar) {
+      this.instructionCar = own?.id;
+      this.instructionRemaining = undefined;
+    }
+    if (
+      own &&
+      this.instructionRemaining === undefined &&
+      (this.input.remoteDrivingStarted ||
+        ["KeyW", "KeyA", "KeyS", "KeyD"].some((key) =>
+          this.input.keys.has(key),
+        ))
+    )
+      this.instructionRemaining = 3;
+    if (enabled && this.instructionRemaining !== undefined)
+      this.instructionRemaining = Math.max(0, this.instructionRemaining - dt);
     this.visuals.sync(states, dt, owner !== "local");
     for (const { player, remote } of players) {
       let gear = this.gears.get(player);
@@ -124,10 +154,21 @@ export class RCSession {
       this.input.keys.has("KeyW") ? 1 : this.input.keys.has("KeyS") ? -1 : 0,
       own?.speed ?? 0,
     );
-    this.el.hidden = !this.driving && !this.watch;
-    this.el.textContent = this.watch
-      ? `RC BOMBER · DETONATED · ${this.watch.remaining.toFixed(1)}s`
-      : "RC BOMBER · W / S: DRIVE · MOUSE: STEER · LMB: DETONATE";
+    this.el.hidden = !enabled || !own || this.instructionRemaining === 0;
+    this.el.textContent = "W/S: FRAMÅT / BAKÅT · A/D: SVÄNG · E: DETONERA";
+    if (own && this.world.scene.activeCamera) {
+      const engine = this.world.scene.getEngine();
+      const point = Vector3.Project(
+        new Vector3(own.x, 0, own.z),
+        Matrix.Identity(),
+        this.world.scene.getTransformMatrix(),
+        this.world.scene.activeCamera.viewport.toGlobal(
+          engine.getRenderWidth(),
+          engine.getRenderHeight(),
+        ),
+      );
+      this.el.style.cssText = `position:fixed;left:${(point.x / engine.getRenderWidth()) * 100}%;top:calc(${(point.y / engine.getRenderHeight()) * 100}% + 55px);bottom:auto;transform:translateX(-50%);pointer-events:none;white-space:nowrap`;
+    }
   }
   get locked() {
     return this.driving || !!this.watch;
@@ -161,10 +202,10 @@ export class RCSession {
     const yaw = visual?.rotation.y ?? car!.yaw;
     const p = visual?.position ?? new Vector3(car!.x, 0, car!.z);
     const target = p.add(
-      new Vector3(Math.sin(yaw) * 4, 0.65, Math.cos(yaw) * 4),
+      new Vector3(Math.sin(yaw) * 1.5, 0.65, Math.cos(yaw) * 1.5),
     );
     const desired = p.add(
-      new Vector3(-Math.sin(yaw) * 4.2, 2.8, -Math.cos(yaw) * 4.2),
+      new Vector3(-Math.sin(yaw) * 12, 18, -Math.cos(yaw) * 12),
     );
     const origin = p.add(new Vector3(0, 0.65, 0));
     const delta = desired.subtract(origin),
@@ -182,6 +223,7 @@ export class RCSession {
     return true;
   }
   reset() {
+    this.steering = 0;
     this.system.reset();
     this.visuals.reset();
     this.states = [];
@@ -197,5 +239,7 @@ export class RCSession {
     }
     this.gears.clear();
     this.el.hidden = true;
+    this.instructionCar = undefined;
+    this.instructionRemaining = undefined;
   }
 }

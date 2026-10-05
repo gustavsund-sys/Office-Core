@@ -126,7 +126,7 @@ async function start() {
       closeGraphics(); graphicsButton.disabled = true;
       const loops = [...engine!.activeRenderLoops];
       engine!.stopRenderLoop();
-      try { updateQuality(await testGraphics(engine!)); }
+      try { updateQuality(await testGraphics(engine!, game.world.explosions.spriteMode)); }
       finally { loops.forEach(loop => engine!.runRenderLoop(loop)); graphicsButton.disabled = false; }
     };
     document.querySelector("#overlay")!.append(graphicsButton, graphicsMenu);

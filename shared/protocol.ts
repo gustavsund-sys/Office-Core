@@ -155,6 +155,7 @@ export interface NetEvent {
   z: number;
   sound?: string;
   power?: number;
+  explosionStyle?: "normal" | "large" | "plasma";
   endX?: number;
   endY?: number;
   endZ?: number;

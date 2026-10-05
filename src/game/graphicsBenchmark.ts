@@ -49,6 +49,7 @@ export function applyGraphics(engine: AbstractEngine, tier: GraphicsTier) {
 }
 export async function testGraphics(
   engine: AbstractEngine,
+  spriteMode?: boolean,
 ): Promise<GraphicsTier> {
   const overlay = document.createElement("section");
   overlay.className = "graphics-test";
@@ -84,6 +85,8 @@ export async function testGraphics(
   });
   const world = new World(scene, shadows);
   world.build();
+  if (spriteMode !== undefined) world.explosions.setSpriteMode(spriteMode);
+  renderer.textContent += world.explosions.spriteMode ? " · VFX: Sprites LOD" : " · VFX: Klassisk 3D";
   const camera = new FreeCamera(
     "benchmark camera",
     new Vector3(0, 23, -10),

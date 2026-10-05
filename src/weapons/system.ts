@@ -305,15 +305,23 @@ export class Weapons {
       );
       tracer.isPickable = false;
       this.effects.push({ mesh: tracer, life: 0.065 });
-      const flash = pooledFlash(scene, 0.23);
-      flash.position.copyFrom(start);
-      flash.material = this.player.world.mat("#ffe8a1", true);
-      flash.isPickable = false;
-      this.effects.push({ mesh: flash, life: 0.045 });
+      if (!this.player.world.explosions.muzzle(start, this.id === "pulseGun")) {
+        const flash = pooledFlash(scene, 0.23);
+        flash.position.copyFrom(start);
+        flash.material = this.player.world.mat("#ffe8a1", true);
+        flash.isPickable = false;
+        this.effects.push({ mesh: flash, life: 0.045 });
+      }
     }
     if (hit?.hit) {
       this.onImpact(end);
-      for (let i = 0; this.visuals && i < 5; i++) {
+      const spriteImpact =
+        this.visuals &&
+        this.player.world.explosions.impact(
+          end,
+          hit.pickedMesh?.metadata?.material ?? "metal",
+        );
+      for (let i = 0; this.visuals && !spriteImpact && i < 5; i++) {
         const spark = shard(scene, 0.065 + Math.random() * 0.07);
         spark.position.copyFrom(
           end.add(
@@ -493,6 +501,7 @@ export class Weapons {
             "#ffb34f",
             1.5,
             "bazookaExplosion",
+            "normal",
           );
         }
         for (const smoke of this.visuals ? [false, true] : []) {

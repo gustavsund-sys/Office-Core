@@ -1,0 +1,5 @@
+All assets licensed CC0 1.0.
+Explosion Sheet / boom3: StumpyStrust https://opengameart.org/content/explosion-sheet
+More Explosions / test6: StumpyStrust https://opengameart.org/content/more-explosions
+Smoke particle assets: Kenney https://opengameart.org/content/smoke-particle-assets
+Atlases repacked for Office Core.

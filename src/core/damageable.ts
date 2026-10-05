@@ -99,6 +99,14 @@ export class Damageable {
     if (!this.active || this.hp <= 0) return;
     this.hp = Math.max(0, this.hp - amount);
     this.flash = 0.16;
+    if (!this.hp && this.kind === "core")
+      this.world.explosions.burst(
+        this.position,
+        "#ff62d9",
+        2,
+        undefined,
+        "plasma",
+      );
     if (!this.hp && this.kind === "target") {
       this.mesh.setEnabled(false);
       this.respawn = 5;

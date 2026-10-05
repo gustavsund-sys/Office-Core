@@ -425,6 +425,14 @@ export function rcPilotGear(world: World, parent: TransformNode) {
   return gear;
 }
 export function rcCarDebris(world: World, position: Vector3) {
+  const camera = world.scene.activeCamera;
+  const reduced = world.explosions.spriteMode;
+  if (
+    reduced &&
+    (world.explosions.amount < 0.6 ||
+      (camera && Vector3.Distance(position, camera.globalPosition) > 35))
+  )
+    return;
   const model = rcCarModel(world);
   model.root.position.copyFrom(position);
   model.root.computeWorldMatrix(true);
@@ -436,7 +444,7 @@ export function rcCarDebris(world: World, position: Vector3) {
         m.name,
       ),
     );
-  for (const mesh of meshes) {
+  for (const mesh of reduced ? meshes.slice(0, 3) : meshes) {
     mesh.computeWorldMatrix(true);
     const p = mesh.getAbsolutePosition().clone();
     mesh.setParent(null);

@@ -176,8 +176,17 @@ export class Game {
   breachTeam?: Team;
   breachUntil = 0;
   constructor(canvas: HTMLCanvasElement, engine?: AbstractEngine) {
-    this.engine = engine ?? new Engine(canvas, true, { stencil: true, powerPreference: "high-performance" });
-    const render = renderSize(canvas.clientWidth, canvas.clientHeight, readGraphics() ?? "standard");
+    this.engine =
+      engine ??
+      new Engine(canvas, true, {
+        stencil: true,
+        powerPreference: "high-performance",
+      });
+    const render = renderSize(
+      canvas.clientWidth,
+      canvas.clientHeight,
+      readGraphics() ?? "standard",
+    );
     this.engine.setHardwareScalingLevel(1 / render.scale);
     this.scene = new Scene(this.engine);
     this.scene.clearColor = Color4.FromHexString("#14232cff");
@@ -202,7 +211,10 @@ export class Game {
     const shadows = new ShadowGenerator(quality.shadow || 512, sun);
     this.scene.shadowsEnabled = quality.shadow > 0;
     shadows.usePercentageCloserFiltering = true;
-    shadows.filteringQuality = quality.shadow === 512 ? ShadowGenerator.QUALITY_LOW : ShadowGenerator.QUALITY_HIGH;
+    shadows.filteringQuality =
+      quality.shadow === 512
+        ? ShadowGenerator.QUALITY_LOW
+        : ShadowGenerator.QUALITY_HIGH;
     shadows.bias = 0.0005;
     shadows.normalBias = 0.02;
     shadows.setDarkness(0.18);
@@ -212,7 +224,8 @@ export class Game {
     glow.intensity = quality.glow;
     this.scene.imageProcessingConfiguration.contrast = 1.12;
     this.scene.imageProcessingConfiguration.exposure = 1.02;
-    this.scene.imageProcessingConfiguration.vignetteEnabled = quality.effects === 1;
+    this.scene.imageProcessingConfiguration.vignetteEnabled =
+      quality.effects === 1;
     this.scene.imageProcessingConfiguration.vignetteWeight = 1.1;
     this.camera = new FreeCamera(
       "fixed follow",
@@ -480,6 +493,71 @@ export class Game {
       )
       .join("")}<small>Nivåerna sparas på denna enhet.</small></details>`;
     document.body.append(panel);
+    const vfxToggle = document.createElement("button");
+    const vfxLabel = () => {
+      vfxToggle.textContent = this.world.explosions.spriteMode
+        ? "VFX: SPRITES LOD"
+        : "VFX: KLASSISK 3D";
+    };
+    vfxLabel();
+    vfxToggle.onclick = () => {
+      this.world.explosions.setSpriteMode(!this.world.explosions.spriteMode);
+      vfxLabel();
+    };
+    panel.querySelector(".build-weapons")!.after(vfxToggle);
+    for (const [label, power, plasma] of [
+      ["TESTA LITEN EXPLOSION", 0.65, false],
+      ["TESTA EXPLOSION", 1, false],
+      ["TESTA STOR ELDEXPLOSION", 2.2, false],
+      ["TESTA PLASMAEXPLOSION", 1.5, true],
+    ] as const) {
+      const preview = document.createElement("button");
+      preview.textContent = label;
+      preview.onclick = () =>
+        this.world.explosions.burst(
+          this.player.root.position.add(new Vector3(2, 0, 2)),
+          plasma ? "#ff66cb" : "#ffcf56",
+          power,
+          plasma ? "plasmaMine" : "bazookaExplosion",
+        );
+      vfxToggle.before(preview);
+    }
+    const packPicker = document.createElement("select");
+    packPicker.setAttribute("aria-label", "Explosionspaket");
+    packPicker.style.cssText =
+      "width:100%;padding:8px;margin:6px 0;background:#142c36;color:#ffe0a1;border:1px solid #63767e";
+    for (const [value, label] of [
+      ["kenney", "Kenney · befintlig"],
+      ["sheet", "CC0 · Explosion Sheet"],
+      ["more", "CC0 · More Explosions"],
+      ["smoke", "CC0 · Smoke Particle Assets"],
+      ["hybrid", "Kombination · More + Smoke + splitter"],
+    ]) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.selected = value === "hybrid";
+      option.textContent = label;
+      packPicker.append(option);
+    }
+    packPicker.onchange = () => {
+      this.world.explosions.setExplosionPack(
+        packPicker.value as import("../effects/cc0Comparison").ExplosionPack,
+      );
+      vfxLabel();
+    };
+    vfxToggle.before(packPicker);
+    for (const material of ["metal", "wood", "glass"] as const) {
+      const preview = document.createElement("button");
+      preview.textContent = `TESTA TRÄFF: ${material.toUpperCase()}`;
+      preview.onclick = () =>
+        this.engagement.impact(
+          this.player.root.position.add(new Vector3(2, 0.7, 2)),
+          material,
+          true,
+        );
+      vfxToggle.before(preview);
+    }
+
     panel
       .querySelector("#test-shooting")!
       .addEventListener("change", (event) => {
@@ -495,7 +573,7 @@ export class Game {
         return;
       this.pickup.beacons.carried.add("local");
       this.weapons.carryingBeacon = true;
-      this.hud.toast("DEFENSIVE BEACON · LMB TO PLACE");
+      this.hud.toast("DEFENSIVE BEACON · LMB / E TO PLACE");
     });
     panel.querySelector("#test-pulse-trap")!.addEventListener("click", () => {
       if (
@@ -507,7 +585,7 @@ export class Game {
         return;
       this.weapons.carryingPulseTrap = true;
       this.weapons.switchSlot(3);
-      this.hud.toast("PULSE TRAP · [3] SELECT · LMB: PLACE");
+      this.hud.toast("PULSE TRAP · [3] SELECT · LMB / E: PLACE");
     });
     panel.querySelector("#test-rc-car")!.addEventListener("click", () => {
       if (
@@ -521,7 +599,7 @@ export class Game {
       this.weapons.utilityKind = "rcCar";
       this.weapons.utilityCount = 2;
       this.weapons.switchSlot(3);
-      this.hud.toast("RC BOMBER · LMB: DEPLOY · W/S + MOUSE: DRIVE");
+      this.hud.toast("RC BOMBER · LMB: DEPLOY · WASD: DRIVE · E: DETONATE");
     });
     panel.querySelector("#view-test-trap")!.addEventListener("click", () => {
       if (
@@ -642,6 +720,7 @@ export class Game {
       .querySelector("#pause")!
       .addEventListener("click", () => this.setPaused(!this.paused));
     window.addEventListener("keydown", (e) => {
+      if (e.code === "KeyE" && this.input.remote) return;
       if (!this.paused && !e.repeat && this.multiplayer?.room) {
         if (e.code === "Space") {
           e.preventDefault();
@@ -925,32 +1004,40 @@ export class Game {
       const placingTrap =
         this.weapons.utilityKind !== "rcCar" &&
         this.weapons.pulseTrapSelected &&
-        command.pressed;
+        (command.pressed || this.pickup.chooseRequested);
       if (placingTrap && !disarming) this.pickup.pulseTraps.place(beaconActor);
       const placingBeacon =
         !placingTrap &&
         this.pickup.beacons.carried.has("local") &&
-        command.pressed;
+        (command.pressed || this.pickup.chooseRequested);
       if (placingBeacon && !disarming) this.pickup.beacons.place(beaconActor);
+      const placingBuster =
+        !disarming &&
+        this.weapons.carryingCoreBuster &&
+        this.pickup.chooseRequested;
+      if (placingTrap || placingBeacon || placingBuster)
+        this.pickup.chooseRequested = false;
       if (
         this.pickup.chooseRequested &&
         this.pickup.pulseTraps.acquire(beaconActor)
       ) {
         this.pickup.chooseRequested = false;
-        this.hud.toast("PULSE TRAP · [3] SELECT · LMB: PLACE");
+        this.hud.toast("PULSE TRAP · [3] SELECT · LMB / E: PLACE");
       }
       if (
         this.pickup.chooseRequested &&
         this.pickup.beacons.acquire(beaconActor)
       ) {
         this.pickup.chooseRequested = false;
-        this.hud.toast("DEFENSIVE BEACON · LMB TO PLACE");
+        this.hud.toast("DEFENSIVE BEACON · LMB / E TO PLACE");
       }
       this.weapons.carryingBeacon = this.pickup.beacons.carried.has("local");
       this.weapons.update(
         disarming || placingBeacon || placingTrap
           ? { ...command, fire: false, pressed: false }
-          : command,
+          : placingBuster
+            ? { ...command, pressed: true }
+            : command,
         dt,
       );
       if (!command.fire || this.weapons.id !== "machineGun")

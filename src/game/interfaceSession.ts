@@ -140,12 +140,12 @@ export function updateBeaconPrompt(this: Context) {
       !this.weapons.pulseTrapSelected);
   el.textContent = this.weapons.pulseTrapSelected
     ? this.weapons.utilityKind === "rcCar"
-      ? "RC BOMBER [3] · LMB: DEPLOY · W/S + MOUSE: DRIVE"
+      ? "RC BOMBER [3] · LMB: DEPLOY · WASD: DRIVE · E: DETONATE"
       : this.weapons.utilityKind === "superMedkit"
-        ? "SUPER MED-KIT [3] · LMB: PLACE · 100 HP"
-        : "PULSE TRAP [3] · LMB: PLACE · 5m TRIGGER"
+        ? "SUPER MED-KIT [3] · LMB / E: PLACE · 100 HP"
+        : "PULSE TRAP [3] · LMB / E: PLACE · 5m TRIGGER"
     : this.weapons.carryingBeacon
-      ? "DEFENSIVE BEACON · LMB: PLACE"
+      ? "DEFENSIVE BEACON · LMB / E: PLACE"
       : trap && !this.weapons.carryingPulseTrap
         ? "E · PICK UP PULSE TRAP · SLOT [3]"
         : "E · PICK UP DEFENSIVE BEACON";

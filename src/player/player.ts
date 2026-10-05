@@ -38,6 +38,8 @@ export class Input {
   pointer = { x: 0, y: 0 };
   remote = false;
   remoteReady = false;
+  remoteDetonate = false;
+  remoteDrivingStarted = false;
   remoteSteer = 0;
   mode: ViewMode = "topDown";
   aimRelativeMovement = true;
@@ -46,6 +48,7 @@ export class Input {
   active = false;
   lockUnavailable = false;
   dragging = false;
+  private lockPending = false;
   get locked() {
     return document.pointerLockElement === this.canvas;
   }
@@ -53,10 +56,12 @@ export class Input {
     if (
       (!forRemote && !this.remote && this.mode !== "thirdPerson") ||
       !this.active ||
-      this.locked
+      this.locked ||
+      this.lockPending
     )
       return;
     try {
+      this.lockPending = true;
       const result = this.canvas.requestPointerLock();
       result?.catch(() => this.lockFailed());
     } catch {
@@ -66,10 +71,14 @@ export class Input {
   setRemote(active: boolean, dt = 0) {
     const wasRemote = this.remote;
     this.remote = active;
-    if (active && !wasRemote) this.requestLock();
+    if (active && this.locked) document.exitPointerLock();
     if (!active && wasRemote && this.locked && this.mode !== "thirdPerson")
       document.exitPointerLock();
-    if (active && !wasRemote) this.remoteSteer = 0;
+    if (active && !wasRemote) {
+      this.remoteSteer = 0;
+      this.remoteDetonate = false;
+      this.remoteDrivingStarted = false;
+    }
     document.body.classList.toggle("rc-driving", active);
     const marker = document.querySelector<HTMLElement>("#crosshair");
     if (active && marker) {
@@ -79,6 +88,7 @@ export class Input {
   }
 
   lockFailed() {
+    this.lockPending = false;
     this.lockUnavailable = true;
     window.dispatchEvent(new CustomEvent("look-lock-failed"));
   }
@@ -105,23 +115,21 @@ export class Input {
         ].includes(e.code)
       )
         e.preventDefault();
-      if (
-        this.remote &&
-        this.active &&
-        !this.locked &&
-        ["KeyW", "KeyS"].includes(e.code)
-      )
-        this.requestLock();
+      if (this.remote && !e.repeat && e.code === "KeyE")
+        this.remoteDetonate = true;
+      if (this.remote && ["KeyW", "KeyA", "KeyS", "KeyD"].includes(e.code))
+        this.remoteDrivingStarted = true;
       this.keys.add(e.code);
     });
     window.addEventListener("keyup", (e) => this.keys.delete(e.code));
-    canvas.addEventListener("pointermove", (e) => {
+    window.addEventListener("pointermove", (e) => {
       const r = canvas.getBoundingClientRect();
       this.pointer = { x: e.clientX - r.left, y: e.clientY - r.top };
       if (
         this.active &&
-        (this.remote || this.mode === "thirdPerson") &&
-        (this.remote || this.locked || this.dragging)
+        !this.remote &&
+        this.mode === "thirdPerson" &&
+        (this.locked || this.dragging)
       ) {
         if (this.remote) {
           this.remoteSteer = Math.max(
@@ -133,11 +141,6 @@ export class Input {
     });
     canvas.addEventListener("pointerdown", (e) => {
       if (!this.active) return;
-      // Request inside the deployment click, before the next animation/server frame.
-      if (this.remoteReady && !this.remote && e.button === 0 && !this.locked)
-        this.requestLock(true);
-      // Re-locking must not consume the RC detonation click.
-      if (this.remote && !this.locked) this.requestLock();
       if (e.button === 2) this.dragging = true;
       if (
         this.mode === "thirdPerson" &&
@@ -162,6 +165,7 @@ export class Input {
     });
     document.addEventListener("pointerlockerror", () => this.lockFailed());
     document.addEventListener("pointerlockchange", () => {
+      this.lockPending = false;
       if (this.locked) this.lockUnavailable = false;
       else if (this.remote) this.clear();
     });
@@ -170,6 +174,7 @@ export class Input {
     canvas.addEventListener("contextmenu", (e) => e.preventDefault());
   }
   clear() {
+    this.remoteDetonate = false;
     this.dragging = false;
     this.keys.clear();
     this.down = false;

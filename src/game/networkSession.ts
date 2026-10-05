@@ -57,7 +57,9 @@ export function installMultiplayer(this: Context) {
   const net = (this.multiplayer ??= new Multiplayer());
   let busy = false;
   let refreshing = false;
-  net.onStatus = text => { panel.querySelector("#network-status")!.textContent = text; };
+  net.onStatus = (text) => {
+    panel.querySelector("#network-status")!.textContent = text;
+  };
   panel.querySelector("#leave-room")!.addEventListener("click", async () => {
     const button = panel.querySelector<HTMLButtonElement>("#leave-room")!;
     button.disabled = true;
@@ -170,7 +172,8 @@ export function installMultiplayer(this: Context) {
         );
       if (event.kind === "impact") {
         if (this.sound) this.weaponAudio?.playImpact(distance);
-        for (let i = 0; i < 6; i++) {
+        const spriteImpact = this.world.explosions.impact(position);
+        for (let i = 0; !spriteImpact && i < 6; i++) {
           const spark = shard(this.scene, 0.09);
           spark.position.copyFrom(
             position.add(
@@ -191,11 +194,15 @@ export function installMultiplayer(this: Context) {
       if (event.kind === "land" && this.sound)
         this.weaponAudio?.playMovement("land");
       if (event.kind === "trace") {
-        const muzzle = pooledFlash(this.scene, 0.23);
-        muzzle.position.copyFrom(position);
-        muzzle.material = this.world.mat("#ffe8a1", true);
-        muzzle.isPickable = false;
-        this.onlineTraces.push({ mesh: muzzle, life: 0.045 });
+        if (
+          !this.world.explosions.muzzle(position, event.weapon === "pulseGun")
+        ) {
+          const muzzle = pooledFlash(this.scene, 0.23);
+          muzzle.position.copyFrom(position);
+          muzzle.material = this.world.mat("#ffe8a1", true);
+          muzzle.isPickable = false;
+          this.onlineTraces.push({ mesh: muzzle, life: 0.045 });
+        }
         const end = new Vector3(event.endX!, event.endY!, event.endZ!);
         const mesh = beam(
           this.scene,
@@ -210,6 +217,11 @@ export function installMultiplayer(this: Context) {
         mesh.isPickable = false;
         this.onlineTraces.push({ mesh, life: 0.065 });
       }
+      if (event.kind === "shot" && event.player !== net.room?.sessionId)
+        this.engagement.shotOutsideView(
+          position,
+          event.player ?? `${event.x}:${event.z}`,
+        );
       if (event.kind === "shot" && this.sound && event.weapon)
         this.weaponAudio?.playRemoteShot(
           event.weapon,
@@ -225,6 +237,7 @@ export function installMultiplayer(this: Context) {
           event.sound === "bazookaExplosion" || event.sound === "plasmaMine"
             ? event.sound
             : undefined,
+          event.explosionStyle,
         );
       if (event.kind === "death") {
         this.world.explosions.playerDeath(position, TEAMS[event.team ?? "RED"]);
@@ -323,7 +336,9 @@ export function installMultiplayer(this: Context) {
     } catch (error) {
       panel.querySelector("#network-status")!.textContent =
         connectionError(error);
-    } finally { refreshing = false; }
+    } finally {
+      refreshing = false;
+    }
   };
   const resume = net.resumeInfo();
   if (resume?.id) void connect(resume.id);

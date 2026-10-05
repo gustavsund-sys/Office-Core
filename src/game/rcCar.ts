@@ -254,7 +254,13 @@ export class RCCars {
       if (v.hp < hp) this.onHit(owner, v, hp - v.hp);
     }
     this.onExplode(car);
-    this.world.explosions.burst(origin, "#ffb34f", 1.5, "bazookaExplosion");
+    this.world.explosions.burst(
+      origin,
+      "#ffb34f",
+      1.5,
+      "bazookaExplosion",
+      "large",
+    );
   }
   snapshot(): RCCarState[] {
     return [...this.cars.values()].map(
