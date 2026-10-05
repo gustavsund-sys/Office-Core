@@ -2636,3 +2636,14 @@ kbd {
 .graphics-tier-table td, .graphics-tier-table th { padding: 7px; border-bottom: 1px solid #83cbd433; text-align: left; }
 
 body.graphics-testing #ui, body.graphics-testing #overlay, body.graphics-testing .build-panel { visibility: hidden !important; }
+
+.graphics-display-icon { position: fixed; bottom: 16px; left: 20px; z-index: 250; display: grid; place-items: center; width: 38px; height: 36px; padding: 0; border: 1px solid #78b4bb80; border-radius: 7px; background: #102b38ed; color: #bceaf0; cursor: pointer; }
+.graphics-display-icon:hover, .graphics-display-icon[aria-expanded="true"] { background: #245367; border-color: #9ce5ed; }
+.graphics-menu { position: fixed; bottom: 62px; left: 20px; z-index: 251; width: min(300px, calc(100vw - 40px)); padding: 18px; border: 1px solid #78b4bb80; border-radius: 10px; background: #102b38fa; color: #d8eff0; box-shadow: 0 12px 40px #0008; }
+.graphics-menu[hidden] { display: none !important; }
+.graphics-menu header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.graphics-menu label { display: grid; gap: 8px; font-size: 13px; }
+.graphics-menu select, .graphics-menu > button { width: 100%; padding: 10px; margin-bottom: 8px; border: 1px solid #78b4bb80; border-radius: 5px; background: #205062; color: #e4f7fc; cursor: pointer; }
+.graphics-menu .graphics-close { border: 0; background: transparent; color: #d8eff0; font-size: 22px; cursor: pointer; }
+.graphics-menu .graphics-details { font-size: 12px; line-height: 1.5; color: #a5c8cf; }
+.graphics-menu small { display: block; margin-top: 8px; font-size: 11px; line-height: 1.5; color: #a5c8cf; }
