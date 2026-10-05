@@ -122,6 +122,9 @@ export async function testGraphics(
     player,
   }));
   const beacons = new Beacons(world);
+  const sofa = world.destructibles.find(
+    (object) => object.prop.kind === "sofa" && object.prop.x > 0,
+  );
   type Stats = ReturnType<typeof frameStats>;
   const results: {
     tier: GraphicsTier;
@@ -146,10 +149,12 @@ export async function testGraphics(
         p.root.position.z + 2 + Math.sin(time * 8) * 3,
       );
     });
+    if (tick % 180 === 0 && sofa?.hp === 0) sofa.reset();
     if (tick % 180 === 60) {
       world.explosions.random = benchmarkRandom(tick + 12345);
+      sofa?.damage(sofa.maxHp, undefined, false);
       world.explosions.burst(
-        new Vector3(3, 0.2, 1),
+        sofa?.position ?? new Vector3(3, 0.2, 1),
         "#ffcf56",
         1,
         "bazookaExplosion",
@@ -203,6 +208,7 @@ export async function testGraphics(
     timeline.reset();
     time = 0;
     world.explosions.update(10);
+    if (sofa?.hp === 0) sofa.reset();
     players.forEach((p) => {
       p.walk = 0;
       p.stride = 0;

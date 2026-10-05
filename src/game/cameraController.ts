@@ -34,14 +34,14 @@ export function updateCamera(this: Context, dt: number) {
     const pose = rotatingCameraPose(this.player.root.position, this.input.yaw);
     this.camera.position.copyFrom(pose.position);
     this.camera.setTarget(pose.target);
-    this.player.root.getChildMeshes().forEach((m) => (m.visibility = 1));
+    this.player.setViewVisibility(1);
     if (this.shake > 0) {
       this.camera.position.x += Math.sin(this.time * 91) * this.shake * 0.35;
       this.shake = Math.max(0, this.shake - dt * 0.9);
     }
     return;
   }
-  this.player.root.getChildMeshes().forEach((m) => (m.visibility = 1));
+  this.player.setViewVisibility(1);
   const desired = this.player.root.position.add(new Vector3(0, 0, c.lookAhead));
   const edge = office01.size / 2;
   const limitX = Math.max(0, edge - (this.camera.orthoRight ?? 18));

@@ -1,3 +1,4 @@
+import { nearView, viewPlanes } from "./viewRegion";
 import { Destructible } from "../core/destructible";
 import { BEACON_MOVEMENT_CLIPS } from "../audio/beaconClips";
 import {
@@ -911,6 +912,9 @@ export class Beacons {
         this.carryModels.set(a.id, m);
       }
     }
+    const planes = this.world.scene.activeCamera
+      ? viewPlanes(this.world.scene.activeCamera)
+      : undefined;
     for (const r of this.robots.values()) {
       r.head.rotation.y = r.yaw;
       r.head.rotation.x = r.pitch ?? 0;
@@ -919,6 +923,13 @@ export class Beacons {
         0.001,
         r.charge / (r.firingInterval ?? BEACON.charge),
       );
+      // Include the entire 15 m laser and another 4 m before the camera edge.
+      const visible =
+        !planes ||
+        nearView(planes, r.root.position.add(new Vector3(0, 1, 0)), 16, 4);
+      r.laser.setEnabled(visible);
+      r.dot.setEnabled(visible);
+      if (!visible) continue;
       r.head.computeWorldMatrix(true);
       const matrix = r.head.getWorldMatrix();
       const start = Vector3.TransformCoordinates(new Vector3(0, 1, 0), matrix),

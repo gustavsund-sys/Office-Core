@@ -1,3 +1,4 @@
+import { nearView, viewPlanes } from "../game/viewRegion";
 import {
   Color3,
   Texture,
@@ -39,6 +40,32 @@ export class World {
     public shadows: ShadowGenerator,
   ) {
     this.explosions = new Explosions(this);
+    const map = shadows?.getShadowMap();
+    if (map)
+      map.getCustomRenderList = (_face, list, length) => {
+        if (this.authoritative || !scene.activeCamera || !list) return null;
+        const planes = viewPlanes(scene.activeCamera);
+        const visible = [];
+        for (let i = 0; i < length; i++) {
+          const mesh = list[i];
+          if (mesh.isDisposed() || !mesh.isEnabled()) continue;
+          mesh.computeWorldMatrix();
+          const bounds = mesh.getBoundingInfo();
+          // Six metres of pre-entry margin, plus room for tall objects' shadows.
+          const margin =
+            6 + Math.max(0, bounds.boundingBox.maximumWorld.y) * 1.5;
+          if (
+            nearView(
+              planes,
+              bounds.boundingSphere.centerWorld,
+              bounds.boundingSphere.radiusWorld,
+              margin,
+            )
+          )
+            visible.push(mesh);
+        }
+        return visible;
+      };
   }
   mat(color: string, glow = false) {
     const key = color + glow;
@@ -519,7 +546,8 @@ export class World {
           this.shadows.addShadowCaster(m);
           foliage.push(m);
         }
-        if (typeof document !== "undefined") void this.replacePalm(x, z, foliage);
+        if (typeof document !== "undefined")
+          void this.replacePalm(x, z, foliage);
       } else if (p.kind === "glass") {
         const m = this.box("glass", x, 1, z, w, 2, d, "#8bd0d4", true);
         const mat = this.mat("#8bd0d4");
@@ -611,7 +639,11 @@ export class World {
     this.label("BREAKABLE COVER", 0, 10, "#edcb89", 4);
   }
   async whenAssetsReady() {
-    try { await this.palmAsset; } catch { /* Original foliage remains available. */ }
+    try {
+      await this.palmAsset;
+    } catch {
+      /* Original foliage remains available. */
+    }
   }
   private async replacePalm(x: number, z: number, fallback: Mesh[]) {
     try {
@@ -620,10 +652,14 @@ export class World {
       );
       const asset = await this.palmAsset;
       if (this.scene.isDisposed) return;
-      const instance = asset.instantiateModelsToScene(name => `nipa palm ${name}`, false);
+      const instance = asset.instantiateModelsToScene(
+        (name) => `nipa palm ${name}`,
+        false,
+      );
       const root = instance.rootNodes[0] as TransformNode;
       const meshes = root.getChildMeshes();
-      let minY = Infinity, maxY = -Infinity;
+      let minY = Infinity,
+        maxY = -Infinity;
       for (const mesh of meshes) {
         mesh.computeWorldMatrix(true);
         const bounds = mesh.getBoundingInfo().boundingBox;
@@ -638,7 +674,9 @@ export class World {
         old.visibility = 0;
         this.shadows.removeShadowCaster(old);
       }
-      const owner = this.destructibles.find(d => d.prop.kind === "plant" && d.prop.x === x && d.prop.z === z);
+      const owner = this.destructibles.find(
+        (d) => d.prop.kind === "plant" && d.prop.x === x && d.prop.z === z,
+      );
       for (const mesh of meshes) {
         mesh.isPickable = false;
         mesh.receiveShadows = true;

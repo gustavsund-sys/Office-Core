@@ -175,9 +175,7 @@ export class RCSession {
   }
   camera(camera: FreeCamera, dt: number) {
     const car = this.states.find((s) => s.owner === this.owner);
-    this.player.root
-      .getChildMeshes()
-      .forEach((m) => (m.visibility = car && !this.watch ? 0 : 1));
+    this.player.setViewVisibility(car && !this.watch ? 0 : 1);
     if (!car && !this.watch) {
       if (this.previousCamera !== undefined) {
         camera.mode = this.previousCamera;

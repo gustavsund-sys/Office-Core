@@ -556,6 +556,12 @@ export class Player {
       }
     }
   }
+  setViewVisibility(visibility: number) {
+    for (const mesh of this.root.getChildMeshes()) {
+      mesh.visibility = mesh.name === "player hitbox" ? 0 : visibility;
+    }
+  }
+
   async loadModel() {
     try {
       const result = await SceneLoader.ImportMeshAsync(
