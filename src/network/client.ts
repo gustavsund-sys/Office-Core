@@ -1,3 +1,4 @@
+import { fetchServer } from "./serverReady";
 import { IDLE_CLOSE_CODE } from "../../shared/inactivity";
 import { SnapshotReceiver, type StreamPacket } from "./streams";
 import { decodeSnapshot, type SnapshotDelta } from "./snapshots";
@@ -32,6 +33,7 @@ export class Multiplayer {
   private activitySentAt = 0;
   private idleNotice?: HTMLElement;
   leaving = false;
+  private serverRequests = new AbortController();
   constructor() {
     window.addEventListener("pagehide", () => this.saveResume());
     const activity = (event: Event) => {
@@ -68,6 +70,7 @@ export class Multiplayer {
   }
   async leave() {
     this.leaving = true;
+    this.serverRequests.abort();
     this.connected = false;
     this.clearResume();
     this.idleNotice?.remove();
@@ -92,7 +95,10 @@ export class Multiplayer {
     const url = new URL(this.endpoint);
     url.protocol = url.protocol === "wss:" ? "https:" : "http:";
     url.pathname = "/rooms";
-    const response = await fetch(url);
+    const response = await fetchServer(url, {
+      signal: this.serverRequests.signal,
+      onWaiting: () => this.onStatus("Väntar på spelservern… Försöker igen automatiskt."),
+    });
     if (!response.ok) throw new Error("Serverns lobby kunde inte hämtas.");
     return (await response.json()).rooms;
   }
@@ -144,6 +150,11 @@ export class Multiplayer {
     this.clearResume();
     const user = auth.currentUser ?? (await signInAnonymously(auth)).user;
     const options = { token: await user.getIdToken(), name, team };
+    const ready = new URL(this.endpoint);
+    ready.protocol = ready.protocol === "wss:" ? "https:" : "http:";
+    ready.pathname = "/map";
+    await fetchServer(ready, {signal:this.serverRequests.signal,onWaiting:()=>this.onStatus("Spelservern startar… Väntar på svar.")});
+    this.serverRequests.signal.throwIfAborted();
     const room = await this.client.joinById(id, options);
     this.bind(room);
   }
@@ -239,6 +250,7 @@ export class Multiplayer {
       if (code === IDLE_CLOSE_CODE) {
         this.leaving = true;
         this.clearResume();
+        this.serverRequests.abort();
         location.assign("/?timeout=1");
         return;
       }

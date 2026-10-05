@@ -1,3 +1,4 @@
+import { fetchServer } from "./network/serverReady";
 import { installGameCache } from "./network/cache";
 import "./ui/style.css";
 import { applyMap, parseMap, STORAGE_KEY } from "./maps/layout";
@@ -30,10 +31,11 @@ async function start() {
     url.search = "";
     url.hash = "";
     try {
-      const response = await fetch(url, {
-        signal: AbortSignal.timeout(8000),
-        cache: "no-store",
-      });
+      const response = params.get("builder") === "1"
+        ? await fetch(url, { signal: AbortSignal.timeout(8000), cache: "no-store" })
+        : await fetchServer(url, { onWaiting: () => {
+          loading.textContent = "Väntar på spelservern… Kallstart kan ta en stund. Spelet fortsätter ladda automatiskt.";
+        } });
       if (!response.ok)
         throw new Error("Kartan kunde inte hämtas från spelservern.");
       applyMap(parseMap(await response.json()));

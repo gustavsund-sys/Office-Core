@@ -56,6 +56,8 @@ export function installMultiplayer(this: Context) {
   play.hidden = true;
   const net = (this.multiplayer ??= new Multiplayer());
   let busy = false;
+  let refreshing = false;
+  net.onStatus = text => { panel.querySelector("#network-status")!.textContent = text; };
   panel.querySelector("#leave-room")!.addEventListener("click", async () => {
     const button = panel.querySelector<HTMLButtonElement>("#leave-room")!;
     button.disabled = true;
@@ -279,9 +281,12 @@ export function installMultiplayer(this: Context) {
     }
   };
   const refresh = async () => {
-    if (net.room || busy) return;
+    if (net.room || busy || refreshing || net.leaving) return;
+    refreshing = true;
     try {
       const rooms = await net.rooms();
+      if (net.room || busy || net.leaving) return;
+      panel.querySelector("#network-status")!.textContent = "";
       const list = panel.querySelector<HTMLElement>("#available-rooms")!;
       list.replaceChildren();
       for (const room of rooms) {
@@ -318,7 +323,7 @@ export function installMultiplayer(this: Context) {
     } catch (error) {
       panel.querySelector("#network-status")!.textContent =
         connectionError(error);
-    }
+    } finally { refreshing = false; }
   };
   const resume = net.resumeInfo();
   if (resume?.id) void connect(resume.id);
