@@ -7,6 +7,8 @@ import {
   DirectionalLight,
   ShadowGenerator,
   Vector3,
+  Ray,
+  type Mesh,
 } from "@babylonjs/core";
 import { World } from "../map/builder";
 import { Player } from "../player/player";
@@ -383,6 +385,35 @@ test("beacon remembers enemies behind cover without blind fire and resumes only 
     s.beacons.update(4.1, [owner, enemy]);
     assert.equal(s.beacons.snapshot()[0].target, undefined);
     assert.equal(events.filter((e) => e.kind === "shot").length, 2);
+  } finally {
+    s.close();
+  }
+});
+
+test("invisible player hitboxes accept near-edge hits and beacon pickup reaches 2.2 metres", () => {
+  const s = setup();
+  try {
+    const drop = s.beacons.drops[0];
+    const a = s.actor("margin", "RED", drop.x + 2.1, drop.z);
+    assert.equal(s.beacons.acquire(a), true);
+    const head = a.player.bodyMeshes.find(
+      (m) => m.name === "player hitbox" && m.parent?.name === "head",
+    )!;
+    assert.equal(head.visibility, 0);
+    const center = head.getAbsolutePosition();
+    const hit = s.world.scene.pickWithRay(
+      new Ray(center.add(new Vector3(0.23, 0, -3)), Vector3.Forward(), 5),
+      (m) => m === head,
+    );
+    assert.ok(hit?.hit);
+    const source = head.parent as Mesh;
+    assert.ok(
+      Math.abs(
+        head.getBoundingInfo().boundingBox.extendSize.x /
+          source.getBoundingInfo().boundingBox.extendSize.x -
+          1.1,
+      ) < 0.001,
+    );
   } finally {
     s.close();
   }

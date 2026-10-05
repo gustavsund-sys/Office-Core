@@ -395,7 +395,7 @@ export class Pickup {
         continue;
       if (
         Math.hypot(p.x - drop.root.position.x, p.z - drop.root.position.z) >=
-        1.1
+        2.2
       )
         continue;
       player.hp =
@@ -415,8 +415,7 @@ export class Pickup {
         weapons.player.hp > 0 &&
         drop.id === weapons.id &&
         drop.cooldown === 0 &&
-        Math.hypot(p.x - drop.root.position.x, p.z - drop.root.position.z) <
-          0.85
+        Math.hypot(p.x - drop.root.position.x, p.z - drop.root.position.z) < 2.2
       ) {
         weapons.addAmmo(drop.id, drop.amount);
         this.onAmmo(weapons);
@@ -428,7 +427,7 @@ export class Pickup {
     }
     const position = weapons.player.root.position;
     let nearest: (typeof this.endpoints)[number] | undefined;
-    let nearestDistance = 1.5;
+    let nearestDistance = 2.2;
     for (const pickup of this.endpoints) {
       if (pickup.cooldown > 0 || !pickup.root.isEnabled()) continue;
       pickup.root.rotation.y += dt;

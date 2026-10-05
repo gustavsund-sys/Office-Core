@@ -16,9 +16,6 @@ import {
 } from "@babylonjs/core";
 import { World } from "../map/builder";
 import { Beacons, type BeaconActor } from "./beacon";
-import { pulseTrapModel, animatePulseTrap } from "./pulseTrap";
-import { rcCarModel } from "./rcCarModel";
-import { heldWeapon } from "../weapons/models";
 import { Player } from "../player/player";
 import {
   GRAPHICS,
@@ -86,7 +83,9 @@ export async function testGraphics(
   const world = new World(scene, shadows);
   world.build();
   if (spriteMode !== undefined) world.explosions.setSpriteMode(spriteMode);
-  renderer.textContent += world.explosions.spriteMode ? " · VFX: Sprites LOD" : " · VFX: Klassisk 3D";
+  renderer.textContent += world.explosions.spriteMode
+    ? " · VFX: Sprites LOD"
+    : " · VFX: Klassisk 3D";
   const camera = new FreeCamera(
     "benchmark camera",
     new Vector3(0, 23, -10),
@@ -101,10 +100,10 @@ export async function testGraphics(
     engine.getRenderingCanvas()!.clientHeight;
   camera.orthoLeft = -15 * aspect;
   camera.orthoRight = 15 * aspect;
-  const players = Array.from({ length: 8 }, (_, i) => {
+  const players = Array.from({ length: 3 }, (_, i) => {
     const p = new Player(world);
     p.root.position.set((i % 4) * 3 - 4.5, 0, -4 + Math.floor(i / 4) * 4);
-    p.torso.material = world.mat(i < 4 ? "#ef6259" : "#4abde4");
+    p.torso.material = world.mat(i < 2 ? "#ef6259" : "#4abde4");
     p.setWeaponModel(i % 2 ? "machineGun" : "pulseGun");
     return p;
   });
@@ -119,24 +118,10 @@ export async function testGraphics(
   });
   const actors: BeaconActor[] = players.map((player, i) => ({
     id: `benchmark-${i}`,
-    team: i < 4 ? "RED" : "BLUE",
+    team: i < 2 ? "RED" : "BLUE",
     player,
   }));
   const beacons = new Beacons(world);
-  const traps = [-3, 3].map((x) => {
-    const root = pulseTrapModel(world);
-    root.position.set(x, 0, 3);
-    return root;
-  });
-  const busters = [-2, 2].map((x) => {
-    const root = heldWeapon(world, "coreBuster");
-    root.position.set(x, 0.3, 5);
-    return root;
-  });
-  const car = rcCarModel(world);
-  car.root.position.set(2, 0, 0);
-  for (const root of [...traps, ...busters, car.root])
-    for (const mesh of root.getChildMeshes()) shadows.addShadowCaster(mesh);
   type Stats = ReturnType<typeof frameStats>;
   const results: {
     tier: GraphicsTier;
@@ -154,33 +139,25 @@ export async function testGraphics(
       p.animate(true, dt);
       p.root.position.x = (i % 4) * 3 - 4.5 + Math.sin(time * 2 + i);
       p.root.rotation.y = Math.sin(time + i);
+      shots[i].setEnabled(i === 0 && tick % (intense ? 9 : 18) < 4);
       shots[i].position.set(
         p.root.position.x,
         0.9,
         p.root.position.z + 2 + Math.sin(time * 8) * 3,
       );
     });
-    if (tick > 0 && tick % 30 === 0) {
-      const count = intense ? 3 : 1;
-      for (let i = 0; i < count; i++) {
-        world.explosions.random = benchmarkRandom(tick * 17 + i + 12345);
-        world.explosions.burst(
-          new Vector3(Math.sin(time + i) * 4, 0.2, 1 + i),
-          i === 1 ? "#ff66cb" : "#ffcf56",
-          intense ? 1.5 : 0.45,
-          i === 1 ? "plasmaMine" : undefined,
-        );
-      }
+    if (tick % 180 === 60) {
+      world.explosions.random = benchmarkRandom(tick + 12345);
+      world.explosions.burst(
+        new Vector3(3, 0.2, 1),
+        "#ffcf56",
+        1,
+        "bazookaExplosion",
+        "normal",
+      );
     }
-    traps.forEach((root, i) =>
-      animatePulseTrap(root, time * (intense ? 2 : 1) + i),
-    );
-    car.root.position.x = 2 + Math.sin(time) * 2;
-    car.root.rotation.y = Math.sin(time);
-    car.body.rotation.z = Math.cos(time) * 0.12;
-    car.wheels.forEach((wheel) => (wheel.spin.rotation.x = time * 5));
     beacons.sync(
-      [0, 1].map((i) => ({
+      [0].map((i) => ({
         id: i + 1,
         owner: actors[i].id,
         team: i === 0 ? "RED" : "BLUE",
@@ -189,7 +166,7 @@ export async function testGraphics(
         hp: 100,
         yaw: Math.sin(time * 2 + i) * 0.8,
         charge: (time % 3) / 3,
-        target: actors[4 - i].id,
+        target: actors[2].id,
         moving: true,
         pitch: 0,
       })),
@@ -300,7 +277,7 @@ export async function testGraphics(
               }
               const elapsed = last ? now - last : 0;
               last = now;
-              status.textContent = `Testar ${quality.name} · ${engine.getRenderWidth()} × ${engine.getRenderHeight()} · ${phase === "normal" ? "Normal strid · två beacons och skills" : "Intensiv strid · samtidiga explosioner"} · varv ${repetition + 1}/2 · ${warm < 1500 ? "värmer shaders" : "mäter bildrutetider"}`;
+              status.textContent = `Testar ${quality.name} · ${engine.getRenderWidth()} × ${engine.getRenderHeight()} · ${phase === "normal" ? "3 spelare · 1 beacon · 1 explosion" : "3 spelare · tätare skott · 1 explosion"} · varv ${repetition + 1}/2 · ${warm < 1500 ? "värmer shaders" : "mäter bildrutetider"}`;
               render(
                 warm < 1500
                   ? elapsed / 1000

@@ -6,6 +6,7 @@ import {
   MeshBuilder,
   TransformNode,
   Vector3,
+  Ray,
 } from "@babylonjs/core";
 import { RCCars, RC, predictRCVisual } from "./rcCar";
 import { validLoadout, applyLoadout } from "./loadout";
@@ -272,4 +273,52 @@ test("RC steering ramps with hold time and stays independent of frame rate", asy
   assert.ok(Math.abs(simulate(30, 0.5) - simulate(120, 0.5)) < 0.001);
   assert.ok(rampRCSteering(1, -1, 1 / 60) < 0);
   assert.ok(rampRCSteering(1, 0, 0.1) < 0.5);
+});
+
+test("shooting an RC hitbox destroys its 50 HP and detonates with area damage", () => {
+  const { engine, scene, system, actor } = setup();
+  system.command(actor, undefined, true);
+  const car = system.snapshot()[0];
+  assert.equal(car.hp, 50);
+  const victim = {
+    hp: 100,
+    canDamageFrom: () => true,
+    damage(amount: number) {
+      this.hp -= amount;
+    },
+  };
+  const mesh = MeshBuilder.CreateBox("nearby victim", {}, scene);
+  mesh.position.set(1.5, 0.5, car.z);
+  mesh.metadata = { damageable: victim };
+  const hit = scene.pickWithRay(
+    new Ray(new Vector3(-3, 0.3, car.z), Vector3.Right(), 5),
+    (m) => m.metadata?.damageable?.kind === "rcCar",
+  );
+  assert.ok(hit?.hit);
+  assert.equal(hit.pickedMesh!.visibility, 0);
+  hit.pickedMesh!.metadata.damageable.damage(49);
+  system.update(1 / 30, [actor]);
+  assert.equal(system.snapshot()[0].hp, 1);
+  let explosions = 0;
+  system.onExplode = () => explosions++;
+  hit.pickedMesh!.metadata.damageable.damage(1);
+  system.update(1 / 30, [actor]);
+  assert.equal(system.snapshot().length, 0);
+  assert.equal(explosions, 1);
+  assert.ok(victim.hp < 100);
+  engine.dispose();
+});
+
+test("a killed driver detonates the deployed car and clears remote control", () => {
+  const { engine, system, actor } = setup();
+  system.command(actor, undefined, true);
+  let explosions = 0;
+  system.onExplode = () => explosions++;
+  actor.player.hp = 0;
+  system.update(1 / 30, [actor]);
+  assert.equal(explosions, 1);
+  assert.equal(system.snapshot().length, 0);
+  assert.equal(system.controlling(actor.id), false);
+  assert.equal(actor.weapons.remoteControlled, false);
+  engine.dispose();
 });

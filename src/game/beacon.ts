@@ -429,7 +429,7 @@ export class Beacons {
         Math.hypot(
           actor.player.root.position.x - d.x,
           actor.player.root.position.z - d.z,
-        ) < 1.6,
+        ) < 2.2,
     );
     if (!d) return false;
     d.cooldown = BEACON.respawn;
@@ -574,15 +574,23 @@ export class Beacons {
         }
       },
     };
-    for (const m of head.getChildMeshes()) {
-      m.isPickable = true;
-      m.metadata = { damageable: robot.targetable };
+    // Both local and authoritative simulation use the same enlarged hit volumes.
+    for (const m of root.getChildMeshes()) m.isPickable = false;
+    for (const [parent, width, height, depth, y, z] of [
+      [root, 1.32, 0.88, 1.32, 0.4, 0],
+      [head, 0.605, 0.495, 1.43, 1, 0.3],
+    ] as const) {
+      const box = MeshBuilder.CreateBox(
+        "beacon hitbox",
+        { width, height, depth },
+        this.world.scene,
+      );
+      box.parent = parent;
+      box.position.set(0, y, z);
+      box.visibility = 0;
+      box.isPickable = true;
+      box.metadata = { damageable: robot.targetable };
     }
-    for (const m of root.getChildMeshes())
-      if (![bar, chargeBar, laser, dot].includes(m as Mesh)) {
-        m.isPickable = true;
-        m.metadata = { damageable: robot.targetable };
-      }
     for (const m of [bar, chargeBar]) m.isPickable = false;
     this.robots.set(state.id, robot);
     return robot;

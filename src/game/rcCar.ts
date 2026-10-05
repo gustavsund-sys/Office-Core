@@ -87,10 +87,11 @@ export class RCCars {
     if (blocked(x, z, RC.radius, this.world.obstacles)) return;
     const collider = MeshBuilder.CreateBox(
       "RC authoritative hitbox",
-      { width: 1.1, height: 0.55, depth: 0.92 },
+      { width: 1.21, height: 0.605, depth: 1.012 },
       this.world.scene,
     );
     collider.position.set(x, 0.3, z);
+    collider.rotation.y = yaw;
     collider.visibility = 0;
     collider.isPickable = true;
     const state: Car = {
@@ -109,9 +110,12 @@ export class RCCars {
       collider,
       lastCommand: this.time,
     };
-    const target: Hittable = {
+    const target: Hittable & { position: Vector3 } = {
       get hp() {
         return state.hp;
+      },
+      get position() {
+        return new Vector3(state.x, 0.3, state.z);
       },
       kind: "rcCar",
       team: actor.team,
@@ -121,6 +125,7 @@ export class RCCars {
       },
     };
     collider.metadata = { damageable: target };
+    collider.computeWorldMatrix(true);
     this.cars.set(actor.id, state);
     actor.weapons.utilityCount--;
     actor.weapons.pulseTrapSelected = false;
@@ -142,7 +147,13 @@ export class RCCars {
     }
     for (const [owner, c] of [...this.cars]) {
       const actor = actors.find((a) => a.id === owner);
-      if (!actor || actor.player.hp <= 0 || actor.connected === false) {
+      if (actor && actor.player.hp <= 0 && actor.connected !== false) {
+        this.detonate(owner);
+        this.watches.delete(owner);
+        this.restore(actor);
+        continue;
+      }
+      if (!actor || actor.connected === false) {
         this.remove(owner);
         this.restore(actor);
         continue;
@@ -182,6 +193,7 @@ export class RCCars {
       )
         c.speed *= 0.25;
       c.collider.position.set(c.x, 0.3, c.z);
+      c.collider.rotation.y = c.yaw;
       c.collider.computeWorldMatrix(true);
     }
   }
@@ -335,6 +347,16 @@ export class RCVisuals {
       if (!m) {
         m = rcCarModel(this.world);
         this.models.set(s.id, m);
+        const aim = MeshBuilder.CreateBox(
+          "RC aiming volume",
+          { width: 1.21, height: 0.605, depth: 1.012 },
+          this.world.scene,
+        );
+        aim.parent = m.root;
+        aim.position.y = 0.3;
+        aim.visibility = 0;
+        aim.isPickable = false;
+        aim.metadata = { rcAimTarget: true };
         m.root.position.set(s.x, 0, s.z);
         m.root.rotation.y = s.yaw;
       }

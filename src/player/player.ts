@@ -498,6 +498,22 @@ export class Player {
     ring.material = world.mat("#f8e4ac", true);
     ring.isPickable = false;
     this.setWeaponModel("pistol");
+    // Invisible boxes follow each animated body part, with 10% aim tolerance.
+    const hitboxes = this.bodyMeshes.map((part) => {
+      const bounds = part.getBoundingInfo().boundingBox;
+      const size = bounds.maximum.subtract(bounds.minimum).scale(1.1);
+      const box = MeshBuilder.CreateBox(
+        "player hitbox",
+        { width: size.x, height: size.y, depth: size.z },
+        world.scene,
+      );
+      box.parent = part;
+      box.position.copyFrom(bounds.center);
+      box.visibility = 0;
+      box.isPickable = true;
+      return box;
+    });
+    this.bodyMeshes.push(...hitboxes);
     this.legacyMeshes = this.root.getChildMeshes() as Mesh[];
   }
   setWeaponModel(id: WeaponId) {
@@ -753,6 +769,23 @@ export class Player {
     const target =
       command.shotTarget ??
       new Vector3(command.aimX, this.root.position.y + 1.1, command.aimZ);
+    // In the overhead view, lower the shot to a small vehicle under the aim point.
+    if (!command.shotTarget) {
+      const vehicle = this.world.scene.meshes.find(
+        (mesh) =>
+          mesh.isEnabled() &&
+          (mesh.metadata?.damageable?.kind === "rcCar" ||
+            mesh.metadata?.rcAimTarget) &&
+          Math.hypot(
+            mesh.getAbsolutePosition().x - command.aimX,
+            mesh.getAbsolutePosition().z - command.aimZ,
+          ) < 0.8,
+      );
+      if (vehicle)
+        target.y = vehicle.metadata?.rcAimTarget
+          ? 0.3
+          : vehicle.getAbsolutePosition().y;
+    }
     const delta = target.subtract(origin);
     // Keep a stable forward shot when the cursor is inside the player silhouette.
     return Vector3.Dot(delta, this.direction) > 0.2

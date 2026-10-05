@@ -384,7 +384,7 @@ export class PulseTraps {
         Math.hypot(
           a.player.root.position.x - d.x,
           a.player.root.position.z - d.z,
-        ) < 1.6,
+        ) < 2.2,
     );
     if (!d) return false;
     d.cooldown = PULSE_TRAP.respawn;
