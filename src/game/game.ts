@@ -365,11 +365,13 @@ export class Game {
     document.querySelector(".brief")!.after(lobby.el);
     if (new URLSearchParams(location.search).get("playtest") !== "1")
       this.installMultiplayer();
-    const builderLink = document.createElement("a");
-    builderLink.href = "/?builder=1";
-    builderLink.className = "map-builder-link";
-    builderLink.textContent = "ÖPPNA KARTBYGGAREN";
-    document.querySelector(".pause-card")!.append(builderLink);
+    if (import.meta.env.DEV) {
+      const builderLink = document.createElement("a");
+      builderLink.href = "/?builder=1";
+      builderLink.className = "map-builder-link";
+      builderLink.textContent = "ÖPPNA KARTBYGGAREN";
+      document.querySelector(".pause-card")!.append(builderLink);
+    }
     document.querySelector("#play")!.innerHTML = "STARTA MATCH <span>↗</span>";
     this.pickup = new Pickup(this.world);
     this.pickup.onAmmo = () => {

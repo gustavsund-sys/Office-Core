@@ -126,6 +126,10 @@ export function applyOnline(this: Context, snapshot: Snapshot) {
       !!snapshot.seriesWinner,
       snapshot.wins,
       snapshot.roundStats ?? [],
+      () => {
+        this.multiplayer?.clearResume();
+        void this.multiplayer?.leave().catch(error => console.warn("Leaving match", error)).finally(() => location.reload());
+      },
     );
   }
   if (snapshot.winner) updateReady(snapshot.players, snapshot.ready ?? []);

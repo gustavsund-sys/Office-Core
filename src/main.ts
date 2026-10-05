@@ -90,7 +90,13 @@ void start().catch((error) => {
   console.error(error);
   const ui = document.querySelector("#ui")!;
   ui.innerHTML =
-    '<div class="error"><h1>Office Core kunde inte starta</h1><p></p><a href="/">Försök igen</a> · <a href="/?builder=1">Kartbyggaren</a></div>';
+    '<div class="error"><h1>Office Core kunde inte starta</h1><p></p><a href="/">Försök igen</a></div>';
+  if (import.meta.env.DEV) {
+    const builder = document.createElement("a");
+    builder.href = "/?builder=1";
+    builder.textContent = "Kartbyggaren";
+    ui.querySelector(".error")!.append(" · ", builder);
+  }
   ui.querySelector("p")!.textContent =
     error instanceof Error
       ? error.message

@@ -2615,3 +2615,7 @@ kbd {
 .onboarding button[hidden] { display: none !important; }
 
 .onboarding .intro-remember-label[hidden] { display: none !important; }
+
+.victory-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
+#victory .victory-card .round-leave { background: transparent; color: #bacdd4; border: 1px solid #86a5af66; box-shadow: none; }
+#victory .victory-card .round-leave:hover { background: #ffffff12; }

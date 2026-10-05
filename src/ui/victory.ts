@@ -40,12 +40,13 @@ export function showVictory(
   final = true,
   wins?: Record<Team, number>,
   results: ({ name: string } & Performance)[] = [],
+  returnToLobby: () => void = () => location.reload(),
 ) {
   if (document.querySelector("#victory")) return;
   const overlay = document.createElement("section");
   overlay.id = "victory";
   overlay.style.setProperty("--winner", TEAMS[team]);
-  overlay.innerHTML = `<div class="victory-card"><span>${final ? "FIRST TO THREE · SERIES COMPLETE" : "Next round"}</span><h1>${team} TEAM WINS</h1><canvas aria-label="Winning players"></canvas><div class="winner-names"></div><p>${wins ? `RED ${wins.RED} · BLUE ${wins.BLUE}` : ""}</p><div id="round-ready"></div><button>${final ? "Return to Lobby" : "Ready"}</button></div>`;
+  overlay.innerHTML = `<div class="victory-card"><span>${final ? "FIRST TO THREE · SERIES COMPLETE" : "Next round"}</span><h1>${team} TEAM WINS</h1><canvas aria-label="Winning players"></canvas><div class="winner-names"></div><p>${wins ? `RED ${wins.RED} · BLUE ${wins.BLUE}` : ""}</p><div id="round-ready"></div><div class="victory-actions"><button class="round-primary">${final ? "Return to Lobby" : "Ready"}</button>${final ? "" : '<button class="round-leave">Return to Lobby</button>'}</div></div>`;
   const awards = document.createElement("div");
   awards.className = "round-awards";
   for (const award of highlights(results)) {
@@ -87,6 +88,11 @@ export function showVictory(
       ? "RETURNING TO LOBBY…"
       : "Ready · Waiting for players…";
     newMatch();
+  });
+  overlay.querySelector<HTMLButtonElement>(".round-leave")?.addEventListener("click", () => {
+    overlay.querySelectorAll<HTMLButtonElement>("button").forEach(button => { button.disabled = true; });
+    overlay.querySelector(".round-leave")!.textContent = "RETURNING TO LOBBY…";
+    returnToLobby();
   });
   document.body.append(overlay);
   const engine = new Engine(overlay.querySelector("canvas")!, true);
