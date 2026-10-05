@@ -1,3 +1,4 @@
+import { GRAPHICS, readGraphics, renderSize } from "./graphicsSettings";
 import { RCSession } from "./rcSession";
 import { advanceCountdown, finishLocalRound } from "./roundFlow";
 import { applyOnline as applyOnlineImpl } from "./snapshotReconciliation";
@@ -175,10 +176,9 @@ export class Game {
   breachTeam?: Team;
   breachUntil = 0;
   constructor(canvas: HTMLCanvasElement, engine?: AbstractEngine) {
-    this.engine = engine ?? new Engine(canvas, true, { stencil: true });
-    this.engine.setHardwareScalingLevel(
-      Math.max(1, window.devicePixelRatio / 1.5),
-    );
+    this.engine = engine ?? new Engine(canvas, true, { stencil: true, powerPreference: "high-performance" });
+    const render = renderSize(canvas.clientWidth, canvas.clientHeight, readGraphics() ?? "standard");
+    this.engine.setHardwareScalingLevel(1 / render.scale);
     this.scene = new Scene(this.engine);
     this.scene.clearColor = Color4.FromHexString("#14232cff");
     this.scene.ambientColor = new Color3(0.13, 0.16, 0.19);
@@ -198,19 +198,21 @@ export class Game {
     sun.position.set(12, 30, -20);
     sun.intensity = 1.05;
     sun.diffuse = Color3.FromHexString("#ffdfb0");
-    const shadows = new ShadowGenerator(1024, sun);
+    const quality = GRAPHICS[readGraphics() ?? "standard"];
+    const shadows = new ShadowGenerator(quality.shadow || 512, sun);
+    this.scene.shadowsEnabled = quality.shadow > 0;
     shadows.usePercentageCloserFiltering = true;
-    shadows.filteringQuality = ShadowGenerator.QUALITY_HIGH;
+    shadows.filteringQuality = quality.shadow === 512 ? ShadowGenerator.QUALITY_LOW : ShadowGenerator.QUALITY_HIGH;
     shadows.bias = 0.0005;
     shadows.normalBias = 0.02;
     shadows.setDarkness(0.18);
     const glow = new GlowLayer("subtle glow", this.scene, {
       mainTextureFixedSize: 512,
     });
-    glow.intensity = 0.2;
+    glow.intensity = quality.glow;
     this.scene.imageProcessingConfiguration.contrast = 1.12;
     this.scene.imageProcessingConfiguration.exposure = 1.02;
-    this.scene.imageProcessingConfiguration.vignetteEnabled = true;
+    this.scene.imageProcessingConfiguration.vignetteEnabled = quality.effects === 1;
     this.scene.imageProcessingConfiguration.vignetteWeight = 1.1;
     this.camera = new FreeCamera(
       "fixed follow",
@@ -222,6 +224,7 @@ export class Game {
     this.camera.minZ = 0.1;
     this.camera.maxZ = 150;
     this.world = new World(this.scene, shadows);
+    this.world.explosions.amount = quality.effects;
     this.world.build();
     this.world.explosions.onBurst = (position, power, sound) => {
       const distance = Vector3.Distance(position, this.player.root.position);

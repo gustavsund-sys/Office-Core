@@ -53,7 +53,24 @@ export function presentMatch(
   const wasPreparing = !this.loadout.el.hidden;
   const phase = gamePhase(snapshot);
   setGameUpdateAllowed(phase === "lobby" || phase === "seriesEnd");
-  this.loadout.el.hidden = phase !== "equipment";
+  const lateEquipment = snapshot.started && !own.loadout && own.hp <= 0 && !snapshot.winner;
+  this.loadout.el.hidden = phase !== "equipment" && !lateEquipment;
+  if (!snapshot.started) {
+    this.match.started = false;
+    this.lobby.el.disabled = false;
+    this.setPaused(true);
+    if (!own.loadout) {
+      this.loadout.confirmed = false;
+      this.loadout.el.querySelector<HTMLButtonElement>(".loadout-confirm")!.disabled = false;
+    }
+  }
+  if (lateEquipment) {
+    this.setPaused(true);
+    document.querySelector<HTMLElement>("#overlay")!.style.display = "none";
+    this.input.active = false;
+    this.loadout.el.querySelector(".loadout-status")!.textContent = "Matchen pågår. Välj utrustning för att ansluta till ditt lag.";
+    this.loadout.el.querySelector<HTMLButtonElement>(".loadout-confirm")!.disabled = false;
+  }
   if (wasPreparing && phase === "lobby") {
     this.setPaused(true);
     this.hud.toast("Ett lag saknas. Välj lag och starta igen.");
@@ -65,7 +82,7 @@ export function presentMatch(
       ? `REDO · VÄNTAR PÅ SPELARE (${snapshot.players.filter((p) => p.loadout).length}/${snapshot.players.length})`
       : "Välj din utrustning och gör dig redo att spawna.";
   }
-  if (snapshot.started && !this.match.started) {
+  if (snapshot.started && !lateEquipment && !this.match.started) {
     this.match.started = true;
     this.updateLobbyMusic();
     this.setPaused(false);

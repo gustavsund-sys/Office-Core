@@ -2619,3 +2619,20 @@ kbd {
 .victory-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 12px; }
 #victory .victory-card .round-leave { background: transparent; color: #bacdd4; border: 1px solid #86a5af66; box-shadow: none; }
 #victory .victory-card .round-leave:hover { background: #ffffff12; }
+
+#leave-room:not([hidden]) { display: inline-block; border: 1px solid #e69a7866; background: #632c2c; color: #ffe4d5; }
+
+.idle-warning { position: fixed; z-index: 20000; top: 20px; left: 50%; transform: translateX(-50%); width: min(650px,90vw); padding: 20px; color: #ffecb5; background: #642e19f5; border: 2px solid #ffbf66; font: 700 16px/1.5 Inter,sans-serif; box-shadow: 0 10px 40px #0008; }
+.graphics-test { position: fixed; inset: 0; z-index: 15000; pointer-events: none; display: flex; align-items: flex-end; justify-content: center; padding: 20px; background: linear-gradient(transparent 35%,#07151dde); }
+.graphics-report { pointer-events: auto; width: min(760px,95vw); max-height: 90vh; overflow: auto; padding: 20px; background: #102b38ed; border: 1px solid #83cbd477; border-radius: 8px; color: #daeff4; }
+.graphics-report h1 { font: 700 30px "Barlow Condensed",sans-serif; margin: 8px 0; }
+.graphics-report p { font-size: 13px; }
+.graphics-report select, .graphics-report button, .retest-graphics { padding: 12px; margin: 8px; background: #205062; color: #e4f7fc; border: 1px solid #85c8cf; border-radius: 4px; }
+
+.game-loading[hidden] { display: none !important; }
+
+.graphics-tier-table { overflow-x: auto; }
+.graphics-tier-table table { width: 100%; font-size: 12px; border-collapse: collapse; }
+.graphics-tier-table td, .graphics-tier-table th { padding: 7px; border-bottom: 1px solid #83cbd433; text-align: left; }
+
+body.graphics-testing #ui, body.graphics-testing #overlay, body.graphics-testing .build-panel { visibility: hidden !important; }

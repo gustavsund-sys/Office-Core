@@ -59,7 +59,7 @@ async function start() {
       let gpu: import("@babylonjs/core").WebGPUEngine | undefined;
       try {
         if (await WebGPUEngine.IsSupportedAsync) {
-          gpu = new WebGPUEngine(canvas, { antialias: true, stencil: true });
+          gpu = new WebGPUEngine(canvas, { antialias: true, stencil: true, powerPreference: "high-performance" });
           await gpu.initAsync();
           engine = gpu;
         }
@@ -68,7 +68,37 @@ async function start() {
         console.warn("WebGPU initialization failed; using WebGL.", error);
       }
     }
-    new Game(canvas, engine);
+    const { Engine } = await import("@babylonjs/core");
+    engine ??= new Engine(canvas, true, { stencil: true, powerPreference: "high-performance" });
+    const { readGraphics, GRAPHICS } = await import("./game/graphicsSettings");
+    const { testGraphics, applyGraphics } = await import("./game/graphicsBenchmark");
+    loading.hidden = true;
+    if (!readGraphics()) await testGraphics(engine);
+    applyGraphics(engine, readGraphics() ?? "standard");
+    loading.hidden = false;
+    const game = new Game(canvas, engine);
+    const resizeGraphics = () => applyGraphics(engine!, readGraphics() ?? "standard");
+    window.addEventListener("resize", resizeGraphics);
+    const graphicsButton = document.createElement("button");
+    graphicsButton.textContent = "Testa grafik igen";
+    graphicsButton.className = "retest-graphics";
+    graphicsButton.onclick = async () => {
+      graphicsButton.disabled = true;
+      // The game is paused by the settings screen; stop its rendering while testing.
+      const loops = [...engine!.activeRenderLoops];
+      engine!.stopRenderLoop();
+      try {
+        const tier = await testGraphics(engine!);
+        const quality = GRAPHICS[tier];
+        game.scene.shadowsEnabled = quality.shadow > 0;
+        if (quality.shadow) game.world.shadows.getShadowMap()?.resize(quality.shadow);
+        game.world.shadows.filteringQuality = quality.shadow === 512 ? 0 : 2;
+        game.world.explosions.amount = quality.effects;
+        for (const layer of game.scene.effectLayers) if (layer.name === "subtle glow") (layer as import("@babylonjs/core").GlowLayer).intensity = quality.glow;
+        game.scene.imageProcessingConfiguration.vignetteEnabled = quality.effects === 1;
+      } finally { loops.forEach(loop => engine!.runRenderLoop(loop)); graphicsButton.disabled = false; }
+    };
+    document.querySelector(".pause-card")!.append(graphicsButton);
     const guide = document.createElement("button");
     guide.className = "open-field-guide";
     guide.textContent = "Tutorial";
@@ -77,7 +107,7 @@ async function start() {
     document.querySelector("#overlay")!.append(guide);
     {
       const badge = document.createElement("div");
-      badge.textContent = engine ? "RENDERER · WEBGPU" : "RENDERER · WEBGL";
+      badge.textContent = engine.isWebGPU ? "RENDERER · WEBGPU" : "RENDERER · WEBGL";
       badge.style.cssText =
         "position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:200;color:#b7f5ef;background:#10232be8;padding:5px 10px;border-radius:4px;font:12px monospace;pointer-events:none";
       document.body.append(badge);

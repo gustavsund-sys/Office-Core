@@ -46,7 +46,7 @@ export function showVictory(
   const overlay = document.createElement("section");
   overlay.id = "victory";
   overlay.style.setProperty("--winner", TEAMS[team]);
-  overlay.innerHTML = `<div class="victory-card"><span>${final ? "FIRST TO THREE · SERIES COMPLETE" : "Next round"}</span><h1>${team} TEAM WINS</h1><canvas aria-label="Winning players"></canvas><div class="winner-names"></div><p>${wins ? `RED ${wins.RED} · BLUE ${wins.BLUE}` : ""}</p><div id="round-ready"></div><div class="victory-actions"><button class="round-primary">${final ? "Return to Lobby" : "Ready"}</button>${final ? "" : '<button class="round-leave">Return to Lobby</button>'}</div></div>`;
+  overlay.innerHTML = `<div class="victory-card"><span>${final ? "FIRST TO THREE · SERIES COMPLETE" : "Next round"}</span><h1>${team} TEAM WINS</h1><canvas aria-label="Winning players"></canvas><div class="winner-names"></div><p>${wins ? `RED ${wins.RED} · BLUE ${wins.BLUE}` : ""}</p><div id="round-ready"></div><div class="victory-actions"><button class="round-primary">${final ? "New match · Same lobby" : "Ready"}</button><button class="round-leave">Return to Lobby</button></div></div>`;
   const awards = document.createElement("div");
   awards.className = "round-awards";
   for (const award of highlights(results)) {
@@ -85,7 +85,7 @@ export function showVictory(
     const button = overlay.querySelector("button")!;
     button.disabled = true;
     button.textContent = final
-      ? "RETURNING TO LOBBY…"
+      ? "STARTING NEW MATCH…"
       : "Ready · Waiting for players…";
     newMatch();
   });

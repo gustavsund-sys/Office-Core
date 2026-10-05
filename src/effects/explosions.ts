@@ -19,6 +19,8 @@ interface Particle {
 export class Explosions {
   particles: Particle[] = [];
   visuals = true;
+  amount = 1;
+  random: () => number = Math.random;
   lights: { light: PointLight; life: number }[] = [];
   constructor(
     public world: World,
@@ -52,9 +54,9 @@ export class Explosions {
         maxLife: life,
         velocity,
         spin: new Vector3(
-          Math.random() * 8,
-          Math.random() * 8,
-          Math.random() * 8,
+          this.random() * 8,
+          this.random() * 8,
+          this.random() * 8,
         ),
       });
     };
@@ -77,13 +79,13 @@ export class Explosions {
       .clone("ring material");
     add(ring, "ring", 0.45);
     ring.position.y = 0.12;
-    for (let i = 0; i < 22; i++) {
+    for (let i = 0; i < Math.ceil(22 * this.amount); i++) {
       const chunk = MeshBuilder.CreateBox(
         "flying debris",
         {
-          width: 0.12 + Math.random() * 0.3,
-          height: 0.1 + Math.random() * 0.15,
-          depth: 0.12 + Math.random() * 0.25,
+          width: 0.12 + this.random() * 0.3,
+          height: 0.1 + this.random() * 0.15,
+          depth: 0.12 + this.random() * 0.25,
         },
         scene,
       );
@@ -101,23 +103,23 @@ export class Explosions {
           plasma && i % 3 !== 2,
         )
         .clone("debris material");
-      const a = Math.random() * Math.PI * 2,
-        speed = (2 + Math.random() * 5) * power;
+      const a = this.random() * Math.PI * 2,
+        speed = (2 + this.random() * 5) * power;
       add(
         chunk,
         "debris",
-        1.1 + Math.random() * 0.6,
+        1.1 + this.random() * 0.6,
         new Vector3(
           Math.cos(a) * speed,
-          3 + Math.random() * 5,
+          3 + this.random() * 5,
           Math.sin(a) * speed,
         ),
       );
     }
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < Math.ceil(8 * this.amount); i++) {
       const smoke = MeshBuilder.CreateSphere(
         "smoke puff",
-        { diameter: 0.5 + Math.random() * 0.4, segments: 5 },
+        { diameter: 0.5 + this.random() * 0.4, segments: 5 },
         scene,
       );
       const mat = new StandardMaterial("smoke material", scene);
@@ -136,11 +138,11 @@ export class Explosions {
       add(
         smoke,
         "smoke",
-        0.7 + Math.random() * 0.6,
+        0.7 + this.random() * 0.6,
         new Vector3(
-          (Math.random() - 0.5) * 3,
-          1 + Math.random() * 2,
-          (Math.random() - 0.5) * 3,
+          (this.random() - 0.5) * 3,
+          1 + this.random() * 2,
+          (this.random() - 0.5) * 3,
         ),
       );
     }
@@ -155,18 +157,18 @@ export class Explosions {
   }
   playerDeath(position: Vector3, teamColor: string) {
     while (this.particles.length > 220) this.remove(this.particles.shift()!);
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < Math.ceil(30 * this.amount); i++) {
       const mesh = MeshBuilder.CreateBox(
         "player fragment",
-        { size: 0.12 + Math.random() * 0.18 },
+        { size: 0.12 + this.random() * 0.18 },
         this.world.scene,
       );
       mesh.position.copyFrom(
         position.add(
           new Vector3(
-            (Math.random() - 0.5) * 0.55,
-            0.3 + Math.random() * 1.4,
-            (Math.random() - 0.5) * 0.4,
+            (this.random() - 0.5) * 0.55,
+            0.3 + this.random() * 1.4,
+            (this.random() - 0.5) * 0.4,
           ),
         ),
       );
@@ -174,21 +176,21 @@ export class Explosions {
         .mat(i % 3 === 0 ? teamColor : i % 3 === 1 ? "#efdfbd" : "#253a4c")
         .clone("player fragment fade");
       mesh.isPickable = false;
-      const life = 1.4 + Math.random() * 0.8;
+      const life = 1.4 + this.random() * 0.8;
       this.particles.push({
         mesh,
         kind: "debris",
         life,
         maxLife: life,
         velocity: new Vector3(
-          (Math.random() - 0.5) * 7,
-          2 + Math.random() * 4,
-          (Math.random() - 0.5) * 7,
+          (this.random() - 0.5) * 7,
+          2 + this.random() * 4,
+          (this.random() - 0.5) * 7,
         ),
         spin: new Vector3(
-          Math.random() * 8,
-          Math.random() * 8,
-          Math.random() * 8,
+          this.random() * 8,
+          this.random() * 8,
+          this.random() * 8,
         ),
       });
     }
@@ -210,7 +212,7 @@ export class Explosions {
       velocity: Vector3.Zero(),
       spin: Vector3.Zero(),
     });
-    for (let i = 0; i < 22; i++) {
+    for (let i = 0; i < Math.ceil(22 * this.amount); i++) {
       const mesh = MeshBuilder.CreateSphere(
         "spawn energy particle",
         { diameter: 0.08, segments: 4 },
@@ -221,20 +223,20 @@ export class Explosions {
         position.add(
           new Vector3(
             Math.cos(angle) * 0.65,
-            Math.random() * 0.5,
+            this.random() * 0.5,
             Math.sin(angle) * 0.65,
           ),
         ),
       );
       mesh.material = this.world.mat(color, true).clone("spawn particle fade");
       mesh.isPickable = false;
-      const life = 0.7 + Math.random() * 0.5;
+      const life = 0.7 + this.random() * 0.5;
       this.particles.push({
         mesh,
         kind: "spawn",
         life,
         maxLife: life,
-        velocity: new Vector3(0, 1.5 + Math.random(), 0),
+        velocity: new Vector3(0, 1.5 + this.random(), 0),
         spin: Vector3.Zero(),
       });
     }

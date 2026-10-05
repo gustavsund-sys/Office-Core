@@ -51,6 +51,11 @@ export function applyOnline(this: Context, snapshot: Snapshot) {
     this.pendingInputs = [];
     this.setPaused(false);
   }
+  if (!snapshot.started && this.match.winner) {
+    closeVictory();
+    this.match.winner = undefined;
+    this.onlineSpawned = false;
+  }
   this.hud.showStats(snapshot.started);
   this.hud.wins(snapshot.wins ?? { RED: 0, BLUE: 0 }, snapshot.round ?? 1);
   const own = snapshot.players.find(

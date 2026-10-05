@@ -610,6 +610,9 @@ export class World {
     this.label("COMBAT ATRIUM", 0, 14, "#d3d8c6", 7);
     this.label("BREAKABLE COVER", 0, 10, "#edcb89", 4);
   }
+  async whenAssetsReady() {
+    try { await this.palmAsset; } catch { /* Original foliage remains available. */ }
+  }
   private async replacePalm(x: number, z: number, fallback: Mesh[]) {
     try {
       this.palmAsset ??= import("@babylonjs/loaders/glTF").then(() =>

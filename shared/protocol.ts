@@ -1,6 +1,8 @@
 import type { Team } from "../src/config/game";
 import type { WeaponId } from "../src/config/weapons";
 export const MSG = {
+  activity: "activity",
+  idle: "idle",
   loadout: "loadout",
   netReady: "netReady",
   teamPing: "teamPing",

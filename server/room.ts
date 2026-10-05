@@ -1,3 +1,4 @@
+import { inactivityState, IDLE_CLOSE_CODE } from "../shared/inactivity";
 import { RCCars } from "../src/game/rcCar";
 import { SnapshotSender } from "../src/network/streams";
 import { RoomMetrics } from "./metrics";
@@ -62,7 +63,11 @@ const idle = (): NetInput => ({
   slot: 0,
 });
 interface Participant {
+  lastActivity?: number;
+  activityWarned?: boolean;
+  idleExpired?: boolean;
   loadout?: Loadout;
+  awaitingLoadout?: boolean;
   inputCredit: number;
   lastInputDiagnostic: number;
   inputReportAt: number;
@@ -210,6 +215,16 @@ export class OfficeRoom extends Room {
         power,
         sound,
       });
+    this.onMessage(MSG.activity, (client) => {
+      const p = this.participants.get(client.sessionId);
+      if (!p || p.idleExpired) return;
+      const now = Date.now();
+      if (now - (p.lastActivity ?? 0) < 900) return;
+      p.lastActivity = now;
+      if (p.activityWarned) client.send(MSG.idle, { remaining: null });
+      p.activityWarned = false;
+    });
+    this.clock.setInterval(() => this.checkInactivity(), 1000);
     this.onMessage(MSG.netReady, (client, capabilities) => {
       if (!this.permit(client)) return;
       this.optimizedClients.set(client.sessionId, undefined);
@@ -404,9 +419,15 @@ export class OfficeRoom extends Room {
     });
     this.onMessage(MSG.loadout, (client, choice) => {
       const p = this.participants.get(client.sessionId);
-      if (!this.permit(client) || !p || this.started) return;
+      if (!this.permit(client) || !p || (this.started && !p.awaitingLoadout)) return;
       if (choice !== null && !validLoadout(choice)) return;
       p.loadout = choice === null ? undefined : { ...choice };
+      if (this.started && p.awaitingLoadout && p.loadout) {
+        p.awaitingLoadout = false;
+        this.spawn(p);
+        applyLoadout(p.weapons, p.loadout);
+        p.player.invulnerable = 3;
+      }
       if (this.preparing) this.startWhenEquipped();
       this.sendSnapshots();
     });
@@ -449,7 +470,7 @@ export class OfficeRoom extends Room {
     this.preparing = false;
     for (const p of this.participants.values())
       if (p.loadout) applyLoadout(p.weapons, p.loadout);
-    void this.lock();
+    // Keep slots open for late arrivals; team capacity is enforced on join.
   }
   permit(client: Client) {
     const p = this.participants.get(client.sessionId);
@@ -487,6 +508,20 @@ export class OfficeRoom extends Room {
       throw new ServerError(401, "Invalid identity");
     }
   }
+  checkInactivity(now = Date.now()) {
+      for (const client of this.clients) {
+        const p = this.participants.get(client.sessionId);
+        if (!p || p.idleExpired) continue;
+        const state = inactivityState(p.lastActivity ?? now, now);
+        if (state.expired) {
+          p.idleExpired = true;
+          client.leave(IDLE_CLOSE_CODE);
+        } else if (state.warn) {
+          p.activityWarned = true;
+          client.send(MSG.idle, { remaining: state.remaining });
+        }
+      }
+  }
   onJoin(
     client: Client,
     options: { name?: string; team?: Team },
@@ -511,6 +546,7 @@ export class OfficeRoom extends Room {
     if (!team) throw new ServerError(409, "Both teams are full");
     const player = new Player(this.world);
     const participant: Participant = {
+      lastActivity: Date.now(),
       lastPing: 0,
       kills: 0,
       disarm: new Disarm(),
@@ -718,6 +754,11 @@ export class OfficeRoom extends Room {
     this.participants.set(client.sessionId, participant);
     if (!this.owner) this.owner = client.sessionId;
     this.spawn(participant);
+    if (this.started) {
+      participant.awaitingLoadout = true;
+      participant.player.hp = 0;
+      participant.player.root.setEnabled(false);
+    }
     this.refreshCores();
     this.scene.render();
     client.send(MSG.snapshot, this.snapshot());
@@ -811,6 +852,7 @@ export class OfficeRoom extends Room {
     );
     this.pickup.tickTimers(dt);
     for (const [id, p] of this.participants) {
+      if (p.awaitingLoadout) continue;
       if (p.player.hp <= 0 && p.respawn === 0) {
         p.weapons.dropCoreBuster();
         p.weapons.utilityCount = 0;
@@ -1215,6 +1257,10 @@ export class OfficeRoom extends Room {
     for (const p of this.participants.values()) {
       this.spawn(p);
       if (p.loadout) applyLoadout(p.weapons, p.loadout);
+      if (p.awaitingLoadout) {
+        p.player.hp = 0;
+        p.player.root.setEnabled(false);
+      }
       p.disarm.reset();
       this.rc.reset();
       p.respawn = 0;
@@ -1229,7 +1275,24 @@ export class OfficeRoom extends Room {
   }
   async restartFinishedMatch() {
     if (!this.seriesWinner) return;
-    await this.disconnect();
+    this.completeNextRound();
+    this.started = false;
+    this.preparing = false;
+    this.seriesWinner = undefined;
+    this.winner = undefined;
+    this.wins = { RED: 0, BLUE: 0 };
+    this.round = 1;
+    this.countdownUntil = 0;
+    this.ready.clear();
+    this.ledger.resetRound();
+    this.ledger.totals.clear();
+    for (const p of this.participants.values()) {
+      p.kills = 0;
+      p.loadout = undefined;
+      p.awaitingLoadout = false;
+    }
+    this.refreshCores();
+    this.sendSnapshots();
   }
   streamClients = new Map<string, number>();
   streamSender = new SnapshotSender();
@@ -1278,7 +1341,7 @@ export class OfficeRoom extends Room {
     p.weapons.remoteControlled = false;
     p.input = idle();
     try {
-      if (consented) throw new Error();
+      if (consented || p.idleExpired) throw new Error();
       await this.allowReconnection(client, 20);
       p.connected = true;
       this.startWhenEquipped();

@@ -39,7 +39,7 @@ export function installMultiplayer(this: Context) {
   const panel = document.createElement("div");
   panel.className = "network-lobby";
   panel.innerHTML =
-    '<h3>OFFICE01 · MULTIPLAYER</h3><p>Välj ditt namn och anslut till en lobby. Därefter väljer du lag och chattar med spelarna.</p><div id="available-rooms">Hämtar OFFICE01…</div><button id="leave-room" hidden>LÄMNA LOBBY</button><p id="network-status" role="status"></p>';
+    '<h3>OFFICE01 · MULTIPLAYER</h3><p>Välj ditt namn och anslut till en lobby. Därefter väljer du lag och chattar med spelarna.</p><div id="available-rooms">Hämtar OFFICE01…</div><button id="leave-room" hidden>LÄMNA SPELET</button><p id="network-status" role="status"></p>';
   this.lobby.el.before(panel);
   this.lobby.el.hidden = true;
   const nameField = this.lobby.nameInput.closest("label")!;
@@ -290,7 +290,7 @@ export function installMultiplayer(this: Context) {
         const title = document.createElement("strong");
         title.textContent = room.name;
         const state = document.createElement("p");
-        state.textContent = `${room.started ? "MATCH PÅGÅR" : "TILLGÄNGLIGT"} · ${room.players.length}/${room.capacity} spelare`;
+        state.textContent = `${room.started ? "ANSLUT TILL PÅGÅENDE MATCH" : "TILLGÄNGLIGT"} · ${room.players.length}/${room.capacity} spelare`;
         const roster = document.createElement("ul");
         for (const member of room.players) {
           const row = document.createElement("li");
@@ -306,9 +306,9 @@ export function installMultiplayer(this: Context) {
         const join = document.createElement("button");
         join.dataset.room = room.id;
         join.textContent = room.started
-          ? "MATCH PÅGÅR"
+          ? "ANSLUT TILL PÅGÅENDE MATCH"
           : "ANSLUT TILL OFFICE01";
-        join.disabled = room.started || room.players.length >= room.capacity;
+        join.disabled = room.players.length >= room.capacity;
         join.addEventListener("click", () => void connect(room.id));
         card.append(title, state, roster, join);
         list.append(card);

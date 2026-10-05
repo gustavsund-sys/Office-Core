@@ -1,3 +1,4 @@
+import { IDLE_CLOSE_CODE } from "../../shared/inactivity";
 import { SnapshotReceiver, type StreamPacket } from "./streams";
 import { decodeSnapshot, type SnapshotDelta } from "./snapshots";
 import { NetworkTiming } from "./timing";
@@ -28,9 +29,21 @@ if (import.meta.env.VITE_AUTH_EMULATOR_URL)
 export class Multiplayer {
   timing = new NetworkTiming();
   sequence = 0;
+  private activitySentAt = 0;
+  private idleNotice?: HTMLElement;
   leaving = false;
   constructor() {
     window.addEventListener("pagehide", () => this.saveResume());
+    const activity = (event: Event) => {
+      if (!event.isTrusted || !this.connected || this.leaving) return;
+      this.idleNotice?.remove();
+      const now = performance.now();
+      if (now - this.activitySentAt < 1000) return;
+      this.activitySentAt = now;
+      this.room?.send(MSG.activity);
+    };
+    for (const name of ["pointermove", "pointerdown", "keydown"])
+      window.addEventListener(name, activity, { passive: true });
   }
   resumeInfo(): { id: string; token: string; seq: number } | undefined {
     try {
@@ -57,6 +70,7 @@ export class Multiplayer {
     this.leaving = true;
     this.connected = false;
     this.clearResume();
+    this.idleNotice?.remove();
     await this.room?.leave();
   }
   saveResume() {
@@ -199,6 +213,15 @@ export class Multiplayer {
           );
       },
     );
+    room.onMessage(MSG.idle, (state: { remaining: number | null }) => {
+      this.idleNotice?.remove();
+      if (state.remaining === null) return;
+      const notice = (this.idleNotice = document.createElement("div"));
+      notice.className = "idle-warning";
+      notice.setAttribute("role", "alert");
+      notice.textContent = `DU ÄR INAKTIV · Du kopplas bort om ${state.remaining} sekunder. Rör musen eller tryck på en tangent för att stanna kvar.`;
+      document.body.append(notice);
+    });
     room.send(MSG.netReady, { stream: 2 });
     room.onMessage(MSG.teamPing, (ping) => this.onTeamPing(ping));
     room.onMessage(MSG.chat, (message: { name: string; text: string }) =>
@@ -213,6 +236,12 @@ export class Multiplayer {
     );
     room.onLeave(async (code) => {
       this.connected = false;
+      if (code === IDLE_CLOSE_CODE) {
+        this.leaving = true;
+        this.clearResume();
+        location.assign("/?timeout=1");
+        return;
+      }
       if (this.leaving) return;
       if (code === 1000 || code === 4000) {
         this.clearResume();

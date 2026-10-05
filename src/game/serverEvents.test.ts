@@ -87,7 +87,7 @@ test("server attributes planted bombs, broadcasts one carrier scream and reports
   }
 });
 
-test("New match closes a finished room but cannot interrupt a running match", async () => {
+test("New match cannot interrupt a running round or an unfinished series", async () => {
   const room = new OfficeRoom();
   let closed = 0;
   room.disconnect = async () => {
@@ -99,9 +99,7 @@ test("New match closes a finished room but cannot interrupt a running match", as
   room.winner = "RED";
   await room.restartFinishedMatch();
   assert.equal(closed, 0);
-  room.seriesWinner = "RED";
-  await room.restartFinishedMatch();
-  assert.equal(closed, 1);
+  assert.equal(room.started, true);
 });
 
 test("server limits teams to four players and refuses a ninth participant", () => {
