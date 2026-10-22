@@ -1,9 +1,12 @@
 import { Mesh, MeshBuilder, Vector3 } from "@babylonjs/core";
 import type { WeaponId } from "../config/weapons";
 import type { World } from "../map/builder";
+import { cachedStaticModel, finishStaticModel } from "./staticModel";
 
 /** Small procedural models, with +Z as the barrel direction. */
 export function heldWeapon(world: World, id: WeaponId): Mesh {
+  const cached = cachedStaticModel(world, `held ${id}`);
+  if (cached) return cached;
   const root = new Mesh(`held ${id}`, world.scene);
   const box = (
     name: string,
@@ -87,6 +90,115 @@ export function heldWeapon(world: World, id: WeaponId): Mesh {
     box("launcher grip", 0, -0.23, 0.35, 0.12, 0.3, 0.17, "#253338");
     box("launcher shoulder rest", 0, -0.21, -0.2, 0.28, 0.15, 0.38, "#29353a");
     box("launcher sight", 0, 0.25, 0.25, 0.08, 0.2, 0.16, "#e1bc58");
+  } else if (id === "huntingRifle") {
+    // Keep the muzzle at +1.05 so visible geometry matches the shot origin.
+    const stock = box(
+      "walnut stock",
+      0,
+      -0.045,
+      -0.38,
+      0.18,
+      0.23,
+      0.48,
+      "#84502f",
+    );
+    stock.rotation.x = -0.09;
+    box("stock cheek rest", 0, 0.075, -0.41, 0.19, 0.07, 0.28, "#a56c40");
+    box(
+      "stock rubber butt pad",
+      0,
+      -0.025,
+      -0.635,
+      0.2,
+      0.26,
+      0.035,
+      "#20282b",
+    );
+    const grip = box(
+      "walnut grip",
+      0,
+      -0.07,
+      -0.095,
+      0.13,
+      0.22,
+      0.19,
+      "#744326",
+    );
+    grip.rotation.x = -0.3;
+    box("walnut fore stock", 0, -0.025, 0.28, 0.15, 0.12, 0.61, "#9a6036");
+    box("fore stock tip", 0, -0.02, 0.585, 0.15, 0.12, 0.04, "#30383b");
+    box("rifle receiver", 0, 0.065, 0.11, 0.14, 0.12, 0.36, "#39454c");
+    tube("rifle long barrel", 0.715, 0.062, 0.67, "#26343e");
+    tube("rifle chamber", 0.29, 0.095, 0.22, "#46555e");
+    tube("muzzle crown", 1.027, 0.078, 0.046, "#657780");
+    tube("dark muzzle bore", 1.05, 0.042, 0.002, "#101b22");
+    box("ejection port", 0.074, 0.08, 0.1, 0.012, 0.052, 0.18, "#101b22");
+    box("silver bolt", 0.082, 0.085, 0.1, 0.015, 0.025, 0.15, "#b4c1c4");
+    const bolt = box(
+      "bolt handle",
+      0.13,
+      0.025,
+      -0.015,
+      0.15,
+      0.04,
+      0.04,
+      "#a8b7bc",
+    );
+    bolt.rotation.z = -0.4;
+    const knob = MeshBuilder.CreateSphere(
+      "bolt knob",
+      { diameter: 0.075, segments: 8 },
+      world.scene,
+    );
+    knob.parent = root;
+    knob.position.set(0.2, -0.003, -0.015);
+    knob.material = world.finish("#8c9fa7", "metal");
+    knob.isPickable = false;
+    box("trigger guard front", 0, -0.145, 0.06, 0.07, 0.13, 0.026, "#29363e");
+    box("trigger guard base", 0, -0.2, -0.01, 0.07, 0.026, 0.16, "#29363e");
+    box("trigger", 0, -0.145, -0.02, 0.025, 0.085, 0.026, "#9caeb5");
+    box("scope rail", 0, 0.14, 0.08, 0.1, 0.035, 0.4, "#52636b");
+    for (const z of [-0.055, 0.215]) {
+      box("scope mount", 0, 0.185, z, 0.09, 0.085, 0.055, "#343f47");
+      tube("scope mounting ring", z, 0.125, 0.04, "#62727b").position.y = 0.24;
+    }
+    tube("scope body", 0.09, 0.095, 0.48, "#202d35").position.y = 0.24;
+    tube("scope eyepiece", -0.17, 0.13, 0.1, "#34434b").position.y = 0.24;
+    tube("scope objective", 0.355, 0.155, 0.13, "#34434b").position.y = 0.24;
+    tube("scope blue lens", 0.421, 0.119, 0.002, "#397d94").position.y = 0.24;
+    box(
+      "scope adjustment turret",
+      0,
+      0.315,
+      0.08,
+      0.065,
+      0.065,
+      0.065,
+      "#6d7e83",
+    );
+    for (const side of [-1, 1]) {
+      box(
+        "stock inset",
+        side * 0.092,
+        -0.02,
+        -0.4,
+        0.008,
+        0.085,
+        0.28,
+        "#633b24",
+      );
+      for (const z of [0.12, 0.2, 0.28, 0.36])
+        box(
+          "fore stock checkering",
+          side * 0.077,
+          -0.028,
+          z,
+          0.008,
+          0.055,
+          0.015,
+          "#704426",
+        );
+    }
   } else if (id === "pistol") {
     box("pistol slide", 0, 0, 0.1, 0.15, 0.16, 0.46, "#73838b");
     box("pistol grip", 0, -0.14, -0.04, 0.13, 0.24, 0.16, "#25343b");
@@ -225,7 +337,7 @@ export function heldWeapon(world: World, id: WeaponId): Mesh {
       box("timer digit", x, 0.343, 0.468, 0.022, 0.045, 0.009, "#ffdfad", true);
     box("bomb safety stripe", 0, 0.13, 0.457, 0.26, 0.07, 0.02, "#d9b45b");
   }
-  return root;
+  return finishStaticModel(world, `held ${id}`, root);
 }
 
 export function rocketModel(world: World): Mesh {

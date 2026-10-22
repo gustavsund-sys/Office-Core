@@ -231,7 +231,6 @@ export async function testGraphics(
     }
     await scene.whenReadyAsync();
     for (const tier of [
-      "high",
       "standard",
       "medium",
       "low",
@@ -248,7 +247,7 @@ export async function testGraphics(
       world.explosions.amount = quality.effects;
       glow.intensity = quality.glow;
       scene.imageProcessingConfiguration.vignetteEnabled =
-        tier === "standard" || tier === "high";
+        tier === "standard";
       const phaseStats: Stats[] = [];
       for (const phase of ["normal", "intense"] as const) {
         intense = phase === "intense";

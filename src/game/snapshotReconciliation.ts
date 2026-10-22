@@ -11,6 +11,8 @@ import { MSG, type Snapshot } from "../../shared/protocol";
 import type { Game } from "./game";
 type Context = Pick<
   Game,
+  | "roundMedia"
+  | "sound"
   | "cores"
   | "currentRound"
   | "engagement"
@@ -30,6 +32,10 @@ type Context = Pick<
   | "playCountdown"
   | "player"
   | "predictedPosition"
+  | "predictedStamina"
+  | "predictedExhausted"
+  | "predictedKnockbackX"
+  | "predictedKnockbackZ"
   | "predictedVelocity"
   | "setPaused"
   | "updateLobbyMusic"
@@ -74,6 +80,9 @@ export function applyOnline(this: Context, snapshot: Snapshot) {
   const previousPosition = (
     this.predictedPosition ?? this.player.root.position
   ).clone();
+  this.player.hp = own.hp;
+  this.player.shield = own.shield ?? 0;
+  this.player.medkit = own.medkit ?? false;
   this.pendingInputs = replayMovement(
     this.player,
     own,
@@ -86,7 +95,11 @@ export function applyOnline(this: Context, snapshot: Snapshot) {
     this.visualCorrection.addInPlace(correction);
   else this.visualCorrection.setAll(0);
   this.predictedPosition = this.player.root.position.clone();
+  this.predictedStamina = this.player.stamina;
+  this.predictedExhausted = this.player.sprintExhausted;
   this.predictedVelocity = this.player.verticalVelocity;
+  this.predictedKnockbackX = this.player.knockbackX;
+  this.predictedKnockbackZ = this.player.knockbackZ;
   this.onlineSpawned = true;
   this.cores.forEach((core) => {
     const state = snapshot.cores.find((c) => c.team === core.team);
@@ -101,7 +114,8 @@ export function applyOnline(this: Context, snapshot: Snapshot) {
     if (prop && prop.hp > hp) prop.damage(prop.hp - hp, "coreBuster", false);
   });
   const health = snapshot.pickups.filter(
-    (p) => p.type === "medkit" || p.type === "superMedkit",
+    (p) =>
+      p.type === "medkit" || p.type === "superMedkit" || p.type === "shield",
   );
   this.pickup.healthDrops.forEach((drop, index) =>
     drop.root.setEnabled(health[index]?.active ?? false),
@@ -118,9 +132,20 @@ export function applyOnline(this: Context, snapshot: Snapshot) {
     .forEach((drop, index) =>
       drop.root.setEnabled(weapons[index]?.active ?? false),
     );
+  this.roundMedia.sync(
+    snapshot.round ?? 1,
+    snapshot.started,
+    !!snapshot.winner,
+    this.world.coreBreached,
+    this.sound,
+  );
   if (snapshot.winner && !this.match.winner) {
     this.match.winner = snapshot.winner;
     this.setPaused(true);
+    const destroyed = snapshot.cores.find(
+      (core) => core.active && core.hp <= 0,
+    );
+    if (destroyed) this.roundMedia.playCore(destroyed.team);
     showVictory(
       snapshot.winner,
       this.match.members.filter((m) => m.team === snapshot.winner),
@@ -133,7 +158,10 @@ export function applyOnline(this: Context, snapshot: Snapshot) {
       snapshot.roundStats ?? [],
       () => {
         this.multiplayer?.clearResume();
-        void this.multiplayer?.leave().catch(error => console.warn("Leaving match", error)).finally(() => location.reload());
+        void this.multiplayer
+          ?.leave()
+          .catch((error) => console.warn("Leaving match", error))
+          .finally(() => location.reload());
       },
     );
   }

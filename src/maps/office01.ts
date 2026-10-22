@@ -109,6 +109,8 @@ for (const sx of [-1, 1])
     { x: sx * 65, z: -22, w: 8, d: 42 },
   );
 corridors.push({ x: 0, z: -46, w: 138, d: 6 });
+// Accessible ground-floor lift lobbies below both observation rooms.
+for (const side of [-1, 1]) corridors.push({ x: side * 86, z: -12, w: 28, d: 10 });
 const footprint: Wall[] = [
   ...rooms,
   ...corridors,

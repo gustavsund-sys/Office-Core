@@ -1557,7 +1557,8 @@
         "bazooka",
         "burstGun",
         "pulseGun",
-        "machineGun"
+        "machineGun",
+        "huntingRifle"
       ],
       "interval": 30,
       "initialDelay": 0,
@@ -1574,7 +1575,8 @@
         "bazooka",
         "burstGun",
         "pulseGun",
-        "machineGun"
+        "machineGun",
+        "huntingRifle"
       ],
       "interval": 12,
       "initialDelay": 0,
@@ -1762,7 +1764,8 @@
         "bazooka",
         "burstGun",
         "pulseGun",
-        "machineGun"
+        "machineGun",
+        "huntingRifle"
       ],
       "interval": 30,
       "initialDelay": 0,
@@ -1780,7 +1783,8 @@
         "bazooka",
         "burstGun",
         "pulseGun",
-        "machineGun"
+        "machineGun",
+        "huntingRifle"
       ],
       "interval": 30,
       "initialDelay": 0,
@@ -1972,6 +1976,58 @@
       "interval": 120,
       "initialDelay": 0,
       "amount": 0
+    },
+    {
+      "id": "hunting-red-ammo",
+      "type": "ammo",
+      "x": -88.5,
+      "z": 54.4,
+      "weapon": "huntingRifle",
+      "pool": [
+        "huntingRifle"
+      ],
+      "interval": 8,
+      "initialDelay": 0,
+      "amount": 10
+    },
+    {
+      "id": "hunting-red-weapon",
+      "type": "weapon",
+      "x": -76.5,
+      "z": 37.6,
+      "weapon": "huntingRifle",
+      "pool": [
+        "huntingRifle"
+      ],
+      "interval": 20,
+      "initialDelay": 0,
+      "amount": 10
+    },
+    {
+      "id": "hunting-blue-ammo",
+      "type": "ammo",
+      "x": 76.5,
+      "z": 54.4,
+      "weapon": "huntingRifle",
+      "pool": [
+        "huntingRifle"
+      ],
+      "interval": 8,
+      "initialDelay": 0,
+      "amount": 10
+    },
+    {
+      "id": "hunting-blue-weapon",
+      "type": "weapon",
+      "x": 88.5,
+      "z": 37.6,
+      "weapon": "huntingRifle",
+      "pool": [
+        "huntingRifle"
+      ],
+      "interval": 20,
+      "initialDelay": 0,
+      "amount": 10
     }
   ]
 }

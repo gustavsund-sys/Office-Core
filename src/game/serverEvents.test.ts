@@ -198,3 +198,79 @@ test("first-to-three series waits for every player and resets the world between 
     room.onDispose();
   }
 });
+
+test("server shields absorb first, medkit key heals once and new lives reset vitals", async () => {
+  const room = new OfficeRoom();
+  room.roomId = "vitals-server-test";
+  room.onCreate({ hosted: true });
+  room.clock.clear();
+  room.setSimulationInterval(undefined as never);
+  room.setPatchRate(null);
+  try {
+    const client = { sessionId: "alice", send: () => {} } as unknown as Client;
+    await room.onJoin(client, { name: "Alice", team: "RED" }, { uid: "alice" });
+    room.started = true;
+    const p = room.participants.get("alice")!;
+    const target = p.player.bodyMeshes[0].metadata.damageable;
+    p.player.shield = 100;
+    target.damage(60);
+    assert.equal(p.player.hp, 100);
+    assert.equal(p.player.shield, 40);
+    target.damage(120);
+    assert.equal(p.player.hp, 20);
+    p.player.medkit = true;
+    p.input = {
+      moveX: 0,
+      moveZ: 0,
+      aimX: 0,
+      aimZ: 0,
+      fire: false,
+      pressed: false,
+      jump: false,
+      interact: false,
+      slot: 0,
+      useMedkit: true,
+    };
+    p.lastInput = Date.now();
+    room.tick(1 / 30);
+    assert.equal(p.player.hp, 70);
+    assert.equal(p.player.medkit, false);
+    const net = room.snapshot().players.find((p) => p.id === "alice")!;
+    assert.equal(net.shield, 0);
+    assert.equal(net.medkit, false);
+    assert.equal(net.stamina, 4);
+    room.spawn(p);
+    assert.equal(p.player.hp, 100);
+    assert.equal(p.player.shield, 0);
+    assert.equal(p.player.medkit, false);
+  } finally {
+    room.clock.clear();
+    room.onDispose();
+  }
+});
+
+test('death feed keeps the actual damage source after a weapon switch and broadcasts once', async () => {
+  const room = new OfficeRoom();
+  room.roomId = 'death-feed-test';
+  const events: NetEvent[] = [];
+  room.event = event => events.push(event);
+  room.onCreate({ hosted: true });
+  room.clock.clear();
+  room.setSimulationInterval(undefined as never);
+  room.setPatchRate(null);
+  try {
+    for (const [id, team] of [['alice','RED'],['bob','BLUE']] as const)
+      await room.onJoin({sessionId:id,send:()=>{}} as unknown as Client, {name:id,team}, {uid:id});
+    room.started = true;
+    const attacker = room.participants.get('alice')!, victim = room.participants.get('bob')!;
+    attacker.weapons.equip('pistol');
+    victim.player.hp = 0;
+    const target = victim.player.bodyMeshes[0].metadata.damageable;
+    attacker.weapons.onHit(target,100,'beacon');
+    room.tick(1/30);
+    room.tick(1/30);
+    const deaths = events.filter(event=>event.kind==='death');
+    assert.equal(deaths.length,1);
+    assert.deepEqual(deaths[0].death,{victimName:'bob',killerName:'alice',source:'beacon',self:false});
+  } finally { room.onDispose(); }
+});

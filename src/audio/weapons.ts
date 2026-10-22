@@ -4,6 +4,10 @@ import type { WeaponId } from "../config/weapons";
 export class WeaponAudio {
   levels: Record<string, number> = {
     pistol: 1,
+    huntingRifle: 1,
+    gunClick: 1,
+    huntingReload: 1,
+    magazineReload: 1,
     machineGun: 1,
     bazooka: 1,
     burstGun: 1,
@@ -19,12 +23,16 @@ export class WeaponAudio {
     busterScream: 1,
     busterClock: 1,
     death: 1,
+    bulletImpact: 1,
+    grunt: 1,
     spawn: 1,
   };
   setLevel(name: string, value: number) {
     this.levels[name] = value;
   }
   buffers = new Map<string, AudioBuffer>();
+  private lastBreath = 0;
+  private playerHits = new Map<string, { count: number; lastGrunt: number }>();
   private footstepVoices = new Map<
     string,
     {
@@ -216,10 +224,28 @@ export class WeaponAudio {
     const data = this.noise.getChannelData(0);
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
   }
+  playHealthUp() {
+    return this.sample("healthUp", 1);
+  }
+  playShieldPickup() {
+    return this.sample("tacticalShield", 0.7);
+  }
+  playEmpty() {
+    return this.sample("gunClick", this.levels.gunClick ?? 1);
+  }
   load() {
     return (this.pending ??= Promise.all(
       [
         "pistol",
+        "huntingRifle",
+        "breath1",
+        "breath2",
+        "breath3",
+        "healthUp",
+        "tacticalShield",
+        "gunClick",
+        "huntingReload",
+        "magazineReload",
         "machineGun",
         "bazooka",
         "pulseGun",
@@ -234,15 +260,27 @@ export class WeaponAudio {
         "land",
         "busterScream",
         "busterClock",
-        "death1",
-        "death2",
-        "death3",
+        "deathScream",
+        "bulletImpact",
+        "grunt1",
+        "grunt2",
+        "grunt3",
+        "grunt4",
+        "grunt5",
         "reload",
         "spawn",
       ].map(async (name) => {
         try {
           const folder = [
+            "breath1",
+            "breath2",
+            "breath3",
+            "healthUp",
+            "tacticalShield",
+            "gunClick",
             "plasmaMine",
+            "huntingReload",
+            "magazineReload",
             "explosion",
             "bazookaExplosion",
             "coreAlarm",
@@ -252,23 +290,31 @@ export class WeaponAudio {
             "land",
             "busterScream",
             "busterClock",
-            "death1",
-            "death2",
-            "death3",
+            "deathScream",
+            "bulletImpact",
+            "grunt1",
+            "grunt2",
+            "grunt3",
+            "grunt4",
+            "grunt5",
             "reload",
             "spawn",
           ].includes(name)
             ? "effects"
             : "weapons";
           const response = await fetch(
-            `/audio/${folder}/${name}.${name === "bazooka" || name === "burstGun" || name.startsWith("death") ? "wav" : "mp3"}`,
+            `/audio/${folder}/${name}.${name === "bazooka" || name === "burstGun" || name.startsWith("grunt") || name === "magazineReload" ? "wav" : "mp3"}`,
           );
           if (!response.ok) throw new Error(String(response.status));
           const decoded = await this.context.decodeAudioData(
             await response.arrayBuffer(),
           );
           if (name === "machineGun") this.prepareMachineGun(decoded);
-          else if (name === "ricochet" || name === "plasmaMine")
+          else if (
+            ["ricochet", "plasmaMine", "bulletImpact", "deathScream"].includes(
+              name,
+            )
+          )
             this.buffers.set(name, this.trimLeadingSilence(decoded));
           else this.buffers.set(name, decoded);
         } catch {
@@ -384,27 +430,72 @@ export class WeaponAudio {
   playAmmoPickup() {
     return this.sample("reload", 0.8);
   }
+  playReload(kind: "magazine" | "chamber", distance = 0, pan = 0) {
+    return this.playSpatialSample(
+      kind === "chamber" ? "huntingReload" : "magazineReload",
+      distance,
+      pan,
+    );
+  }
   playSpawn() {
     return this.sample("spawn", this.levels.spawn);
   }
-  playDeath() {
-    return this.sample(
-      `death${1 + Math.floor(Math.random() * 3)}`,
+  resetPlayerHits(id: string) {
+    this.playerHits.delete(id);
+  }
+  playPlayerHit(id: string, distance = 0, pan = 0, enabled = true) {
+    const state = this.playerHits.get(id) ?? { count: 0, lastGrunt: -1 };
+    state.count++;
+    this.playerHits.set(id, state);
+    if (!enabled) return;
+    if (state.count % 4 === 0)
+      this.playSpatialSample("bulletImpact", distance, pan);
+    if (state.count % 3 === 0) this.playGrunt(id, distance, pan);
+  }
+  playGrunt(id: string, distance = 0, pan = 0) {
+    const state = this.playerHits.get(id) ?? { count: 0, lastGrunt: -1 };
+    this.playerHits.set(id, state);
+    {
+      // Choose among the other four variants to avoid consecutive repeats.
+      const options = [0, 1, 2, 3, 4].filter((i) => i !== state.lastGrunt);
+      state.lastGrunt = options[Math.floor(Math.random() * options.length)];
+      this.playSpatialSample(
+        `grunt${state.lastGrunt + 1}`,
+        distance,
+        pan,
+        this.levels.grunt,
+      );
+    }
+  }
+  playDeath(distance = 0, pan = 0) {
+    return this.playSpatialSample(
+      "deathScream",
+      distance,
+      pan,
       this.levels.death,
     );
+  }
+  playExhaustedBreath(distance = 0, pan = 0) {
+    const choices = [1, 2, 3].filter((id) => id !== this.lastBreath);
+    this.lastBreath = choices[Math.floor(Math.random() * choices.length)];
+    return this.playSpatialSample(`breath${this.lastBreath}`, distance, pan);
   }
   playBusterScream(distance = 0, pan = 0) {
     return this.playSpatialSample("busterScream", distance, pan);
   }
-  playSpatialSample(name: string, distance: number, pan: number) {
+  playSpatialSample(
+    name: string,
+    distance: number,
+    pan: number,
+    volume = this.levels[name] ?? 1,
+  ) {
     const buffer = this.buffers.get(name);
     if (!buffer) return false;
     const source = this.context.createBufferSource(),
       gain = this.context.createGain(),
       stereo = this.context.createStereoPanner();
     source.buffer = buffer;
-    gain.gain.value =
-      (this.levels[name] ?? 1) * shotAudibility(distance, false).gain;
+    gain.gain.value = volume * shotAudibility(distance, false).gain;
     stereo.pan.value = Math.max(-1, Math.min(1, pan));
     source.connect(gain).connect(stereo).connect(this.master);
     source.onended = () => {
@@ -563,7 +654,10 @@ export class WeaponAudio {
   }
   play(id: WeaponId) {
     if (
-      (id === "bazooka" || id === "pulseGun" || id === "burstGun") &&
+      (id === "bazooka" ||
+        id === "pulseGun" ||
+        id === "burstGun" ||
+        id === "huntingRifle") &&
       this.sample(id, 1)
     )
       return;

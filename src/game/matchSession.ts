@@ -54,7 +54,7 @@ export function startMatch(this: Context, team: Team) {
     this.bindLocalTarget(this.testPlayer, "bot");
     this.testWeapons = new Weapons(
       this.testPlayer,
-      (target, damage) => this.recordLocalHit("bot", target, damage),
+      (target, damage, source) => this.recordLocalHit("bot", target, damage, source),
       () => {
         if (this.testPlayer)
           this.engagement.shotOutsideView(this.testPlayer.root.position, "bot");

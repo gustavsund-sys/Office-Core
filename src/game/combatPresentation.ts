@@ -2,6 +2,7 @@ import { beam } from "./effectPool";
 
 import { Color3, Vector3, MeshBuilder, Matrix } from "@babylonjs/core";
 
+import type { Player } from "../player/player";
 import type { Game } from "./game";
 type Context = Pick<
   Game,
@@ -20,6 +21,36 @@ type Context = Pick<
   | "weaponAudio"
   | "world"
 >;
+function hitPlayer(game: Context, id: string): Player | undefined {
+  return game.multiplayer
+    ? id === game.multiplayer.room?.sessionId
+      ? game.player
+      : game.onlinePlayers.get(id)
+    : id === "local"
+      ? game.player
+      : id === "bot"
+        ? game.testPlayer
+        : undefined;
+}
+export function projectCombatPoint(
+  game: Pick<Context, "engine" | "camera" | "scene">,
+  position: Vector3,
+) {
+  const canvas = game.engine.getRenderingCanvas();
+  const rect = canvas?.getBoundingClientRect();
+  const overlay = document.querySelector("#ui")?.getBoundingClientRect();
+  const width = rect?.width ?? game.engine.getRenderWidth();
+  const height = rect?.height ?? game.engine.getRenderHeight();
+  const point = Vector3.Project(
+    position,
+    Matrix.Identity(),
+    game.scene.getTransformMatrix(),
+    game.camera.viewport.toGlobal(width, height),
+  );
+  point.x += (rect?.left ?? 0) - (overlay?.left ?? 0);
+  point.y += (rect?.top ?? 0) - (overlay?.top ?? 0);
+  return point;
+}
 export function showHitHealth(
   this: Context,
   id: string,
@@ -50,32 +81,16 @@ export function showHitHealth(
 
 export function updateHitHealthBars(this: Context) {
   for (const [id, bar] of this.hitHealthBars) {
-    const player = this.multiplayer
-      ? id === this.multiplayer.room?.sessionId
-        ? this.player
-        : this.onlinePlayers.get(id)
-      : id === "local"
-        ? this.player
-        : id === "bot"
-          ? this.testPlayer
-          : undefined;
+    const player = hitPlayer(this, id);
     if (this.time >= bar.until || !player) {
       bar.el.remove();
       this.hitHealthBars.delete(id);
       continue;
     }
-    const position = player.root.position.add(new Vector3(0, 2.3, 0));
-    const point = Vector3.Project(
-      position,
-      Matrix.Identity(),
-      this.scene.getTransformMatrix(),
-      this.camera.viewport.toGlobal(
-        this.engine.getRenderWidth(),
-        this.engine.getRenderHeight(),
-      ),
-    );
+    const position = player.root.position.add(new Vector3(0, 1.85, 0));
+    const point = projectCombatPoint(this, position);
     bar.el.style.left = `${point.x}px`;
-    bar.el.style.top = `${point.y}px`;
+    bar.el.style.top = `${point.y - 12}px`;
     bar.el.hidden = point.z < 0 || point.z > 1 || bar.hp <= 0;
     bar.fill.style.width = `${Math.max(0, Math.min(100, bar.hp))}%`;
     bar.fill.style.background = bar.hp > 30 ? "#65dc7b" : "#ff334b";
@@ -86,30 +101,32 @@ export function showDamageNumber(
   this: Context,
   position: Vector3,
   damage: number,
+  playerId?: string,
 ) {
   const el = document.createElement("div");
   el.textContent = `−${Math.round(damage)}`;
   el.style.cssText =
     "position:absolute;color:#ff334b;font-size:24px;font-weight:900;text-shadow:0 2px 4px #000;pointer-events:none;z-index:90;transform:translate(-50%,-50%)";
   document.querySelector("#ui")!.append(el);
-  this.damageNumbers.push({ el, position: position.clone(), life: 1.2 });
+  const player = playerId ? hitPlayer(this, playerId) : undefined;
+  const anchor = player
+    ? player.root.position.add(new Vector3(0, 1.85, 0))
+    : position.clone();
+  this.damageNumbers.push({ el, position: anchor, life: 1.2, playerId });
 }
 
 export function updateDamageNumbers(this: Context, dt: number) {
   for (const number of this.damageNumbers) {
     number.life -= dt;
-    number.position.y += dt * 0.8;
-    const point = Vector3.Project(
-      number.position,
-      Matrix.Identity(),
-      this.scene.getTransformMatrix(),
-      this.camera.viewport.toGlobal(
-        this.engine.getRenderWidth(),
-        this.engine.getRenderHeight(),
-      ),
-    );
+    const player = number.playerId
+      ? hitPlayer(this, number.playerId)
+      : undefined;
+    if (player && player.hp > 0)
+      number.position.copyFrom(player.root.position).y += 1.85;
+    else if (!number.playerId) number.position.y += dt * 0.8;
+    const point = projectCombatPoint(this, number.position);
     number.el.style.left = `${point.x}px`;
-    number.el.style.top = `${point.y}px`;
+    number.el.style.top = `${point.y - (number.playerId ? 34 + (1.2 - number.life) * 14 : 0)}px`;
     number.el.style.opacity = String(Math.min(1, number.life * 2));
     number.el.hidden = point.z < 0 || point.z > 1;
     if (number.life <= 0) number.el.remove();

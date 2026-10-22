@@ -13,3 +13,10 @@ Intro auto-plays muted, sound is opt-in. Skip or Escape opens the lobby.
 "Visa inte igen" persists on this browser. `?intro=1` forces an intro preview.
 "Skip and show tutorial" opens a four-page guide before loading the game.
 The guide is also accessible from the lobby/pause screen.
+
+## Round-ending Core films
+
+- media/blue-core-explosion-v1.mp4: Blue Core destroyed.
+- media/red-core-explosion-v1.mp4: Red Core destroyed.
+
+Production uses GitHub Pages. Local preview uses copies in public/video; Firebase Hosting excludes video/**.

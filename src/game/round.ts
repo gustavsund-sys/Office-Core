@@ -8,6 +8,8 @@ export function resetRound(
   weapons: Weapons[],
   pickup: Pickup,
 ) {
+  world.blood.reset();
+  world.coreBreached = false;
   world.destructibles.forEach((p) => p.reset());
   cores.forEach((c) => {
     c.hp = c.maxHp;
@@ -38,12 +40,20 @@ export function resetRound(
       burstGun: 100,
       pulseGun: 30,
       coreBuster: 1,
+      huntingRifle: 10,
     };
     w.bazookaReserve = 0;
+    w.reserves = Object.fromEntries(
+      Object.keys(w.ammunition).map((id) => [id, 0]),
+    ) as typeof w.reserves;
+    w.reloads = {};
     w.cooldown = 0;
     w.equip("pistol");
     w.player.hp = 100;
+    w.player.resetVitals();
     w.player.verticalVelocity = 0;
+    w.player.knockbackX = 0;
+    w.player.knockbackZ = 0;
     w.player.root.setEnabled(true);
   }
   pickup.reset();

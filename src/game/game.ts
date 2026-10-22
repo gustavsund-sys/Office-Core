@@ -1,3 +1,6 @@
+import { BossLookout, lookoutPose } from "./bossLookout";
+import type { DeathSource } from "../ui/combatFeed";
+import { RoundMedia } from "./roundMedia";
 import { GRAPHICS, readGraphics, renderSize } from "./graphicsSettings";
 import { RCSession } from "./rcSession";
 import { advanceCountdown, finishLocalRound } from "./roundFlow";
@@ -81,6 +84,7 @@ import { Multiplayer } from "../network/client";
 import { MSG, type Snapshot, type NetInput } from "../../shared/protocol";
 export class Game {
   rc!: RCSession;
+  boss?: BossLookout;
   loadout!: LoadoutUI;
   beaconAudio = new BeaconAudio();
   pulseTrapAudio = new PulseTrapAudio();
@@ -103,21 +107,33 @@ export class Game {
     string,
     { el: HTMLElement; fill: HTMLElement; hp: number; until: number }
   >();
-  damageNumbers: { el: HTMLElement; position: Vector3; life: number }[] = [];
+  damageNumbers: {
+    el: HTMLElement;
+    position: Vector3;
+    life: number;
+    playerId?: string;
+  }[] = [];
   onlineSpawned = false;
   predictedPosition?: Vector3;
   visualCorrection = Vector3.Zero();
   lastPositionCorrection = 0;
   predictedVelocity = 0;
+  predictedStamina = 4;
+  predictedExhausted = false;
+  exhaustionHeard = new WeakSet<Player>();
+  predictedKnockbackX = 0;
+  predictedKnockbackZ = 0;
   onlinePlayers = new Map<string, Player>();
   onlineTraces: { mesh: import("@babylonjs/core").Mesh; life: number }[] = [];
   onlineModels = new Map<string, string>();
   onlineObjects = new Map<string, import("@babylonjs/core").Mesh>();
   onlineInput = {
+    reload: false,
     warcry: false,
     jump: false,
     interact: false,
     slot: 0 as 0 | 1 | 2 | 3,
+    useMedkit: false,
   };
   networkElapsed = 0;
   nameTimer = 0;
@@ -164,6 +180,7 @@ export class Game {
   updateDisarm(progress?: number) {
     return updateDisarmImpl.call(this, progress);
   }
+  roundMedia = new RoundMedia();
   lobbyMusic = new Audio("/audio/music/tactical-pulse.mp3");
   lobbyMusicBlocked = false;
   lobbyMusicPending = false;
@@ -292,8 +309,8 @@ export class Game {
     document.body.classList.remove("third-person", "capture-fallback");
     this.weapons = new Weapons(
       this.player,
-      (t, d) => {
-        this.recordLocalHit("local", t, d);
+      (t, d, source) => {
+        this.recordLocalHit("local", t, d, source);
         if (
           t instanceof Destructible &&
           t.prop.kind === "coreDoor" &&
@@ -312,6 +329,13 @@ export class Game {
       () => this.weaponAudio?.playImpact(),
     );
     this.cores.forEach((core) => core.setActive(false));
+    this.weapons.onEmpty = () => {
+      if (!this.multiplayer?.room && this.sound) this.weaponAudio?.playEmpty();
+    };
+    this.weapons.onReload = (kind) => {
+      if (!this.multiplayer?.room && this.sound)
+        this.weaponAudio?.playReload(kind);
+    };
     const lobby = new Lobby(
       (team) => {
         if (this.multiplayer?.room) {
@@ -390,11 +414,17 @@ export class Game {
     }
     document.querySelector("#play")!.innerHTML = "STARTA MATCH <span>↗</span>";
     this.pickup = new Pickup(this.world);
+    this.pickup.onMedkit = () => {
+      if (this.sound) this.weaponAudio?.playHealthUp();
+    };
+    this.pickup.onShield = () => {
+      if (this.sound) this.weaponAudio?.playShieldPickup();
+    };
     this.pickup.onAmmo = () => {
       if (this.sound) this.weaponAudio?.playAmmoPickup();
     };
     this.pickup.pulseTraps.onHit = (owner, target, damage) =>
-      this.recordLocalHit(owner, target, damage);
+      this.recordLocalHit(owner, target, damage, "trap");
     this.pickup.pulseTraps.onDetonate = (trap) =>
       this.world.explosions.burst(
         new Vector3(trap.x, 0.35, trap.z),
@@ -407,7 +437,7 @@ export class Game {
         `Pulse Trap available in ${team === "BLUE" ? "Blue" : "Red"} Weapon drop!`,
       );
     this.pickup.beacons.onHit = (owner, target, damage) =>
-      this.recordLocalHit(owner, target, damage);
+      this.recordLocalHit(owner, target, damage, "beacon");
     this.pickup.beacons.onEvent = (e) => {
       if (e.kind === "available")
         this.hud.toast(
@@ -466,9 +496,13 @@ export class Game {
       .map(([id, data]) => `<button data-equip="${id}">${data.name}</button>`)
       .join(
         "",
-      )}</div><button id="test-beacon">DEFENSIVE BEACON</button><button id="test-pulse-trap">PULSE TRAP [3]</button><button id="test-rc-car">RC BOMBER [3]</button><button id="view-test-trap">VISA TESTMINAN</button><label><input id="test-shooting" type="checkbox" checked> Testspelaren skjuter</label><button id="test-death">TEST: SPELAREN DÖR</button><p>Ljudnivåer</p>${Object.entries(
+      )}</div><button id="test-beacon">DEFENSIVE BEACON</button><button id="test-pulse-trap">PULSE TRAP [3]</button><button id="test-rc-car">RC BOMBER [3]</button><button id="view-test-trap">VISA TESTMINAN</button><label><input id="test-shooting" type="checkbox" checked> Testspelaren skjuter</label><button id="test-low-hp">TEST: 20 HP</button><button id="test-death">TEST: SPELAREN DÖR</button><p>Ljudnivåer</p>${Object.entries(
       {
         pistol: "Pistol",
+        huntingRifle: "Hunting rifle",
+        gunClick: "Tomt vapen",
+        huntingReload: "Gevärsladdning",
+        magazineReload: "Magasinomladdning",
         machineGun: "Kulspruta",
         bazooka: "Bazooka",
         burstGun: "Burst gun",
@@ -484,6 +518,8 @@ export class Game {
         busterScream: "Core buster-skrik",
         busterClock: "Core buster-timer",
         death: "Dödsljud",
+        bulletImpact: "Spelarträffar",
+        grunt: "Grunts",
         spawn: "Spawn",
       },
     )
@@ -623,6 +659,28 @@ export class Game {
         "TEST PULSE TRAP · SÖDRA HÖRNET · GÅ NÄRMARE FÖR DETONATION",
       );
     });
+    const bossTest = document.createElement("button");
+    bossTest.textContent = "TEST: BOSS LOOKOUT KEY";
+    bossTest.addEventListener("click", () => {
+      if (!this.boss || this.multiplayer?.room) return;
+      this.boss.reward();
+      this.player.root.position.set(office01.weaponEnds[0].x, 0, office01.weaponEnds[0].z - 5);
+      this.cameraTarget.copyFrom(this.player.root.position);
+    });
+    panel.querySelector("#test-low-hp")!.before(bossTest);
+    const bossDoorTest = document.createElement("button");
+    bossDoorTest.textContent = "TEST: LOOKOUT DOOR";
+    bossDoorTest.addEventListener("click", () => {
+      if (!this.boss || this.multiplayer?.room || this.boss.active) return;
+      this.player.root.position.copyFrom(lookoutPose(CONFIG.player.team === "RED" ? -1 : 1).door.add(new Vector3(0, 0, -2)));
+      this.cameraTarget.copyFrom(this.player.root.position);
+    });
+    bossTest.after(bossDoorTest);
+    panel.querySelector("#test-low-hp")!.addEventListener("click", () => {
+      if (this.player.hp <= 0) return;
+      this.player.hp = 20;
+      this.hud.toast("TEST: 20 HP · SKADAT LÄGE");
+    });
     panel.querySelector("#test-death")!.addEventListener("click", () => {
       if (this.match.started && !this.match.winner) this.player.hp = 0;
     });
@@ -673,8 +731,12 @@ export class Game {
     panel.addEventListener("keydown", (event) => event.stopPropagation());
     this.rc = new RCSession(this.world, this.input, this.player, this.weapons);
     this.rc.system.onHit = (owner, target, damage) =>
-      this.recordLocalHit(owner, target, damage);
+      this.recordLocalHit(owner, target, damage, "car");
     this.debug = new Debug(this.world, this.player);
+    if (this.testToolsEnabled) this.boss = new BossLookout(this.world, this.player, this.input, this.camera,
+      () => this.paused, text => this.hud.toast(text),
+      (target, damage) => this.recordLocalHit("local", target, damage, "machineGun"),
+      () => { if (this.sound) this.weaponAudio?.play("machineGun"); });
     this.cameraTarget.copyFrom(this.player.root.position);
     this.updateCamera(10);
     this.resize();
@@ -720,6 +782,7 @@ export class Game {
       .querySelector("#pause")!
       .addEventListener("click", () => this.setPaused(!this.paused));
     window.addEventListener("keydown", (e) => {
+      if (!this.paused && !this.multiplayer?.room && this.boss?.key(e)) return;
       if (e.code === "KeyE" && this.input.remote) return;
       if (!this.paused && !e.repeat && this.multiplayer?.room) {
         if (e.code === "Space") {
@@ -728,9 +791,14 @@ export class Game {
         }
         if (e.code === "KeyQ") this.onlineInput.warcry = true;
         if (e.code === "KeyE") this.onlineInput.interact = true;
+        if (e.code === "KeyR") {
+          e.preventDefault();
+          this.onlineInput.reload = true;
+        }
         if (e.code === "Digit1") this.onlineInput.slot = 1;
         if (e.code === "Digit2") this.onlineInput.slot = 2;
         if (e.code === "Digit3") this.onlineInput.slot = 3;
+        if (e.code === "Digit4") this.onlineInput.useMedkit = true;
         return;
       }
       if (!this.paused && !e.repeat) {
@@ -751,8 +819,13 @@ export class Game {
         if (e.code === "Digit1") this.weapons.switchSlot(1);
         if (e.code === "Digit2") this.weapons.switchSlot(2);
         if (e.code === "Digit3") this.weapons.switchSlot(3);
+        if (e.code === "Digit4" && this.player.useMedkit() && this.sound) this.weaponAudio?.playHealthUp();
         if (e.code === "KeyQ") this.weapons.activateWarcry();
         if (e.code === "KeyE") this.pickup.chooseRequested = true;
+        if (e.code === "KeyR" && !e.repeat) {
+          e.preventDefault();
+          this.weapons.requestReload();
+        }
       }
       if (e.code === "KeyC" && !e.repeat) {
         this.setControlScheme(!this.input.aimRelativeMovement);
@@ -803,8 +876,8 @@ export class Game {
   updateHitHealthBars() {
     return updateHitHealthBarsImpl.call(this);
   }
-  showDamageNumber(position: Vector3, damage: number) {
-    return showDamageNumberImpl.call(this, position, damage);
+  showDamageNumber(position: Vector3, damage: number, playerId?: string) {
+    return showDamageNumberImpl.call(this, position, damage, playerId);
   }
   updateDamageNumbers(dt: number) {
     return updateDamageNumbersImpl.call(this, dt);
@@ -822,12 +895,37 @@ export class Game {
     return resizeImpl.call(this);
   }
   updateCamera(dt: number) {
+    if (this.boss?.camera()) return;
     return updateCameraImpl.call(this, dt);
   }
   tick() {
     this.updateLobbyMusic();
+    if (!this.multiplayer?.room)
+      this.roundMedia.sync(
+        this.currentRound,
+        this.match.started,
+        !!this.match.winner,
+        this.world.coreBreached,
+        this.sound,
+      );
+    else if (this.multiplayer.snapshot) {
+      const state = this.multiplayer.snapshot;
+      this.roundMedia.sync(
+        state.round ?? 1,
+        state.started,
+        !!state.winner,
+        this.world.coreBreached,
+        this.sound,
+      );
+    }
     const dt = Math.min(this.engine.getDeltaTime() / 1000, 0.05);
     advanceCountdown.call(this, dt);
+    if (!this.multiplayer?.room) {
+      if (this.match.winner) this.boss?.exit();
+      this.boss?.syncRound(this.currentRound, this.teamWins[CONFIG.player.team as Team]);
+      this.boss?.update(dt, this.paused);
+    }
+    if (!this.paused) this.updateInjuryEffects(dt);
     if (this.multiplayer?.room) {
       this.tickOnline(dt);
       return;
@@ -849,12 +947,17 @@ export class Game {
       if (this.respawnRemaining > 0) {
         this.respawnRemaining = Math.max(0, this.respawnRemaining - dt);
         if (this.respawnRemaining === 0) {
+          this.weaponAudio?.resetPlayerHits("local");
+          this.world.blood.cadence.resetPlayer("local");
           const base = office01.bases.find(
             (base) => base.team === CONFIG.player.team,
           )!;
           this.player.root.position.set(base.spawn.x, 0, base.spawn.z);
           this.player.verticalVelocity = 0;
+          this.player.knockbackX = 0;
+          this.player.knockbackZ = 0;
           this.player.hp = CONFIG.player.hp;
+          this.player.resetVitals();
           this.localLedger.damage.delete("local");
           this.player.root.setEnabled(true);
           this.world.explosions.playerSpawn(
@@ -865,6 +968,7 @@ export class Game {
         }
       }
       let command = this.input.command(this.world, this.player.root.position);
+      if (this.boss?.active || this.boss?.selected) command = {...command, moveX: this.boss.active ? 0 : command.moveX, moveZ: this.boss.active ? 0 : command.moveZ, fire: false, pressed: false};
       const rcActors = [
         {
           id: "local",
@@ -913,7 +1017,7 @@ export class Game {
       document.querySelector<HTMLElement>("#core-buster-notice")!.hidden =
         !this.weapons.carryingCoreBuster;
       const beforeMove = this.player.root.position.clone();
-      this.player.update(command, dt);
+      if (!this.boss?.active) this.player.update(command, dt);
       if (this.player.landed && this.sound)
         this.weaponAudio?.playMovement("land");
       const moving =
@@ -947,6 +1051,15 @@ export class Game {
 
       if (this.testPlayer && this.testPlayer.hp <= 0) {
         if (!this.botRespawn) {
+          if (this.sound)
+            this.weaponAudio?.playDeath(
+              Vector3.Distance(
+                this.testPlayer.root.position,
+                this.player.root.position,
+              ),
+              (this.testPlayer.root.position.x - this.player.root.position.x) /
+                10,
+            );
           this.botRespawn = 5;
           this.testPlayer.root.setEnabled(false);
         }
@@ -954,6 +1067,9 @@ export class Game {
         if (this.botRespawn <= 0.00001) {
           this.botRespawn = 0;
           this.testPlayer.hp = 100;
+          this.testPlayer.resetVitals();
+          this.weaponAudio?.resetPlayerHits("bot");
+          this.world.blood.cadence.resetPlayer("bot");
           this.testPlayer.root.setEnabled(true);
           this.localLedger.damage.delete("bot");
         }
@@ -1073,6 +1189,7 @@ export class Game {
       this.cores.forEach((t) => t.update(dt, this.time));
       this.world.destructibles.forEach((o) => o.update(dt));
       this.world.explosions.update(dt);
+      this.world.blood.update(dt);
       finishLocalRound.call(this);
     }
     const alarmTeam =
@@ -1185,6 +1302,7 @@ export class Game {
       this.weapons,
       this.player,
     );
+    this.boss?.decorateHud();
     this.debug.update(
       this.engine.getFps(),
       this.player,
@@ -1325,6 +1443,37 @@ export class Game {
       active ? threats[0]?.timer : undefined,
     );
   }
+  updateInjuryEffects(dt: number) {
+    const players = [this.player, ...this.onlinePlayers.values(), ...(this.testPlayer ? [this.testPlayer] : [])];
+    for (const player of players) {
+      // Use acknowledged/replayed movement, not render-only extrapolation, for the local cue.
+      const exhausted = player === this.player && this.multiplayer?.room
+        ? this.predictedExhausted : player.sprintExhausted;
+      if (!exhausted || player.hp <= 0 || !player.root.isEnabled()) this.exhaustionHeard.delete(player);
+      else if (!this.exhaustionHeard.has(player)) {
+        this.exhaustionHeard.add(player);
+        const distance = player === this.player ? 0 : Vector3.Distance(player.root.position, this.player.root.position);
+        if (this.sound) this.weaponAudio?.playExhaustedBreath(distance,
+          (player.root.position.x - this.player.root.position.x) / Math.max(10, distance));
+      }
+      if (!player.injured || !player.root.isEnabled()) {
+        player.injuryDrop = player.injuryGrunt = 0;
+        continue;
+      }
+      player.injuryDrop -= dt;
+      player.injuryGrunt -= dt;
+      if (player.injuryDrop <= 0) {
+        player.injuryDrop = 0.3 + Math.random() * 0.3;
+        this.world.blood.drop(player.root.position);
+      }
+      if (player.injuryGrunt <= 0) {
+        player.injuryGrunt = 3;
+        const distance = player === this.player ? 0 : Vector3.Distance(player.root.position, this.player.root.position);
+        if (this.sound) this.weaponAudio?.playGrunt(String(player.root.uniqueId), distance,
+          (player.root.position.x - this.player.root.position.x) / Math.max(10, distance));
+      }
+    }
+  }
   bindLocalTarget(player: Player, id: string) {
     const target = {
       get hp() {
@@ -1336,13 +1485,33 @@ export class Game {
       canDamageFrom: () => true,
       damage: (amount: number) => {
         if (player.hp > 0 && player.invulnerable <= 0) {
-          const damage = Math.min(player.hp, amount);
-          player.hp = Math.max(0, player.hp - amount);
+          const damage = Math.min(player.hp, Math.max(0, amount - player.shield));
+          player.takeDamage(amount);
+          if (damage <= 0) {
+            if (this.sound) this.weaponAudio?.playImpact(Vector3.Distance(player.root.position, this.player.root.position));
+            return;
+          }
+          const distance = Vector3.Distance(
+            player.root.position,
+            this.player.root.position,
+          );
+          this.world.blood.hit(
+            id,
+            player.root.position.add(new Vector3(0, 1, 0)),
+          );
+          this.weaponAudio?.playPlayerHit(
+            id,
+            id === "local" ? 0 : distance,
+            (player.root.position.x - this.player.root.position.x) /
+              Math.max(10, distance),
+            this.sound,
+          );
           if (id === "local") this.hud.damage(damage);
           else this.showHitHealth(id, damage, player.hp);
           this.showDamageNumber(
             player.root.position.add(new Vector3(0, 2, 0)),
             damage,
+            id,
           );
         }
       },
@@ -1352,7 +1521,7 @@ export class Game {
       mesh.isPickable = true;
     }
   }
-  recordLocalHit(id: string, target: Hittable, damage: number) {
+  recordLocalHit(id: string, target: Hittable, damage: number, source?: DeathSource) {
     const victim = [
       ["local", this.player],
       ["bot", this.testPlayer],
@@ -1360,6 +1529,12 @@ export class Game {
     const entry = victim.find(([, player]) =>
       player?.bodyMeshes.some((m) => m.metadata?.damageable === target),
     );
+    if (entry && target.hp <= 0) this.hud.combatDeath({
+      victimName: this.match.members[entry[0] === "local" ? 0 : 1]?.name ?? "Player",
+      killerName: this.match.members[id === "local" ? 0 : 1]?.name,
+      source: source ?? (id === "local" ? this.weapons.id : this.testWeapons?.id),
+      self: entry[0] === id,
+    });
     const material = entry
       ? "player"
       : target instanceof Destructible

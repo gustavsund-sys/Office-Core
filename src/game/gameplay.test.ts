@@ -11,15 +11,18 @@ import {
   ShadowGenerator,
   Vector3,
   Mesh,
+  Matrix,
+  Ray,
 } from "@babylonjs/core";
 import { World } from "../map/builder";
-import { Player, type PlayerCommand } from "../player/player";
+import { Input, Player, type PlayerCommand } from "../player/player";
 import { Weapons } from "../weapons/system";
 import { Damageable } from "../core/damageable";
 import { Pickup } from "../pickups/pickup";
 import { blocked } from "./collision";
 import { Destructible } from "../core/destructible";
 import { office01 } from "../maps/office01";
+import { WEAPONS } from "../config/weapons";
 class TestWorld extends World {
   override label(text: string) {
     return new Mesh(text, this.scene);
@@ -411,6 +414,75 @@ test("rotating top-down preserves original height and 60-degree angle at every h
   }
 });
 
+test("hunting rifle has ten lethal shots with an unskippable eight-second chamber cycle", () => {
+  const s = setup();
+  try {
+    const target = new Damageable(s.world, "target", 0, 6);
+    s.weapon.equip("huntingRifle");
+    s.sync();
+    assert.equal(s.weapon.ammo, 10);
+    s.weapon.update({ ...idle, pressed: true }, 0.01);
+    assert.equal(target.hp, 0);
+    assert.equal(s.weapon.ammo, 9);
+    assert.equal(s.weapon.reloadRemaining, 8);
+    s.weapon.switchSlot(1);
+    s.weapon.update(idle, 2);
+    s.weapon.switchSlot(2);
+    assert.equal(s.weapon.reloadRemaining, 6);
+    s.weapon.update({ ...idle, pressed: true }, 5.99);
+    assert.equal(s.weapon.ammo, 9);
+    s.weapon.update(idle, 0.02);
+    s.weapon.update({ ...idle, pressed: true }, 0.01);
+    assert.equal(s.weapon.ammo, 8);
+    for (let i = 0; i < 8; i++) {
+      s.weapon.update(idle, 8);
+      s.weapon.update({ ...idle, pressed: true }, 0.01);
+    }
+    assert.equal(s.weapon.ammo, 0);
+    s.weapon.update(idle, 8);
+    assert.equal(s.weapon.requestReload(), false);
+    s.weapon.addAmmo("huntingRifle", 10);
+    assert.equal(s.weapon.reloadDuration, 1);
+    s.weapon.update(idle, 1);
+    assert.equal(s.weapon.ammo, 10);
+    assert.equal(s.weapon.reserve, 0);
+  } finally {
+    s.engine.dispose();
+  }
+});
+
+test("R reloads every gun from its own reserve without exceeding capacity or consuming ammo early", () => {
+  const s = setup();
+  try {
+    for (const id of [
+      "pistol",
+      "machineGun",
+      "burstGun",
+      "pulseGun",
+      "bazooka",
+      "huntingRifle",
+    ] as const) {
+      s.weapon.equip(id);
+      const capacity = WEAPONS[id].ammo;
+      s.weapon.ammo = capacity - 2;
+      assert.equal(s.weapon.requestReload(), false);
+      s.weapon.addAmmo(id, 10);
+      assert.equal(s.weapon.ammo, capacity - 2);
+      assert.equal(s.weapon.requestReload(), true);
+      assert.equal(s.weapon.reloadDuration, 1);
+      assert.equal(s.weapon.requestReload(), false);
+      s.weapon.update({ ...idle, fire: true, pressed: true }, 0.5);
+      assert.equal(s.weapon.ammo, capacity - 2);
+      s.weapon.update(idle, 0.5);
+      assert.equal(s.weapon.ammo, capacity);
+      assert.equal(s.weapon.reserve, 8);
+      assert.equal(s.weapon.requestReload(), false);
+    }
+  } finally {
+    s.engine.dispose();
+  }
+});
+
 test("new weapons: burst cadence, bazooka magazine reload, pulse beam and ammo", () => {
   const s = setup();
   const command = {
@@ -438,10 +510,10 @@ test("new weapons: burst cadence, bazooka magazine reload, pulse beam and ammo",
     s.weapon.update(command, 6);
     assert.equal(s.weapon.ammo, 0);
     s.weapon.addAmmo("bazooka", 3);
-    assert.equal(s.weapon.reloadRemaining, 5);
-    s.weapon.update(command, 4);
+    assert.equal(s.weapon.reloadRemaining, 1);
+    s.weapon.update({ ...command, pressed: false }, 0.9);
     assert.equal(s.weapon.ammo, 0);
-    s.weapon.update(command, 1);
+    s.weapon.update({ ...command, pressed: false }, 0.11);
     assert.equal(s.weapon.ammo, 3);
     assert.equal(s.weapon.id, "bazooka");
     s.weapon.equip("pulseGun");
@@ -479,7 +551,10 @@ test("ammo crates replenish only their weapon and spawn faster in hotspots", () 
   const s = setup();
   try {
     const pickup = new Pickup(s.world);
-    assert.equal(new Set(pickup.ammoDrops.map((drop) => drop.id)).size, 5);
+    assert.equal(
+      new Set(pickup.ammoDrops.map((drop) => drop.id)).size,
+      Object.keys(WEAPONS).length - 1,
+    );
     const drop = pickup.ammoDrops.find((drop) => drop.id === "pulseGun")!;
     s.weapon.equip("pistol");
     const pistolAmmo = s.weapon.ammo;
@@ -491,7 +566,8 @@ test("ammo crates replenish only their weapon and spawn faster in hotspots", () 
     assert.ok(drop.root.isEnabled());
     s.weapon.equip("pulseGun");
     pickup.update(0.01, 0, s.weapon, () => {});
-    assert.equal(s.weapon.ammunition.pulseGun, 45);
+    assert.equal(s.weapon.ammunition.pulseGun, 30);
+    assert.equal(s.weapon.reserves.pulseGun, 15);
     assert.ok(drop.cooldown > 0);
     for (const slot of pickup.singleAmmoSlots) {
       assert.equal(
@@ -512,7 +588,10 @@ test("drop zones offer every weapon and inventory holds pistol plus one special"
   const s = setup();
   try {
     const pickups = new Pickup(s.world);
-    assert.equal(pickups.endpoints.length, 12);
+    assert.equal(
+      pickups.endpoints.length,
+      Object.keys(WEAPONS).length * office01.weaponEnds.length,
+    );
     assert.equal(office01.weaponEnds.length, 2);
     assert.ok(office01.weaponEnds.every((zone) => zone.z > 0));
     const drop = pickups.endpoints.find((drop) => drop.id === "bazooka")!;
@@ -795,6 +874,75 @@ test("warcry requires a carried buster, lasts four seconds and resets only on ac
   }
 });
 
+test("overhead cursor and muzzle shots converge at the same screen point", () => {
+  const s = setup();
+  try {
+    const camera = new FreeCamera(
+      "aim camera",
+      new Vector3(7, 23, -13),
+      s.scene,
+    );
+    camera.setTarget(Vector3.Zero());
+    s.scene.activeCamera = camera;
+    s.scene.updateTransformMatrix(true);
+    const input = Object.create(Input.prototype) as Input;
+    Object.assign(input, {
+      keys: new Set(),
+      pointer: { x: 0, y: 0 },
+      mode: "topDown",
+      down: true,
+      pressed: true,
+      aimRelativeMovement: false,
+    });
+    for (const height of [0, 1.5]) {
+      s.player.root.position.y = height;
+      for (const target of [
+        new Vector3(-6, height + 1.1, 8),
+        new Vector3(6, height + 1.1, 8),
+        new Vector3(4, height + 1.1, -8),
+      ]) {
+        const viewport = camera.viewport.toGlobal(
+          s.engine.getRenderWidth(),
+          s.engine.getRenderHeight(),
+        );
+        const screen = Vector3.Project(
+          target,
+          Matrix.Identity(),
+          s.scene.getTransformMatrix(),
+          viewport,
+        );
+        input.pointer = { x: screen.x, y: screen.y };
+        const command = input.command(s.world, s.player.root.position);
+        assert.ok(Math.abs(command.aimX - target.x) < 0.001);
+        assert.ok(Math.abs(command.aimZ - target.z) < 0.001);
+        s.player.root.rotation.y = Math.atan2(command.aimX, command.aimZ);
+        for (const weapon of [
+          "pistol",
+          "machineGun",
+          "burstGun",
+          "pulseGun",
+          "bazooka",
+        ] as const) {
+          s.weapon.equip(weapon);
+          s.sync();
+          const origin = s.player.shotOrigin;
+          const ray = new Ray(origin, s.player.shotDirection(command, origin));
+          assert.ok(
+            Vector3.Distance(
+              ray.origin.add(
+                ray.direction.scale(Vector3.Distance(origin, target)),
+              ),
+              target,
+            ) < 0.001,
+          );
+        }
+      }
+    }
+  } finally {
+    s.engine.dispose();
+  }
+});
+
 test("shots leave the weapon muzzle and converge on the aim point", () => {
   const s = setup();
   try {
@@ -826,6 +974,134 @@ test("shots leave the weapon muzzle and converge on the aim point", () => {
         );
       }
     }
+  } finally {
+    s.engine.dispose();
+  }
+});
+
+test("held barrels and shots share the muzzle axis at close and distant aim points", () => {
+  const s = setup();
+  try {
+    for (const weapon of [
+      "pistol",
+      "machineGun",
+      "burstGun",
+      "pulseGun",
+      "bazooka",
+    ] as const) {
+      s.weapon.equip(weapon);
+      for (const height of [0, 1.5]) {
+        s.player.root.position.set(3, height, -4);
+        for (const bearing of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+          for (const range of [2, 6, 20]) {
+            const target = s.player.root.position.add(
+              new Vector3(
+                Math.sin(bearing) * range,
+                1.1,
+                Math.cos(bearing) * range,
+              ),
+            );
+            const command = { ...idle, aimX: target.x, aimZ: target.z };
+            for (const recoil of [0, 1]) {
+              s.player.faceAim(command);
+              s.player.recoil = recoil;
+              s.player.animate(false, 0);
+              s.sync();
+              const origin = s.player.muzzlePosition;
+              const forward = Vector3.TransformNormal(
+                Vector3.Forward(),
+                s.player.gun.computeWorldMatrix(true),
+              ).normalize();
+              const direction = s.player.shotDirection(command, origin);
+              assert.ok(
+                Vector3.Distance(forward, direction) < 0.0001,
+                `${weapon}: barrel differs from shot at range ${range}`,
+              );
+              assert.ok(
+                Vector3.Distance(
+                  origin.add(forward.scale(Vector3.Distance(origin, target))),
+                  target,
+                ) < 0.0001,
+              );
+            }
+          }
+        }
+      }
+    }
+  } finally {
+    s.engine.dispose();
+  }
+});
+
+test("close aim converges ahead of the muzzle and never reverses behind it", () => {
+  const s = setup();
+  try {
+    for (const id of [
+      "pistol",
+      "machineGun",
+      "burstGun",
+      "pulseGun",
+      "bazooka",
+    ] as const) {
+      s.weapon.equip(id);
+      for (const yaw of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+        s.player.root.rotation.y = yaw;
+        s.sync();
+        const origin = s.player.shotOrigin;
+        for (const offset of [0.1, -0.1]) {
+          const target = origin.add(s.player.direction.scale(offset));
+          target.y = s.player.root.position.y + 1.1;
+          const direction = s.player.shotDirection(
+            { ...idle, aimX: target.x, aimZ: target.z },
+            origin,
+          );
+          if (offset > 0) {
+            assert.ok(Vector3.Distance(
+              origin.add(direction.scale(Vector3.Distance(origin, target))), target,
+            ) < 0.0001);
+          } else {
+            const barrel = Vector3.TransformNormal(Vector3.Forward(), s.player.gun.computeWorldMatrix(true)).normalize();
+            assert.ok(Vector3.Dot(direction, barrel) > .99999);
+            assert.ok(Vector3.Dot(direction, s.player.direction) > 0);
+          }
+        }
+        // Sweep the actual cursor into the body, including exactly its centre.
+        for (const range of [1, .5, .2, .01, 0]) {
+          const target = s.player.root.position.add(new Vector3(Math.sin(yaw)*range, 1.1, Math.cos(yaw)*range));
+          const command = {...idle, aimX: target.x, aimZ: target.z};
+          s.player.faceAim(command);
+          const direction = s.player.shotDirection(command);
+          assert.ok(Vector3.Dot(direction, s.player.direction) >= 0, `${id}: reversed at ${range}`);
+        }
+      }
+    }
+  } finally {
+    s.engine.dispose();
+  }
+});
+
+test("a barrel protruding through destructible cover cannot bypass its hit surface", () => {
+  const s = setup();
+  try {
+    const cover = s.world.box(
+      "close destructible",
+      0,
+      1,
+      0.6,
+      3,
+      2,
+      0.15,
+      "#888888",
+      false,
+    );
+    cover.metadata = { damageable: { hp: 100 } };
+    s.sync();
+    assert.ok(s.player.muzzlePosition.z > 0.675);
+    assert.ok(s.player.shotOrigin.z < 0.525);
+    cover.metadata.damageable.hp = 0;
+    assert.ok(
+      Vector3.Distance(s.player.shotOrigin, s.player.muzzlePosition) < 0.0001,
+    );
   } finally {
     s.engine.dispose();
   }
@@ -869,6 +1145,64 @@ test("office decorations follow destruction and reset without adding hit surface
         (m) => m.isEnabled() && !m.isPickable && !s.world.solids.includes(m),
       ),
     );
+  } finally {
+    s.engine.dispose();
+  }
+});
+
+test("rifle recoil travels one metre with gradual braking and respects walls", () => {
+  const s = setup();
+  try {
+    assert.equal(WEAPONS.huntingRifle.range, 120);
+    s.weapon.equip("huntingRifle");
+    s.weapon.update({ ...idle, pressed: true }, 0.01);
+    assert.ok(Math.hypot(s.player.knockbackX, s.player.knockbackZ) > 1.99);
+    const origin = s.player.root.position.clone();
+    s.player.simulate(idle, 0.25);
+    const first = Vector3.Distance(origin, s.player.root.position);
+    const middle = s.player.root.position.clone();
+    s.player.simulate(idle, 0.25);
+    assert.ok(Vector3.Distance(middle, s.player.root.position) < first);
+    s.player.simulate(idle, 0.5);
+    assert.ok(
+      Math.abs(Vector3.Distance(origin, s.player.root.position) - 1) < 1e-6,
+    );
+    assert.equal(s.player.knockbackX, 0);
+    assert.equal(s.player.knockbackZ, 0);
+    s.player.root.position.setAll(0);
+    s.world.obstacles.push({ x: 0, z: -0.8, w: 4, d: 0.2 });
+    s.player.kickBack(Vector3.Forward());
+    s.player.simulate(idle, 1);
+    assert.ok(s.player.root.position.z > -0.7);
+  } finally {
+    s.engine.dispose();
+  }
+});
+
+test("full equipped magazines ignore R and empty clicks require no reserve", () => {
+  const s = setup();
+  try {
+    s.weapon.equip("huntingRifle");
+    s.weapon.ammo = 1;
+    s.weapon.addAmmo("huntingRifle", 10);
+    s.weapon.equip("machineGun");
+    assert.equal(s.weapon.requestReload(), false);
+    assert.equal(s.weapon.ammunition.huntingRifle, 1);
+    s.weapon.equip("huntingRifle");
+    assert.equal(s.weapon.requestReload(), true);
+    s.weapon.update(idle, 1);
+    assert.equal(s.weapon.ammo, 10);
+    assert.equal(s.weapon.reserve, 1);
+    let clicks = 0;
+    s.weapon.onEmpty = () => clicks++;
+    s.weapon.ammo = 0;
+    s.weapon.update({ ...idle, pressed: true }, 0);
+    assert.equal(clicks, 0);
+    s.weapon.reserve = 0;
+    s.weapon.update({ ...idle, pressed: true }, 0);
+    assert.equal(clicks, 1);
+    s.weapon.update({ ...idle, fire: true }, 1);
+    assert.equal(clicks, 1);
   } finally {
     s.engine.dispose();
   }

@@ -622,7 +622,7 @@ export class PulseTraps {
         const before = a.player.hp;
         if (victim) victim.damage(damage);
         else if (a.player.invulnerable <= 0)
-          a.player.hp = Math.max(0, a.player.hp - damage);
+          a.player.takeDamage(damage);
         if (a.player.hp < before)
           this.onHit(
             t.owner,

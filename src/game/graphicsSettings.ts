@@ -1,4 +1,4 @@
-export type GraphicsTier = "low" | "medium" | "standard" | "high";
+export type GraphicsTier = "low" | "medium" | "standard";
 export const GRAPHICS = {
   low: { name: "Låg", height: 720, shadow: 0, effects: 0.3, glow: 0.04 },
   medium: {
@@ -15,12 +15,15 @@ export const GRAPHICS = {
     effects: 1,
     glow: 0.2,
   },
-  high: { name: "Hög", height: 1440, shadow: 1024, effects: 1, glow: 0.2 },
 } as const;
 export const GRAPHICS_KEY = "officeCore.graphics.v1";
 export function readGraphics(): GraphicsTier | undefined {
   try {
     const tier = localStorage.getItem(GRAPHICS_KEY);
+    if (tier === "high") {
+      saveGraphics("standard");
+      return "standard";
+    }
     return tier && Object.hasOwn(GRAPHICS, tier)
       ? (tier as GraphicsTier)
       : undefined;

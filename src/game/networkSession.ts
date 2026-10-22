@@ -24,6 +24,7 @@ type Context = Pick<
   | "rc"
   | "multiplayer"
   | "onlineTraces"
+  | "onlinePlayers"
   | "player"
   | "prepareAudio"
   | "scene"
@@ -100,11 +101,37 @@ export function installMultiplayer(this: Context) {
       const position = new Vector3(event.x, event.y, event.z);
       const distance = Vector3.Distance(position, this.player.root.position);
       if (
+        event.kind === "shot" &&
+        event.player &&
+        event.player !== net.room?.sessionId
+      ) {
+        const shooter = this.onlinePlayers.get(event.player);
+        if (shooter) shooter.recoil = 1;
+      }
+      if (event.kind === "reload" && this.sound)
+        this.weaponAudio?.playReload(
+          event.sound === "huntingReload" ? "chamber" : "magazine",
+          event.player === net.room?.sessionId ? 0 : distance,
+          (event.x - this.player.root.position.x) / Math.max(10, distance),
+        );
+      if (
         event.kind === "ammoPickup" &&
         event.player === net.room?.sessionId &&
         this.sound
       )
         this.weaponAudio?.playAmmoPickup();
+      if (
+        event.kind === "shieldPickup" &&
+        event.player === net.room?.sessionId &&
+        this.sound
+      )
+        this.weaponAudio?.playShieldPickup();
+      if (
+        event.kind === "medkit" &&
+        event.player === net.room?.sessionId &&
+        this.sound
+      )
+        this.weaponAudio?.playHealthUp();
       if (event.kind === "rcExplosion")
         this.rc.explosion(event.player ?? "", position);
       if (event.kind === "pulseTrapAvailable")
@@ -160,9 +187,18 @@ export function installMultiplayer(this: Context) {
         this.hud.toast(`${name} · CORE BUSTER DISARMED`);
       }
       if (event.kind === "damage") {
+        if (event.blood && (event.damage ?? 0) > 0)
+          this.world.blood.splat(position);
+        if (event.player && (event.damage ?? 0) > 0)
+          this.weaponAudio?.playPlayerHit(
+            event.player,
+            event.player === net.room?.sessionId ? 0 : distance,
+            (event.x - this.player.root.position.x) / Math.max(10, distance),
+            this.sound,
+          );
         if (event.player === net.room?.sessionId)
           this.hud.damage(event.damage ?? 0);
-        this.showDamageNumber(position, event.damage ?? 0);
+        this.showDamageNumber(position, event.damage ?? 0, event.player);
         if (event.player) this.showHitHealth(event.player, event.damage ?? 0);
       }
       if (event.kind === "scream" && this.sound)
@@ -240,10 +276,16 @@ export function installMultiplayer(this: Context) {
           event.explosionStyle,
         );
       if (event.kind === "death") {
+        if (event.death) this.hud.combatDeath(event.death);
         this.world.explosions.playerDeath(position, TEAMS[event.team ?? "RED"]);
-        if (this.sound) this.weaponAudio?.playDeath();
+        if (this.sound)
+          this.weaponAudio?.playDeath(
+            event.player === net.room?.sessionId ? 0 : distance,
+            (event.x - this.player.root.position.x) / Math.max(10, distance),
+          );
       }
       if (event.kind === "spawn") {
+        if (event.player) this.weaponAudio?.resetPlayerHits(event.player);
         this.world.explosions.playerSpawn(position, TEAMS[event.team ?? "RED"]);
         if (this.sound) this.weaponAudio?.playSpawn();
       }

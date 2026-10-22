@@ -1,3 +1,4 @@
+import type { CombatDeath } from "../src/ui/combatFeed";
 import type { Team } from "../src/config/game";
 import type { WeaponId } from "../src/config/weapons";
 export const MSG = {
@@ -34,11 +35,14 @@ export interface NetInput {
   moveZ: number;
   aimX: number;
   aimZ: number;
+  sprint?: boolean;
+  useMedkit?: boolean;
   fire: boolean;
   pressed: boolean;
   jump: boolean;
   interact: boolean;
   warcry?: boolean;
+  reload?: boolean;
   slot: 0 | 1 | 2 | 3;
 }
 export interface NetPlayer {
@@ -58,6 +62,8 @@ export interface NetPlayer {
   warcryAvailable?: boolean;
   invulnerable?: number;
   verticalVelocity: number;
+  knockbackX?: number;
+  knockbackZ?: number;
   id: string;
   name: string;
   team: Team;
@@ -65,11 +71,19 @@ export interface NetPlayer {
   y: number;
   z: number;
   yaw: number;
+  gunPitch?: number;
+  stamina?: number;
+  sprintExhausted?: boolean;
+  sprinting?: boolean;
+  shield?: number;
+  medkit?: boolean;
   hp: number;
   weapon: WeaponId;
   special?: WeaponId;
   ammo: number;
   reserve: number;
+  reloadDuration?: number;
+  reloadKind?: "magazine" | "chamber";
   reload: number;
 }
 export interface Snapshot {
@@ -101,7 +115,7 @@ export interface Snapshot {
     z: number;
     id: WeaponId;
     active: boolean;
-    type: "ammo" | "weapon" | "medkit" | "superMedkit";
+    type: "ammo" | "weapon" | "medkit" | "superMedkit" | "shield";
     dropped: boolean;
   }[];
   bombs: {
@@ -120,13 +134,17 @@ export interface Snapshot {
   winner?: Team;
 }
 export interface NetEvent {
+  blood?: boolean;
   material?: "player" | "metal" | "glass" | "wood";
   destroyed?: boolean;
   damage?: number;
   inputSeq?: number;
   kind:
     | "rcExplosion"
+    | "medkit"
+    | "shieldPickup"
     | "ammoPickup"
+    | "reload"
     | "pulseTrapAvailable"
     | "beaconImpact"
     | "beaconPlace"
@@ -147,6 +165,7 @@ export interface NetEvent {
     | "land"
     | "damage"
     | "scream";
+  death?: CombatDeath;
   player?: string;
   team?: Team;
   weapon?: WeaponId;
@@ -179,6 +198,9 @@ export function validInput(value: unknown): value is NetInput {
           "interact",
           "slot",
           "warcry",
+          "reload",
+          "sprint",
+          "useMedkit",
         ].includes(key),
     )
   )
@@ -208,6 +230,9 @@ export function validInput(value: unknown): value is NetInput {
       (x) => typeof x === "boolean",
     ) &&
     (v.warcry === undefined || typeof v.warcry === "boolean") &&
+    (v.sprint === undefined || typeof v.sprint === "boolean") &&
+    (v.useMedkit === undefined || typeof v.useMedkit === "boolean") &&
+    (v.reload === undefined || typeof v.reload === "boolean") &&
     [0, 1, 2, 3].includes(v.slot)
   );
 }

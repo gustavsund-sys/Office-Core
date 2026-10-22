@@ -56,6 +56,7 @@ export const AMMO_AMOUNTS: Record<WeaponId, number> = {
   burstGun: 25,
   pulseGun: 15,
   coreBuster: 0,
+  huntingRifle: 10,
 };
 const weapons = Object.keys(WEAPONS) as WeaponId[];
 const ammo = weapons.filter((id) => id !== "coreBuster");
@@ -82,10 +83,10 @@ export function defaultMap(): MapDocument {
     });
   for (const zone of office01.weaponEnds) {
     ammo.forEach((id, i) =>
-      add("ammo", zone.x - 6, zone.z + (i - 2) * 2.8, id, 8),
+      add("ammo", zone.x - 6, zone.z + (i - (ammo.length - 1) / 2) * 2.8, id, 8),
     );
     [...ammo, "coreBuster" as const].forEach((id, i) =>
-      add("weapon", zone.x + 6, zone.z + (i - 2) * 2.8, id, 20),
+      add("weapon", zone.x + 6, zone.z + (i - ammo.length / 2) * 2.8, id, 20),
     );
   }
   for (const x of [-9, 9]) add("ammo", x, -2, "random", 12);

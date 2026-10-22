@@ -1,6 +1,7 @@
 import { WEAPONS, type WeaponId } from "../config/weapons";
 import type { Weapons } from "../weapons/system";
 export const START_WEAPONS = [
+  "huntingRifle",
   "machineGun",
   "burstGun",
   "pulseGun",

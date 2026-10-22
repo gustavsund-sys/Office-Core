@@ -1,3 +1,5 @@
+import type { CombatDeath } from "../src/ui/combatFeed";
+import { BloodCadence } from "../src/effects/bloodCadence";
 import { inactivityState, IDLE_CLOSE_CODE } from "../shared/inactivity";
 import { RCCars } from "../src/game/rcCar";
 import { SnapshotSender } from "../src/network/streams";
@@ -97,6 +99,7 @@ interface Participant {
   connected: boolean;
 }
 export class OfficeRoom extends Room {
+  private bloodCadence = new BloodCadence();
   static measurements = new Set<RoomMetrics>();
   metrics = new RoomMetrics();
 
@@ -145,6 +148,16 @@ export class OfficeRoom extends Room {
     );
     this.cores.forEach((core) => core.setActive(false));
     this.pickup = new Pickup(this.world);
+    this.pickup.onMedkit = (weapons) => {
+      const entry = [...this.participants].find(([, p]) => p.weapons === weapons);
+      if (entry) this.event({ kind: "medkit", player: entry[0],
+        x: weapons.player.root.position.x, y: 0, z: weapons.player.root.position.z });
+    };
+    this.pickup.onShield = (weapons) => {
+      const entry = [...this.participants].find(([, p]) => p.weapons === weapons);
+      if (entry) this.event({ kind: "shieldPickup", player: entry[0],
+        x: weapons.player.root.position.x, y: 0, z: weapons.player.root.position.z });
+    };
     this.pickup.onAmmo = (weapons) => {
       const entry = [...this.participants].find(
         ([, p]) => p.weapons === weapons,
@@ -159,7 +172,7 @@ export class OfficeRoom extends Room {
         });
     };
     this.pickup.beacons.onHit = (owner, target, damage) =>
-      this.participants.get(owner)?.weapons.onHit(target, damage);
+      this.participants.get(owner)?.weapons.onHit(target, damage, "beacon");
     this.pickup.beacons.onEvent = (e) =>
       this.event({
         kind: (
@@ -184,7 +197,7 @@ export class OfficeRoom extends Room {
         destroyed: e.destroyed,
       });
     this.pickup.pulseTraps.onHit = (owner, target, damage) =>
-      this.participants.get(owner)?.weapons.onHit(target, damage);
+      this.participants.get(owner)?.weapons.onHit(target, damage, "trap");
     this.pickup.pulseTraps.onDetonate = (trap) =>
       this.world.explosions.burst(
         new Vector3(trap.x, 0.35, trap.z),
@@ -196,7 +209,7 @@ export class OfficeRoom extends Room {
       this.event({ kind: "pulseTrapAvailable", team, x: 0, y: 0, z: 0 });
     this.rc = new RCCars(this.world);
     this.rc.onHit = (owner, target, damage) =>
-      this.participants.get(owner)?.weapons.onHit(target, damage);
+      this.participants.get(owner)?.weapons.onHit(target, damage, "car");
     this.rc.onExplode = (c) =>
       this.event({
         kind: "rcExplosion",
@@ -362,6 +375,8 @@ export class OfficeRoom extends Room {
         jump: p.input.jump || payload.jump,
         interact: p.input.interact || payload.interact,
         warcry: p.input.warcry || payload.warcry,
+        reload: p.input.reload || payload.reload,
+        useMedkit: p.input.useMedkit || payload.useMedkit,
       };
       p.lastInput = now;
     });
@@ -592,13 +607,17 @@ export class OfficeRoom extends Room {
       });
     participant.weapons = new Weapons(
       player,
-      (target, damage) => {
+      (target, damage, source) => {
         const victimEntry = [...this.participants].find(([, p]) =>
           p.player.bodyMeshes.some(
             (mesh) => mesh.metadata?.damageable === target,
           ),
         );
         const victim = victimEntry?.[1];
+        if (victimEntry && victim && target.hp <= 0) this.pendingDeaths.set(victimEntry[0], {
+          victimName: victim.name, killerName: participant.name,
+          source: source ?? participant.weapons.id, self: victim === participant,
+        });
         const core = target instanceof Damageable && target.team;
         const hostile = victim
           ? victim.team !== participant.team
@@ -709,6 +728,16 @@ export class OfficeRoom extends Room {
         endY: end.y,
         endZ: end.z,
       });
+    participant.weapons.onReload = (kind, weapon) =>
+      this.event({
+        kind: "reload",
+        player: client.sessionId,
+        weapon,
+        sound: kind === "chamber" ? "huntingReload" : "magazineReload",
+        x: player.root.position.x,
+        y: player.root.position.y,
+        z: player.root.position.z,
+      });
     participant.weapons.onCoreBusterAcquired = () => {
       event("buster");
     };
@@ -735,11 +764,11 @@ export class OfficeRoom extends Room {
       canDamageFrom: () => true,
       damage: (amount: number) => {
         if (this.started && player.invulnerable <= 0) {
-          const damage = Math.min(amount, player.hp);
-          player.hp = Math.max(0, player.hp - amount);
+          const damage = player.takeDamage(amount);
           if (damage > 0)
             this.event({
               kind: "damage",
+              blood: this.bloodCadence.hit(String(player.root.uniqueId)),
               player: client.sessionId,
               damage,
               x: player.root.position.x,
@@ -798,13 +827,17 @@ export class OfficeRoom extends Room {
     );
   }
   spawn(p: Participant) {
+    this.bloodCadence.resetPlayer(String(p.player.root.uniqueId));
     p.life++;
     p.inputCredit = 0;
     p.queue = [];
     const base = office01.bases.find((base) => base.team === p.team)!;
     p.player.root.position.set(base.spawn.x, 0, base.spawn.z);
     p.player.hp = 100;
+    p.player.resetVitals();
     p.player.verticalVelocity = 0;
+    p.player.knockbackX = 0;
+    p.player.knockbackZ = 0;
     p.player.root.setEnabled(true);
   }
   refreshCores() {
@@ -815,6 +848,7 @@ export class OfficeRoom extends Room {
         ),
       );
   }
+  private pendingDeaths = new Map<string, CombatDeath>();
   attackUntil = new Map<Team, number>();
   tick(dt: number) {
     const start = performance.now();
@@ -863,6 +897,7 @@ export class OfficeRoom extends Room {
         p.player.root.setEnabled(false);
         this.event({
           kind: "death",
+          death: this.pendingDeaths.get(id) ?? { victimName: p.name },
           player: id,
           team: p.team,
           x: p.player.root.position.x,
@@ -870,6 +905,7 @@ export class OfficeRoom extends Room {
           z: p.player.root.position.z,
         });
       }
+      this.pendingDeaths.delete(id);
       if (p.respawn > 0) {
         p.respawn = Math.max(0, p.respawn - dt);
         if (!p.respawn) {
@@ -959,10 +995,15 @@ export class OfficeRoom extends Room {
             interact: false,
             slot: 0,
             warcry: false,
+            reload: false,
           };
         p.weapons.remoteControlled = this.rc.controlling(id);
         if (input.warcry) p.weapons.activateWarcry();
         if (input.slot) p.weapons.switchSlot(input.slot);
+        if (input.reload) p.weapons.requestReload();
+        if (input.useMedkit && !this.rc.controlling(id) && p.player.useMedkit())
+          this.event({ kind: "medkit", player: id, x: p.player.root.position.x,
+            y: 0, z: p.player.root.position.z });
         if (input.jump && p.player.grounded) {
           p.player.jump();
           this.event({
@@ -1047,6 +1088,7 @@ export class OfficeRoom extends Room {
       p.input.jump = false;
       p.input.interact = false;
       p.input.slot = 0;
+      p.input.useMedkit = false;
       p.input.warcry = false;
     }
     this.rc.update(
@@ -1128,7 +1170,15 @@ export class OfficeRoom extends Room {
         y: p.player.root.position.y,
         z: p.player.root.position.z,
         yaw: p.player.root.rotation.y,
+        gunPitch: p.player.gun.rotation.x,
+        knockbackX: p.player.knockbackX,
+        knockbackZ: p.player.knockbackZ,
         hp: p.player.hp,
+        shield: p.player.shield,
+        medkit: p.player.medkit,
+        stamina: p.player.stamina,
+        sprinting: p.player.sprinting,
+        sprintExhausted: p.player.sprintExhausted,
         beacon: this.pickup.beacons.carried.has(id),
         loadout: p.loadout,
         utilityKind: p.weapons.utilityKind,
@@ -1138,7 +1188,9 @@ export class OfficeRoom extends Room {
         weapon: p.weapons.id,
         special: p.weapons.specialWeapon,
         ammo: p.weapons.ammo,
-        reserve: p.weapons.bazookaReserve,
+        reserve: p.weapons.reserve,
+        reloadDuration: p.weapons.reloadDuration,
+        reloadKind: p.weapons.reloads[p.weapons.id]?.kind,
         warcryAvailable: p.weapons.warcryAvailable,
         invulnerable: p.player.invulnerable,
         reload: p.weapons.reloadRemaining,

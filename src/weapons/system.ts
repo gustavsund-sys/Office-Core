@@ -1,3 +1,4 @@
+import type { DeathSource } from "../ui/combatFeed";
 import {
   shard,
   beam,
@@ -50,6 +51,7 @@ export class Weapons {
   }
   id: WeaponId = "pistol";
   specialWeapon?: WeaponId;
+  onEmpty: () => void = () => {};
   onTrace: (start: Vector3, end: Vector3) => void = () => {};
   onCoreBusterAcquired: () => void = () => {};
   onCoreBusterDropped: (position: Vector3) => void = () => {};
@@ -83,8 +85,74 @@ export class Weapons {
     burstGun: 100,
     pulseGun: 30,
     coreBuster: 1,
+    huntingRifle: 10,
   };
-  bazookaReserve = 0;
+  reserves = Object.fromEntries(
+    Object.keys(WEAPONS).map((id) => [id, 0]),
+  ) as Record<WeaponId, number>;
+  get bazookaReserve() {
+    return this.reserves.bazooka;
+  }
+  set bazookaReserve(value: number) {
+    this.reserves.bazooka = value;
+  }
+  get reserve() {
+    return this.reserves[this.id];
+  }
+  set reserve(value: number) {
+    this.reserves[this.id] = value;
+  }
+  reloads: Partial<
+    Record<
+      WeaponId,
+      { remaining: number; duration: number; kind: "magazine" | "chamber" }
+    >
+  > = {};
+  onReload: (kind: "magazine" | "chamber", weapon: WeaponId) => void = () => {};
+  get reloadRemaining() {
+    return this.reloads[this.id]?.remaining ?? 0;
+  }
+  set reloadRemaining(value: number) {
+    if (value <= 0) delete this.reloads[this.id];
+    else
+      this.reloads[this.id] = {
+        remaining: value,
+        duration: value,
+        kind: "magazine",
+      };
+  }
+  get reloadDuration() {
+    return this.reloads[this.id]?.duration ?? 1;
+  }
+  syncReload(
+    remaining: number,
+    duration: number,
+    kind: "magazine" | "chamber",
+  ) {
+    if (remaining <= 0) delete this.reloads[this.id];
+    else this.reloads[this.id] = { remaining, duration, kind };
+  }
+  requestReload() {
+    if (
+      this.id === "coreBuster" ||
+      this.carryingBeacon ||
+      this.pulseTrapSelected ||
+      this.remoteControlled ||
+      this.player.hp <= 0 ||
+      this.reloadRemaining > 0 ||
+      this.ammo >= WEAPONS[this.id].ammo ||
+      this.reserve <= 0
+    )
+      return false;
+    this.reloads[this.id] = { remaining: 1, duration: 1, kind: "magazine" };
+    this.burstRemaining = 0;
+    this.onReload("magazine", this.id);
+    return true;
+  }
+  private chamberRifle() {
+    this.reloads.huntingRifle = { remaining: 8, duration: 8, kind: "chamber" };
+    this.onReload("chamber", "huntingRifle");
+  }
   get ammo() {
     return this.ammunition[this.id];
   }
@@ -92,18 +160,11 @@ export class Weapons {
     this.ammunition[this.id] = value;
   }
   addAmmo(id: WeaponId, amount: number) {
-    if (id === "bazooka") {
-      this.bazookaReserve += amount;
-      if (
-        this.id === "bazooka" &&
-        this.ammo === 0 &&
-        this.reloadRemaining === 0
-      )
-        this.reloadRemaining = 5;
-    } else this.ammunition[id] += amount;
+    if (id === "coreBuster") return;
+    this.reserves[id] += amount;
+    if (id === this.id && this.ammo === 0) this.requestReload();
   }
   cooldown = 0;
-  reloadRemaining = 0;
   burstRemaining = 0;
   rockets: {
     mesh: Mesh;
@@ -117,7 +178,7 @@ export class Weapons {
   visuals = true;
   constructor(
     public player: Player,
-    public onHit: (target: Hittable, damage: number) => void,
+    public onHit: (target: Hittable, damage: number, source?: DeathSource) => void,
     public onShot: () => void,
     public onShield: () => void = () => {},
     public onImpact: (position: Vector3) => void = () => {},
@@ -134,12 +195,32 @@ export class Weapons {
       this.onCoreBusterAcquired();
     }
 
-    this.reloadRemaining = 0;
     this.burstRemaining = 0;
     if (id === "bazooka" && this.ammo === 0 && this.bazookaReserve > 0)
-      this.reloadRemaining = 5;
+      this.requestReload();
+  }
+  advanceReloads(dt: number, applyAmmo = true) {
+    this.player.reloadPose = this.reloadRemaining;
+    for (const [id, state] of Object.entries(this.reloads) as [
+      WeaponId,
+      NonNullable<Weapons["reloads"][WeaponId]>,
+    ][]) {
+      state.remaining = Math.max(0, state.remaining - dt);
+      if (state.remaining === 0) {
+        if (state.kind === "magazine" && applyAmmo) {
+          const loaded = Math.min(
+            WEAPONS[id].ammo - this.ammunition[id],
+            this.reserves[id],
+          );
+          this.ammunition[id] += loaded;
+          this.reserves[id] -= loaded;
+        }
+        delete this.reloads[id];
+      }
+    }
   }
   update(c: PlayerCommand, dt: number) {
+    this.advanceReloads(dt);
     this.player.invulnerable = Math.max(0, this.player.invulnerable - dt);
     if (this.player.hp <= 0) this.dropCoreBuster();
     for (const charge of [...this.charges]) {
@@ -155,7 +236,7 @@ export class Weapons {
           ) {
             const damage = wall.hp;
             wall.damage(damage, "coreBuster");
-            this.onHit(wall, damage);
+            this.onHit(wall, damage, "coreBuster");
           }
         }
         this.player.world.explosions.burst(
@@ -206,12 +287,6 @@ export class Weapons {
     }
     this.effects = this.effects.filter((e) => e.life > 0);
     if (this.reloadRemaining > 0) {
-      this.reloadRemaining = Math.max(0, this.reloadRemaining - dt);
-      if (this.reloadRemaining === 0) {
-        const loaded = Math.min(3, this.bazookaReserve);
-        this.ammo = loaded;
-        this.bazookaReserve -= loaded;
-      }
       return;
     }
     if (
@@ -224,6 +299,7 @@ export class Weapons {
     }
     if (this.ammo <= 0) {
       this.burstRemaining = 0;
+      if (c.pressed && this.reserve <= 0 && this.player.hp > 0) this.onEmpty();
       return;
     }
     const data = WEAPONS[this.id];
@@ -270,8 +346,7 @@ export class Weapons {
         distance: 0,
       });
       this.onShot();
-      if (--this.ammo === 0 && this.bazookaReserve > 0)
-        this.reloadRemaining = 5;
+      if (--this.ammo === 0 && this.bazookaReserve > 0) this.requestReload();
       return;
     }
     const ray = new Ray(origin, direction, data.range);
@@ -342,7 +417,7 @@ export class Weapons {
           const damage = Math.min(data.damage, t.hp);
           const before = t.hp;
           t.damage(data.damage);
-          if (t.hp < before) this.onHit(t, damage);
+          if (t.hp < before) this.onHit(t, damage, this.id);
         } else {
           this.onShield();
         }
@@ -350,6 +425,11 @@ export class Weapons {
     }
     if (this.id !== "burstGun" || this.burstRemaining === 4) this.onShot();
     this.ammo--;
+    if (this.id === "huntingRifle") {
+      this.player.kickBack(direction);
+      this.cooldown = 0;
+      this.chamberRifle();
+    }
   }
   private blastBlocked(origin: Vector3, position: Vector3, victim: Hittable) {
     const delta = position.subtract(origin),
@@ -389,7 +469,7 @@ export class Weapons {
         canDamageFrom: () => true,
         damage: (amount) => {
           if (player.invulnerable > 0) return;
-          player.hp = Math.max(0, player.hp - amount);
+          player.takeDamage(amount);
         },
       };
       victims.set(self, player.root.position.add(new Vector3(0, 1.1, 0)));
@@ -418,7 +498,7 @@ export class Weapons {
     for (const { victim, damage } of hits) {
       const before = victim.hp;
       victim.damage(damage);
-      if (victim.hp < before) this.onHit(victim, before - victim.hp);
+      if (victim.hp < before) this.onHit(victim, before - victim.hp, "coreBuster");
     }
   }
   private updateRockets(dt: number) {
@@ -493,7 +573,7 @@ export class Weapons {
                   : WEAPONS.bazooka.damage
                 : Math.max(1, Math.round(90 * (1 - distance / 4))),
             );
-            if (victim.hp < before) this.onHit(victim, before - victim.hp);
+            if (victim.hp < before) this.onHit(victim, before - victim.hp, "bazooka");
           }
           this.onImpact(hit.pickedPoint);
           this.player.world.explosions.burst(

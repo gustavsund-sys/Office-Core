@@ -1,4 +1,6 @@
+import { updateBombCountdowns } from "../ui/bombCountdowns";
 import { predictionBlocked } from "./predictionWindow";
+import { shotTraceEnd } from "./shotTrace";
 import { beam, flash as pooledFlash, releaseEffect } from "./effectPool";
 
 import { Vector3, Ray, MeshBuilder, Quaternion } from "@babylonjs/core";
@@ -15,7 +17,9 @@ import { heldWeapon, rocketModel } from "../weapons/models";
 import { networkAim } from "../network/aim";
 import { interpolateYaw } from "../network/interpolation";
 
-import { type NetInput } from "../../shared/protocol";
+import type { BeaconActor } from "./beacon";
+import type { TrapActor } from "./pulseTrap";
+import { type Snapshot, type NetInput } from "../../shared/protocol";
 import type { Game } from "./game";
 type Context = Pick<
   Game,
@@ -44,6 +48,10 @@ type Context = Pick<
   | "player"
   | "predictedPosition"
   | "predictedRockets"
+  | "predictedStamina"
+  | "predictedExhausted"
+  | "predictedKnockbackX"
+  | "predictedKnockbackZ"
   | "predictedVelocity"
   | "pulseTrapAudio"
   | "scene"
@@ -61,13 +69,167 @@ type Context = Pick<
   | "weapons"
   | "world"
 >;
+type VisualFrame = {
+  snapshot: Snapshot;
+  carriers: string[];
+  beaconActors: BeaconActor[];
+  trapActors: TrapActor[];
+  objects: {
+    key: string;
+    weapon: WeaponId;
+    owner?: string;
+    x: number;
+    y: number;
+    z: number;
+    target: Vector3;
+  }[];
+  objectKeys: Set<string>;
+  ownBombs: Snapshot["bombs"];
+  bombCountdowns: { timer: number; label: string }[];
+  pendingCountdowns: { timer: number; label: string }[];
+  alarmTeams: Team[];
+};
+type VisualContext = Pick<
+  Context,
+  "multiplayer" | "player" | "onlinePlayers" | "pickup"
+>;
+const visualFrames = new WeakMap<VisualContext, VisualFrame>();
+function prepareVisualFrame(
+  game: VisualContext,
+  snapshot: Snapshot,
+): VisualFrame {
+  const beaconActors: BeaconActor[] = [];
+  const trapActors: TrapActor[] = [];
+  const carriers: string[] = [];
+  for (const p of snapshot.players) {
+    if (p.beacon) carriers.push(p.id);
+    const player =
+      p.id === game.multiplayer?.room?.sessionId
+        ? game.player
+        : game.onlinePlayers.get(p.id);
+    if (!player) continue;
+    const actor = {
+      id: p.id,
+      team: p.team,
+      player,
+      pulseTrapSelected: p.pulseTrapSelected,
+    };
+    beaconActors.push(actor);
+    trapActors.push({
+      ...actor,
+      weapons: {
+        utilityKind: p.utilityKind ?? "pulseTrap",
+        utilityCount: p.utilityCount ?? (p.pulseTrap ? 1 : 0),
+        carryingPulseTrap: p.pulseTrap ?? false,
+        pulseTrapSelected: p.pulseTrapSelected ?? false,
+        carryingBeacon: p.beacon ?? false,
+        switchSlot: () => {},
+      },
+    });
+  }
+  const objects: VisualFrame["objects"] = [];
+  for (const b of snapshot.bombs)
+    objects.push({
+      ...b,
+      key: `bomb:${b.id}`,
+      weapon: "coreBuster",
+      target: new Vector3(b.x, b.y, b.z),
+    });
+  for (const r of snapshot.rockets)
+    objects.push({
+      ...r,
+      key: `rocket:${r.id}`,
+      weapon: "bazooka",
+      target: new Vector3(r.x, r.y, r.z),
+    });
+  for (const p of snapshot.pickups)
+    if (p.dropped && p.active)
+      objects.push({
+        ...p,
+        key: `drop:${p.x}:${p.z}`,
+        weapon: "coreBuster",
+        target: new Vector3(p.x, p.y, p.z),
+      });
+  const ownBombs = snapshot.bombs.filter(
+    (b) => b.owner === game.multiplayer?.room?.sessionId,
+  );
+  const bombCountdowns = (ownBombs.length ? ownBombs : snapshot.bombs).map(
+    (b) => ({
+      timer: b.timer,
+      label:
+        b.owner === game.multiplayer?.room?.sessionId
+          ? "DIN CORE BUSTER"
+          : "CORE BUSTER",
+    }),
+  );
+  const alarmTeams = [
+    ...(snapshot.alarms ?? (snapshot.alarm ? [snapshot.alarm] : [])),
+  ];
+  for (const core of snapshot.cores)
+    if (
+      core.active &&
+      core.hp > 0 &&
+      core.hp <= 350 &&
+      !alarmTeams.includes(core.team)
+    )
+      alarmTeams.push(core.team);
+  return {
+    snapshot,
+    ownBombs,
+    bombCountdowns,
+    pendingCountdowns: [
+      { timer: 25, label: "DIN CORE BUSTER" },
+      ...bombCountdowns,
+    ],
+    alarmTeams,
+    carriers,
+    beaconActors,
+    trapActors,
+    objects,
+    objectKeys: new Set(objects.map((o) => o.key)),
+  };
+}
+export function syncOnlineVisuals(
+  game: VisualContext,
+  snapshot: Snapshot,
+  dt: number,
+) {
+  let visuals = visualFrames.get(game);
+  const newVisualFrame = visuals?.snapshot !== snapshot;
+  if (newVisualFrame) {
+    visuals = prepareVisualFrame(game, snapshot);
+    visualFrames.set(game, visuals);
+    game.pickup.beacons.sync(
+      snapshot.beacons ?? [],
+      snapshot.beaconDrops ?? [],
+      visuals.carriers,
+      visuals.beaconActors,
+      dt,
+    );
+    game.pickup.pulseTraps.sync(
+      snapshot.pulseTraps ?? [],
+      snapshot.pulseTrapDrops ?? [],
+      visuals.trapActors,
+    );
+    game.pickup.pulseTraps.syncMedkits(snapshot.placedMedkits ?? []);
+  } else {
+    game.pickup.beacons.render(visuals!.beaconActors, dt);
+    game.pickup.pulseTraps.render(visuals!.trapActors);
+  }
+  return { visuals: visuals!, newVisualFrame };
+}
 export function tickOnline(this: Context, dt: number) {
+  this.weapons.advanceReloads(dt, false);
   const net = this.multiplayer!,
     snapshot = net.snapshot;
   this.time += dt;
   if (this.predictedPosition) {
     this.player.root.position.copyFrom(this.predictedPosition);
+    this.player.stamina = this.predictedStamina;
+    this.player.sprintExhausted = this.predictedExhausted;
     this.player.verticalVelocity = this.predictedVelocity;
+    this.player.knockbackX = this.predictedKnockbackX;
+    this.player.knockbackZ = this.predictedKnockbackZ;
   }
   this.networkElapsed += dt;
   const command = this.input.command(this.world, this.player.root.position);
@@ -87,11 +249,23 @@ export function tickOnline(this: Context, dt: number) {
     this.player.grounded
   )
     this.pendingPlantAt = this.time;
-  if (!this.rc.locked)
-    this.player.root.rotation.y = Math.atan2(
-      command.aimX - this.player.root.position.x,
-      command.aimZ - this.player.root.position.z,
-    );
+  if (!this.rc.locked) this.player.faceAim(command);
+  if (
+    command.pressed &&
+    snapshot?.started &&
+    net.connected &&
+    !this.paused &&
+    this.player.hp > 0 &&
+    this.weapons.ammo <= 0 &&
+    this.weapons.reserve <= 0 &&
+    this.weapons.reloadRemaining <= 0 &&
+    !this.weapons.carryingCoreBuster &&
+    !this.weapons.carryingBeacon &&
+    !this.weapons.pulseTrapSelected &&
+    !this.weapons.remoteControlled &&
+    this.sound
+  )
+    this.weaponAudio?.playEmpty();
   const predictedShot = this.shotPrediction.update(
     this.weapons.id,
     dt,
@@ -114,6 +288,7 @@ export function tickOnline(this: Context, dt: number) {
       this.weaponAudio?.play(this.weapons.id);
     const start = this.player.shotOrigin;
     const direction = this.player.shotDirection(command, start);
+    if (this.weapons.id === "huntingRifle") this.player.kickBack(direction);
     if (!this.world.explosions.muzzle(start, this.weapons.id === "pulseGun")) {
       const muzzle = pooledFlash(this.scene, 0.23);
       muzzle.position.copyFrom(start);
@@ -135,16 +310,12 @@ export function tickOnline(this: Context, dt: number) {
     }
     if (this.weapons.id !== "bazooka") {
       const ray = new Ray(start, direction, WEAPONS[this.weapons.id].range);
-      const hit = this.scene.pickWithRay(
+      const end = shotTraceEnd(
+        this.scene,
         ray,
-        (mesh) =>
-          mesh.isEnabled() &&
-          !this.player.bodyMeshes.includes(
-            mesh as import("@babylonjs/core").Mesh,
-          ) &&
-          (!!mesh.metadata?.solid || !!mesh.metadata?.damageable),
+        this.player,
+        this.onlinePlayers.values(),
       );
-      const end = hit?.pickedPoint ?? start.add(direction.scale(ray.length));
       const tracer = beam(
         this.scene,
         start,
@@ -184,6 +355,7 @@ export function tickOnline(this: Context, dt: number) {
       ...this.onlineInput,
       moveX: this.paused ? 0 : command.moveX / length,
       moveZ: this.paused ? 0 : command.moveZ / length,
+      sprint: !this.paused && !this.rc.locked && command.sprint,
       fire: !this.paused && command.fire,
       pressed: !this.paused && this.onlinePressed,
       ...(this.rc.locked
@@ -196,6 +368,7 @@ export function tickOnline(this: Context, dt: number) {
             interact: false,
             warcry: false,
             slot: 0 as const,
+            reload: false,
           }
         : {}),
     };
@@ -213,6 +386,8 @@ export function tickOnline(this: Context, dt: number) {
     }
     this.onlinePressed = false;
     this.onlineInput = {
+      useMedkit: false,
+      reload: false,
       warcry: false,
       jump: false,
       interact: false,
@@ -220,7 +395,11 @@ export function tickOnline(this: Context, dt: number) {
     };
   }
   this.predictedPosition = this.player.root.position.clone();
+  this.predictedStamina = this.player.stamina;
+  this.predictedExhausted = this.player.sprintExhausted;
   this.predictedVelocity = this.player.verticalVelocity;
+  this.predictedKnockbackX = this.player.knockbackX;
+  this.predictedKnockbackZ = this.player.knockbackZ;
   if (
     snapshot?.started &&
     !this.paused &&
@@ -237,12 +416,14 @@ export function tickOnline(this: Context, dt: number) {
     );
   }
   if (snapshot) {
-    for (const [id, player] of this.onlinePlayers)
-      if (!snapshot.players.some((p) => p.id === id)) {
-        player.root.dispose();
-        this.onlinePlayers.delete(id);
-        this.onlineModels.delete(id);
-      }
+    const newSnapshot = visualFrames.get(this)?.snapshot !== snapshot;
+    if (newSnapshot)
+      for (const [id, player] of this.onlinePlayers)
+        if (!snapshot.players.some((p) => p.id === id)) {
+          player.root.dispose();
+          this.onlinePlayers.delete(id);
+          this.onlineModels.delete(id);
+        }
     const steps: { id: string; x: number; z: number; moving: boolean }[] = [];
     const renderAt = net.timing.renderTime(performance.now());
     const before =
@@ -285,10 +466,19 @@ export function tickOnline(this: Context, dt: number) {
       }
       player.root.setEnabled(state.hp > 0);
       player.hp = state.hp;
+      player.shield = state.shield ?? 0;
+      player.medkit = state.medkit ?? false;
+      if (!own) {
+        player.sprinting = state.sprinting ?? false;
+        player.sprintExhausted = state.sprintExhausted ?? false;
+        player.verticalVelocity = state.verticalVelocity;
+        player.reloadPose = state.reload;
+      }
+      player.showTacticalShield();
       player.invulnerable = state.invulnerable ?? 0;
       player.setBarrier(player.invulnerable > 0 && player.hp > 0);
       const target = new Vector3(state.x, state.y, state.z);
-      const moving = Vector3.Distance(player.root.position, target) > 0.04;
+      const moving = Vector3.Distance(player.root.position, target) > 0.002;
       if (!own)
         player.root.position.copyFrom(
           Vector3.Lerp(
@@ -298,21 +488,20 @@ export function tickOnline(this: Context, dt: number) {
           ),
         );
       if (own && state.rcRemote) player.root.rotation.y = state.yaw;
-      else if (own)
-        player.root.rotation.y = Math.atan2(
-          command.aimX - player.root.position.x,
-          command.aimZ - player.root.position.z,
-        );
+      else if (own) player.faceAim(command);
       else {
         player.root.rotation.y = state.yaw;
         player.animate(moving, dt);
       }
-      player.torso.material = this.world.mat(TEAMS[state.team]);
+      if (newSnapshot)
+        player.torso.material = this.world.mat(TEAMS[state.team]);
       if (this.onlineModels.get(state.id) !== state.weapon) {
         player.setWeaponModel(state.weapon);
         this.onlineModels.set(state.id, state.weapon);
+        if (own && !state.rcRemote) player.faceAim(command);
       }
-      if (own) {
+      if (!own) player.gun.rotation.x = state.gunPitch ?? 0;
+      if (own && newSnapshot) {
         this.weapons.remoteControlled = state.rcRemote ?? false;
         this.weapons.carryingBeacon = state.beacon ?? false;
         this.weapons.utilityKind = state.utilityKind ?? "pulseTrap";
@@ -323,61 +512,16 @@ export function tickOnline(this: Context, dt: number) {
         this.weapons.warcryAvailable = state.warcryAvailable ?? false;
         this.weapons.specialWeapon = state.special;
         this.weapons.ammo = state.ammo;
-        this.weapons.bazookaReserve = state.reserve;
-        this.weapons.reloadRemaining = state.reload;
+        this.weapons.reserve = state.reserve;
+        this.weapons.syncReload(
+          state.reload,
+          state.reloadDuration ?? 1,
+          state.reloadKind ?? "magazine",
+        );
       }
       steps.push({ id: state.id, x: state.x, z: state.z, moving });
     }
-    this.pickup.beacons.sync(
-      snapshot.beacons ?? [],
-      snapshot.beaconDrops ?? [],
-      snapshot.players.filter((p) => p.beacon).map((p) => p.id),
-      snapshot.players.flatMap((p) => {
-        const player =
-          p.id === net.room?.sessionId
-            ? this.player
-            : this.onlinePlayers.get(p.id);
-        return player
-          ? [
-              {
-                id: p.id,
-                team: p.team,
-                player,
-                pulseTrapSelected: p.pulseTrapSelected,
-              },
-            ]
-          : [];
-      }),
-      dt,
-    );
-    this.pickup.pulseTraps.sync(
-      snapshot.pulseTraps ?? [],
-      snapshot.pulseTrapDrops ?? [],
-      snapshot.players.flatMap((p) => {
-        const player =
-          p.id === net.room?.sessionId
-            ? this.player
-            : this.onlinePlayers.get(p.id);
-        return player
-          ? [
-              {
-                id: p.id,
-                team: p.team,
-                player,
-                weapons: {
-                  utilityKind: p.utilityKind ?? "pulseTrap",
-                  utilityCount: p.utilityCount ?? (p.pulseTrap ? 1 : 0),
-                  carryingPulseTrap: p.pulseTrap ?? false,
-                  pulseTrapSelected: p.pulseTrapSelected ?? false,
-                  carryingBeacon: p.beacon ?? false,
-                  switchSlot: () => {},
-                },
-              },
-            ]
-          : [];
-      }),
-    );
-    this.pickup.pulseTraps.syncMedkits(snapshot.placedMedkits ?? []);
+    const { visuals, newVisualFrame } = syncOnlineVisuals(this, snapshot, dt);
     this.pickup.pulseTraps.animate(
       this.pulseTrapAudio.update(
         this.paused ? 0 : dt,
@@ -398,25 +542,7 @@ export function tickOnline(this: Context, dt: number) {
       this.sound && !this.paused,
       (x, z) => this.isCarpet(x, z),
     );
-    const objects = [
-      ...snapshot.bombs.map((b) => ({
-        ...b,
-        key: `bomb:${b.id}`,
-        weapon: "coreBuster" as WeaponId,
-      })),
-      ...snapshot.rockets.map((r) => ({
-        ...r,
-        key: `rocket:${r.id}`,
-        weapon: "bazooka" as WeaponId,
-      })),
-      ...snapshot.pickups
-        .filter((p) => p.dropped && p.active)
-        .map((p) => ({
-          ...p,
-          key: `drop:${p.x}:${p.z}`,
-          weapon: "coreBuster" as WeaponId,
-        })),
-    ];
+    const objects = visuals.objects;
     for (const object of objects) {
       let mesh = this.onlineObjects.get(object.key);
       if (!mesh) {
@@ -434,9 +560,7 @@ export function tickOnline(this: Context, dt: number) {
         this.onlineObjects.set(object.key, mesh);
       }
       if (object.weapon === "bazooka") {
-        const delta = new Vector3(object.x, object.y, object.z).subtract(
-          mesh.position,
-        );
+        const delta = object.target.subtract(mesh.position);
         if (
           delta.length() > 0.01 &&
           !(
@@ -450,7 +574,7 @@ export function tickOnline(this: Context, dt: number) {
             Vector3.Up(),
           );
       }
-      const target = new Vector3(object.x, object.y, object.z);
+      const target = object.target;
       if (object.weapon === "bazooka" && mesh.position.length() > 0) {
         mesh.position.copyFrom(
           Vector3.Lerp(mesh.position, target, 1 - Math.exp(-25 * dt)),
@@ -468,11 +592,12 @@ export function tickOnline(this: Context, dt: number) {
         }
       } else mesh.position.copyFrom(target);
     }
-    for (const [key, mesh] of this.onlineObjects)
-      if (!objects.some((o) => o.key === key)) {
-        mesh.dispose();
-        this.onlineObjects.delete(key);
-      }
+    if (newVisualFrame)
+      for (const [key, mesh] of this.onlineObjects)
+        if (!visuals.objectKeys.has(key)) {
+          mesh.dispose();
+          this.onlineObjects.delete(key);
+        }
     const spatial = (p: { x: number; z: number }) => {
       const d = Math.hypot(
         p.x - this.player.root.position.x,
@@ -492,16 +617,7 @@ export function tickOnline(this: Context, dt: number) {
         ...spatial(b),
       })),
     );
-    const alarmTeams =
-      snapshot.alarms ?? (snapshot.alarm ? [snapshot.alarm] : []);
-    for (const core of snapshot.cores)
-      if (
-        core.active &&
-        core.hp > 0 &&
-        core.hp <= 350 &&
-        !alarmTeams.includes(core.team)
-      )
-        alarmTeams.push(core.team);
+    const alarmTeams = visuals.alarmTeams;
     const ownAlarm = alarmTeams.includes(CONFIG.player.team as Team)
       ? (CONFIG.player.team as Team)
       : alarmTeams[0];
@@ -525,48 +641,29 @@ export function tickOnline(this: Context, dt: number) {
           })
         : [],
     );
-    const timer =
-      document.querySelector<HTMLElement>("#network-bomb-timer") ??
-      document.createElement("div");
-    timer.id = "network-bomb-timer";
-    timer.style.cssText =
-      "position:fixed;bottom:170px;left:50%;transform:translateX(-50%);color:#ffda61;background:#14252ee8;padding:12px 18px;border:1px solid #ffda61;border-radius:6px;font-size:20px;font-weight:bold;z-index:75;pointer-events:none";
-    document.querySelector("#ui")!.append(timer);
-    timer.replaceChildren();
-    timer.hidden = !snapshot.bombs.length && this.pendingPlantAt === undefined;
-    const ownBombs = snapshot.bombs.filter(
-      (b) => b.owner === net.room?.sessionId,
-    );
+    let timer = document.querySelector<HTMLElement>("#network-bomb-timer");
+    if (!timer) {
+      timer = document.createElement("div");
+      timer.id = "network-bomb-timer";
+      timer.style.cssText =
+        "position:fixed;bottom:170px;left:50%;transform:translateX(-50%);color:#ffda61;background:#14252ee8;padding:12px 18px;border:1px solid #ffda61;border-radius:6px;font-size:20px;font-weight:bold;z-index:75;pointer-events:none";
+      document.querySelector("#ui")!.append(timer);
+    }
+    const ownBombs = visuals.ownBombs;
     if (
       ownBombs.length ||
       (this.pendingPlantAt !== undefined && this.time - this.pendingPlantAt > 1)
     )
       this.pendingPlantAt = undefined;
-    const visibleBombs = ownBombs.length ? ownBombs : snapshot.bombs;
-    const timers =
+    if (this.pendingPlantAt !== undefined)
+      visuals.pendingCountdowns[0].timer =
+        25 - (this.time - this.pendingPlantAt);
+    updateBombCountdowns(
+      timer,
       this.pendingPlantAt !== undefined
-        ? [
-            {
-              timer: 25 - (this.time - this.pendingPlantAt),
-              owner: net.room?.sessionId,
-            },
-            ...visibleBombs,
-          ]
-        : visibleBombs;
-    for (const bomb of timers) {
-      const row = document.createElement("div");
-      row.textContent = `${bomb.owner === net.room?.sessionId ? "DIN CORE BUSTER" : "CORE BUSTER"} · ${Math.ceil(bomb.timer)} s `;
-      const bar = document.createElement("progress");
-      bar.max = 25;
-      bar.value = bomb.timer;
-      row.append(bar);
-      timer.append(row);
-    }
-    for (const [id, player] of this.onlinePlayers)
-      if (!snapshot.players.some((p) => p.id === id)) {
-        player.root.dispose();
-        this.onlinePlayers.delete(id);
-      }
+        ? visuals.pendingCountdowns
+        : visuals.bombCountdowns,
+    );
   }
   for (const rocket of this.predictedRockets) {
     rocket.age += dt;
@@ -611,6 +708,7 @@ export function tickOnline(this: Context, dt: number) {
   );
   this.updateCamera(dt);
   this.world.explosions.update(dt);
+  this.world.blood.update(dt);
   this.cores.forEach((core) => core.update(dt, this.time));
   this.world.destructibles.forEach((prop) => prop.update(dt));
   if (snapshot) {

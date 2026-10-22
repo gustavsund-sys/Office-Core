@@ -1,3 +1,5 @@
+import { tacticalShieldModel } from "./tacticalShield";
+import { motionPose } from "./locomotion";
 import {
   MeshBuilder,
   Ray,
@@ -21,11 +23,13 @@ import { World } from "../map/builder";
 import { CONFIG } from "../config/game";
 import { move } from "../game/collision";
 import { office01 } from "../maps/office01";
+const AIM_HEIGHT = 1.1;
 export interface PlayerCommand {
   moveX: number;
   moveZ: number;
   aimX: number;
   aimZ: number;
+  sprint?: boolean;
   fire: boolean;
   pressed: boolean;
   facingYaw?: number;
@@ -220,6 +224,7 @@ export class Input {
         aimX: pos.x + Math.sin(this.yaw) * 100,
         aimZ: pos.z + Math.cos(this.yaw) * 100,
         facingYaw: this.yaw,
+        sprint: this.keys.has("ShiftLeft") || this.keys.has("ShiftRight"),
         fire: this.down,
         pressed: this.pressed,
       };
@@ -232,7 +237,11 @@ export class Input {
       Matrix.Identity(),
       world.scene.activeCamera,
     );
-    const distance = ray.intersectsPlane(new Plane(0, 1, 0, 0));
+    // Match the firing target's height: projecting onto the floor and then
+    // raising the target shifts it away from the cursor in the angled camera.
+    const distance = ray.intersectsPlane(
+      new Plane(0, 1, 0, -(pos.y + AIM_HEIGHT)),
+    );
     const aim =
       distance !== null
         ? ray.origin.add(ray.direction.scale(distance))
@@ -246,6 +255,7 @@ export class Input {
         Number(this.keys.has("KeyS") || this.keys.has("ArrowDown")),
       aimX: aim.x,
       aimZ: aim.z,
+      sprint: this.keys.has("ShiftLeft") || this.keys.has("ShiftRight"),
       fire: this.down,
       pressed: this.pressed,
     };
@@ -287,8 +297,62 @@ export class Player {
     }
     this.barrier?.setEnabled(active);
   }
+  bossLookoutKey = false;
+  bossLookoutSelected = false;
   hp = CONFIG.player.hp;
+  shield = 0;
+  medkit = false;
+  stamina = 4;
+  sprinting = false;
+  sprintExhausted = false;
+  private tacticalArmor?: TransformNode;
+  injuryDrop = 0;
+  injuryGrunt = 0;
+  get injured() {
+    return this.hp > 0 && this.hp <= 20;
+  }
+  useMedkit() {
+    if (!this.medkit || this.hp <= 0 || this.hp >= 100) return false;
+    this.medkit = false;
+    this.hp = Math.min(100, this.hp + 50);
+    return true;
+  }
+  takeDamage(amount: number) {
+    if (this.hp <= 0 || this.invulnerable > 0) return 0;
+    const absorbed = Math.min(this.shield, Math.max(0, amount));
+    this.shield -= absorbed;
+    const damage = Math.min(this.hp, Math.max(0, amount - absorbed));
+    this.hp -= damage;
+    return damage;
+  }
+  resetVitals() {
+    this.shield = 0;
+    this.medkit = false;
+    this.stamina = 4;
+    this.sprinting = this.sprintExhausted = false;
+    this.injuryDrop = this.injuryGrunt = 0;
+  }
+  showTacticalShield() {
+    if (this.shield > 0 && !this.tacticalArmor && !this.world.authoritative) {
+      const root = (this.tacticalArmor = new TransformNode(
+        "tactical shield armor",
+        this.world.scene,
+      ));
+      root.parent = this.torso;
+      const carrier = tacticalShieldModel(this.world);
+      carrier.parent = root;
+    }
+    this.tacticalArmor?.setEnabled(this.shield > 0 && this.hp > 0);
+  }
   recoil = 0;
+  knockbackX = 0;
+  knockbackZ = 0;
+  kickBack(direction: Vector3) {
+    const length = Math.hypot(direction.x, direction.z) || 1;
+    this.knockbackX = (-2 * direction.x) / length;
+    this.knockbackZ = (-2 * direction.z) / length;
+  }
+
   verticalVelocity = 0;
   landed = false;
   get grounded() {
@@ -300,11 +364,22 @@ export class Player {
     return true;
   }
   walk = 0;
+  motionState = "idle";
+  reloadPose = 0;
+  private sprintBlend = 0;
+  private landingBlend = 0;
+  private wasAirborne = false;
+  private lastAnimatedPosition?: Vector3;
+  private moveForward = 1;
+  private moveSide = 0;
+  private groundRing?: Mesh;
+  private armRest = new Map<Mesh, { position: Vector3; rotation: Vector3 }>();
   legs: TransformNode[] = [];
   torso: Mesh;
   gun: Mesh;
   weaponZ = 0.56;
   weaponId: WeaponId = "pistol";
+  private aimTarget?: Vector3;
   stride = 0;
   knees: TransformNode[] = [];
   bodyMeshes: Mesh[] = [];
@@ -337,9 +412,9 @@ export class Player {
     this.bodyMeshes.push(
       part("vest", 0, 1.07, 0.23, 0.43, 0.42, 0.12, "#f17a61"),
     );
-    this.bodyMeshes.push(part("head", 0, 1.59, 0, 0.43, 0.43, 0.43, "#d9a77b"));
+    this.bodyMeshes.push(part("head", 0, 1.59, 0, 0.47, 0.45, 0.43, "#d9a77b"));
     this.bodyMeshes.push(
-      part("hair", 0, 1.81, -0.05, 0.46, 0.13, 0.4, "#343b45"),
+      part("hair", 0, 1.81, -0.05, 0.49, 0.16, 0.44, "#19242c"),
     );
     this.bodyMeshes.push(
       part("left arm", -0.39, 1.04, 0.17, 0.22, 0.28, 0.62, "#efdfbd"),
@@ -414,7 +489,7 @@ export class Player {
     const head = this.bodyMeshes.find((m) => m.name === "head")!;
     for (const x of [-0.12, 0.12]) {
       detail(head, "glasses", x, 0.04, 0.222, 0.18, 0.1, 0.035, "#263b49");
-      detail(head, "lens", x, 0.05, 0.245, 0.115, 0.043, 0.01, "#8edbd8");
+      detail(head, "lens", x, 0.05, 0.245, 0.115, 0.043, 0.01, "#689b9e");
       detail(
         head,
         "ear",
@@ -439,6 +514,76 @@ export class Player {
       "#263b49",
     );
     detail(head, "nose", 0, -0.04, 0.24, 0.07, 0.08, 0.08, "#c89369");
+    // Keep the graphic identity of the lobby portraits: swept hair, collar, ID and chunky footwear.
+    const hair = this.bodyMeshes.find((m) => m.name === "hair")!;
+    hair.parent = head;
+    hair.position.set(0, 0.22, -0.05);
+    const quiff = detail(
+      head,
+      "swept hair quiff",
+      0,
+      0.255,
+      0.105,
+      0.48,
+      0.1,
+      0.22,
+      "#19242c",
+    );
+    quiff.rotation.x = -0.13;
+    detail(head, "hair back", 0, 0.1, -0.205, 0.44, 0.2, 0.075, "#19242c");
+    detail(head, "mouth", 0, -0.13, 0.219, 0.09, 0.015, 0.008, "#945d45");
+    for (const side of [-1, 1]) {
+      const collar = detail(
+        this.torso,
+        "shirt collar",
+        side * 0.09,
+        0.27,
+        0.275,
+        0.17,
+        0.11,
+        0.055,
+        "#f4ead5",
+      );
+      collar.rotation.z = side * 0.3;
+      detail(
+        head,
+        "glasses temple",
+        side * 0.218,
+        0.04,
+        0.07,
+        0.035,
+        0.055,
+        0.3,
+        "#17232d",
+      );
+      detail(
+        head,
+        "lens reflection",
+        side * 0.12 + 0.035,
+        0.065,
+        0.252,
+        0.05,
+        0.012,
+        0.008,
+        "#c5e2df",
+      );
+      detail(
+        this.torso,
+        "vest seam",
+        side * 0.29,
+        -0.02,
+        0.208,
+        0.018,
+        0.48,
+        0.015,
+        "#813b38",
+      );
+    }
+    head.parent = this.torso;
+    head.position.set(0, 0.59, 0);
+    const vest = this.bodyMeshes.find((m) => m.name === "vest")!;
+    vest.parent = this.torso;
+    vest.position.set(0, 0.07, 0.23);
     for (const arm of this.bodyMeshes.filter((m) => m.name.endsWith(" arm"))) {
       detail(arm, "shirt cuff", 0, 0, 0.24, 0.23, 0.29, 0.09, "#faf0dc");
       detail(arm, "glove", 0, -0.015, 0.34, 0.19, 0.22, 0.15, "#344956");
@@ -483,7 +628,8 @@ export class Player {
         0.4,
         "#192b36",
       );
-      detail(boot, "shoe sole", 0, -0.065, 0, 0.26, 0.035, 0.41, "#66777a");
+      detail(knee, "trouser cuff", 0, -0.21, 0, 0.25, 0.085, 0.28, "#192b36");
+      detail(boot, "shoe sole", 0, -0.065, 0, 0.26, 0.035, 0.41, "#deded2");
       this.legs.push(hip);
       this.knees.push(knee);
       this.bodyMeshes.push(thigh, shin, boot);
@@ -493,6 +639,7 @@ export class Player {
       { diameter: 1.15, thickness: 0.035, tessellation: 32 },
       world.scene,
     );
+    this.groundRing = ring;
     ring.parent = this.root;
     ring.position.y = 0.06;
     ring.material = world.mat("#f8e4ac", true);
@@ -535,10 +682,16 @@ export class Player {
       overhead ? 2.2 : shoulder ? 1.55 : 1.12,
       this.weaponZ,
     );
+    this.armRest.clear();
     for (const mesh of this.bodyMeshes) {
+      if (mesh.name.endsWith(" arm")) mesh.rotation.setAll(0);
       if (overhead && (mesh.name === "right arm" || mesh.name === "left arm")) {
         mesh.position.set(mesh.name === "right arm" ? 0.38 : -0.38, 1.6, 0);
-        mesh.rotation.set(Math.PI / 2, 0, 0);
+        mesh.rotation.set(-Math.PI / 2, 0, 0);
+        this.armRest.set(mesh, {
+          position: mesh.position.clone(),
+          rotation: mesh.rotation.clone(),
+        });
         continue;
       }
       if (mesh.name === "right arm") {
@@ -547,13 +700,18 @@ export class Player {
       }
       if (mesh.name === "left arm") {
         mesh.position.set(
-          shoulder ? 0.15 : -0.39,
+          shoulder ? 0.15 : -0.16,
           shoulder ? 1.18 : 1.04,
-          shoulder ? 0.48 : 0.17,
+          shoulder ? 0.48 : 0.35,
         );
         mesh.rotation.x = shoulder ? -0.3 : 0;
-        mesh.rotation.y = shoulder ? -0.7 : 0;
+        mesh.rotation.y = shoulder ? -0.7 : 0.85;
       }
+      if (mesh.name.endsWith(" arm"))
+        this.armRest.set(mesh, {
+          position: mesh.position.clone(),
+          rotation: mesh.rotation.clone(),
+        });
     }
   }
   setViewVisibility(visibility: number) {
@@ -696,6 +854,21 @@ export class Player {
   }
   simulate(c: PlayerCommand, dt: number) {
     this.landed = false;
+    const speed = Math.hypot(this.knockbackX, this.knockbackZ);
+    if (speed > 0) {
+      const elapsed = Math.min(dt, speed / 2);
+      const travel = speed * elapsed - elapsed * elapsed;
+      move(
+        this.root.position,
+        (this.knockbackX / speed) * travel,
+        (this.knockbackZ / speed) * travel,
+        CONFIG.player.radius,
+        this.world.obstacles,
+      );
+      const ratio = Math.max(0, speed - 2 * elapsed) / speed;
+      this.knockbackX = ratio ? this.knockbackX * ratio : 0;
+      this.knockbackZ = ratio ? this.knockbackZ * ratio : 0;
+    }
     if (!this.grounded) {
       this.root.position.y += this.verticalVelocity * dt - 0.5 * 14 * dt * dt;
       this.verticalVelocity -= 14 * dt;
@@ -705,42 +878,144 @@ export class Player {
         this.landed = true;
       }
     }
+    const moving = !!(c.moveX || c.moveZ);
+    const sprintTime =
+      c.sprint && moving && this.hp > 20 && !this.sprintExhausted
+        ? Math.min(dt, this.stamina)
+        : 0;
+    this.sprinting = sprintTime > 0;
+    if (this.sprinting) {
+      this.stamina = Math.max(0, this.stamina - sprintTime);
+      if (this.stamina < 1e-7) {
+        this.stamina = 0;
+        this.sprintExhausted = true;
+      }
+    } else {
+      this.stamina = Math.min(4, this.stamina + dt * 0.5);
+      if (this.stamina >= 4 - 1e-7) {
+        this.stamina = 4;
+        this.sprintExhausted = false;
+      }
+    }
+    const travelTime = this.injured ? dt * 0.6 : dt + sprintTime * 0.5;
     const l = Math.hypot(c.moveX, c.moveZ) || 1;
     move(
       this.root.position,
-      (c.moveX / l) * CONFIG.player.speed * dt,
-      (c.moveZ / l) * CONFIG.player.speed * dt,
+      (c.moveX / l) * CONFIG.player.speed * travelTime,
+      (c.moveZ / l) * CONFIG.player.speed * travelTime,
       CONFIG.player.radius,
       this.world.obstacles,
     );
+    this.faceAim(c);
+  }
+  faceAim(c: PlayerCommand) {
+    const dx = c.aimX - this.root.position.x;
+    const dz = c.aimZ - this.root.position.z;
+    const range = Math.hypot(dx, dz);
+    const bearing = range > 0.05 ? Math.atan2(dx, dz) : this.root.rotation.y;
+    this.aimTarget = undefined;
+    if (c.facingYaw !== undefined || this.weaponId === "coreBuster") {
+      this.root.rotation.y = c.facingYaw ?? bearing;
+      if (this.weaponId !== "coreBuster") this.gun.rotation.x = 0;
+      return;
+    }
+    // Rotate the held pose so the target lies on the barrel's lateral axis,
+    // rather than on the centre line through the player's body.
+    const lateral = this.gun.position.x;
     this.root.rotation.y =
-      c.facingYaw ??
-      Math.atan2(c.aimX - this.root.position.x, c.aimZ - this.root.position.z);
+      range > Math.abs(lateral) + 0.001
+        ? bearing - Math.asin(lateral / range)
+        : bearing;
+    this.aimTarget = new Vector3(
+      c.aimX,
+      this.root.position.y + AIM_HEIGHT,
+      c.aimZ,
+    );
+    this.alignBarrel();
+  }
+  private alignBarrel() {
+    if (!this.aimTarget || this.weaponId === "coreBuster") return;
+    const dx = this.aimTarget.x - this.root.position.x;
+    const dz = this.aimTarget.z - this.root.position.z;
+    const forward =
+      dx * Math.sin(this.root.rotation.y) + dz * Math.cos(this.root.rotation.y);
+    const distance = forward - this.gun.position.z;
+    this.gun.rotation.x =
+      distance > 0.001
+        ? Math.atan2(
+            this.root.position.y + this.gun.position.y - this.aimTarget.y,
+            distance,
+          )
+        : 0;
   }
   animate(moving: boolean, dt: number) {
-    this.stride +=
-      ((moving && this.grounded ? 1 : 0) - this.stride) *
-      (1 - Math.exp(-dt * 12));
-    this.walk += dt * (2 + this.stride * 11);
+    if (dt > 0) {
+      const previous = this.lastAnimatedPosition;
+      const dx = previous ? this.root.position.x - previous.x : 0;
+      const dz = previous ? this.root.position.z - previous.z : 0;
+      const distance = Math.hypot(dx, dz);
+      if (distance > 0.0001 && distance < 2) {
+        const yaw = this.root.rotation.y;
+        this.moveForward = (dx * Math.sin(yaw) + dz * Math.cos(yaw)) / distance;
+        this.moveSide = (dx * Math.cos(yaw) - dz * Math.sin(yaw)) / distance;
+      }
+      this.lastAnimatedPosition = this.root.position.clone();
+      if (this.wasAirborne && this.grounded) this.landingBlend = 1;
+      this.wasAirborne = !this.grounded;
+    }
+    const blend = 1 - Math.exp(-dt * 12);
+    this.stride += ((moving && this.grounded ? 1 : 0) - this.stride) * blend;
+    this.sprintBlend +=
+      ((this.sprinting && !this.injured ? 1 : 0) - this.sprintBlend) * blend;
+    this.landingBlend = Math.max(0, this.landingBlend - dt * 5);
+    this.walk +=
+      dt *
+      (this.stride > 0.05 ? (this.injured ? 7 : 10 + this.sprintBlend * 7) : 2);
+    const pose = motionPose(
+      this.walk,
+      this.stride,
+      this.sprintBlend,
+      this.injured,
+      !this.grounded,
+      this.verticalVelocity,
+      this.moveForward,
+      this.moveSide,
+      this.landingBlend,
+    );
+    this.motionState = pose.state;
+    if (this.groundRing) this.groundRing.position.y = 0.06 - this.root.position.y;
+    this.showTacticalShield();
     this.legs.forEach((hip, i) => {
-      const phase = this.walk + i * Math.PI;
-      hip.rotation.x =
-        Math.sin(phase) * 0.48 * this.stride + (this.grounded ? 0 : -0.25);
-      this.knees[i].rotation.x =
-        -Math.max(0, Math.cos(phase)) * 0.48 * this.stride +
-        (this.grounded ? 0 : -0.55);
+      hip.rotation.x = pose.hips[i].x;
+      hip.rotation.z = pose.hips[i].z;
+      this.knees[i].rotation.x = pose.hips[i].knee;
     });
     this.recoil = Math.max(0, this.recoil - dt * 6);
     this.gun.position.z = this.weaponZ - this.recoil * 0.12;
-    this.torso.position.y =
-      1 +
-      Math.sin(this.walk * 2) * 0.025 * this.stride +
-      Math.sin(this.walk) * 0.009;
-    this.torso.rotation.z = Math.sin(this.walk) * 0.035 * this.stride;
+    this.alignBarrel();
+    this.torso.position.y = 1 + pose.bob + Math.sin(this.walk) * 0.006;
+    this.torso.rotation.set(pose.lean, 0, pose.roll);
+    const vest = this.bodyMeshes.find((m) => m.name === "vest");
+    if (vest) vest.material = this.torso.material;
+    for (const [arm, rest] of this.armRest) {
+      arm.position.copyFrom(rest.position);
+      arm.rotation.copyFrom(rest.rotation);
+      const overhead = this.weaponId === "coreBuster";
+      arm.position.y += pose.armBob;
+      if (!overhead) arm.position.z -= this.recoil * 0.06;
+      arm.rotation.z += pose.roll * 0.5;
+      if (!overhead && arm.name === "left arm" && this.reloadPose > 0) {
+        arm.rotation.x -= 0.3 + Math.sin(this.walk * 1.5) * 0.12;
+        arm.position.y -= 0.12;
+        arm.position.x += 0.14;
+      }
+    }
   }
+
   get muzzlePosition() {
     const tip: Record<WeaponId, number> = {
       pistol: 0.385,
+      huntingRifle: 1.05,
       pulseGun: 0.48,
       burstGun: 0.8,
       machineGun: 0.9,
@@ -765,7 +1040,11 @@ export class Player {
     const direction = delta.scale(1 / distance);
     const hit = this.world.scene.pickWithRay(
       new Ray(chest, direction, distance),
-      (m) => m.isEnabled() && !!m.metadata?.solid,
+      (m) =>
+        m.isEnabled() &&
+        !this.bodyMeshes.includes(m as Mesh) &&
+        (!!m.metadata?.solid ||
+          (!!m.metadata?.damageable && m.metadata.damageable.hp > 0)),
     );
     return hit?.hit && hit.pickedPoint
       ? hit.pickedPoint.subtract(direction.scale(0.02))
@@ -774,7 +1053,11 @@ export class Player {
   shotDirection(command: PlayerCommand, origin = this.shotOrigin) {
     const target =
       command.shotTarget ??
-      new Vector3(command.aimX, this.root.position.y + 1.1, command.aimZ);
+      new Vector3(
+        command.aimX,
+        this.root.position.y + AIM_HEIGHT,
+        command.aimZ,
+      );
     // In the overhead view, lower the shot to a small vehicle under the aim point.
     if (!command.shotTarget) {
       const vehicle = this.world.scene.meshes.find(
@@ -793,10 +1076,15 @@ export class Player {
           : vehicle.getAbsolutePosition().y;
     }
     const delta = target.subtract(origin);
-    // Keep a stable forward shot when the cursor is inside the player silhouette.
-    return Vector3.Dot(delta, this.direction) > 0.2
-      ? delta.normalize()
-      : this.direction;
+    const barrel = Vector3.TransformNormal(
+      Vector3.Forward(), this.gun.computeWorldMatrix(true),
+    ).normalize();
+    // The cursor can enter the space between the body and the muzzle. Continue
+    // out of the barrel there; converging on that point would reverse the shot.
+    if (delta.lengthSquared() <= 0.000001 ||
+        Vector3.Dot(delta, this.direction) <= 0.001 ||
+        Vector3.Dot(delta, barrel) <= 0.001) return barrel;
+    return delta.normalize();
   }
   get direction() {
     return new Vector3(

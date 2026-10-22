@@ -13,6 +13,7 @@ import { office01 } from "../maps/office01";
 import type { Game } from "./game";
 type Context = Pick<
   Game,
+  | "roundMedia"
   | "botRespawn"
   | "cores"
   | "currentRound"
@@ -56,6 +57,10 @@ export function finishLocalRound(this: Context) {
     this.teamWins[winner]++;
     setGameUpdateAllowed(this.teamWins[winner] >= 3);
     this.setPaused(true);
+    const destroyed = this.cores.find(
+      (core) => core.active && core.hp <= 0 && core.team,
+    );
+    if (destroyed?.team) this.roundMedia.playCore(destroyed.team);
     showVictory(
       winner,
       this.match.members.filter((member) => member.team === winner),

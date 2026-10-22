@@ -66,9 +66,7 @@ export function setControlScheme(
 ) {
   this.input.aimRelativeMovement = aimRelative;
   this.input.clear();
-  document.querySelector("#movement-mode")!.textContent = aimRelative
-    ? "Siktstyrd"
-    : "Klassisk";
+
   document
     .querySelectorAll<HTMLInputElement>('input[name="controls"]')
     .forEach(
@@ -130,11 +128,20 @@ export function updateBeaconPrompt(this: Context) {
   const trap = this.pickup.pulseTraps.drops.find(
     (d) => d.cooldown <= 0 && Math.hypot(p.x - d.x, p.z - d.z) < 1.6,
   );
+  const shield =
+    this.player.shield < 100 &&
+    this.pickup.healthDrops.some(
+      (d) =>
+        d.type === "shield" &&
+        d.root.isEnabled() &&
+        Math.hypot(p.x - d.root.position.x, p.z - d.root.position.z) < 2.2,
+    );
   el.hidden =
     this.paused ||
     this.weapons.remoteControlled ||
     this.player.hp <= 0 ||
     (!nearest &&
+      !shield &&
       !trap &&
       !this.weapons.carryingBeacon &&
       !this.weapons.pulseTrapSelected);
@@ -148,5 +155,7 @@ export function updateBeaconPrompt(this: Context) {
       ? "DEFENSIVE BEACON · LMB / E: PLACE"
       : trap && !this.weapons.carryingPulseTrap
         ? "E · PICK UP PULSE TRAP · SLOT [3]"
-        : "E · PICK UP DEFENSIVE BEACON";
+        : nearest
+          ? "E · PICK UP DEFENSIVE BEACON"
+          : "E · PICK UP TACTICAL SHIELD";
 }

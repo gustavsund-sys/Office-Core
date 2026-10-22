@@ -1,10 +1,13 @@
+import { deathDescriptionParts, type CombatDeath } from "./combatFeed";
+import { updateBombCountdowns } from "./bombCountdowns";
 import { TEAMS } from "../config/game";
-import { WEAPONS } from "../config/weapons";
+import { WEAPONS, type WeaponId } from "../config/weapons";
 import type { Damageable } from "../core/damageable";
 import type { Weapons } from "../weapons/system";
 import type { Player } from "../player/player";
 import { office01 } from "../maps/office01";
 export class HUD {
+  private combatFeed?: HTMLElement;
   private inventoryKey = "";
   private winsKey = "";
   private scoresKey = "";
@@ -19,11 +22,11 @@ export class HUD {
     )
       .map(
         ([t, c]) =>
-          `<div class="core" style="--team:${c}"><div><span><i></i>${t} CORE</span><b id="hp-${t}">1000</b></div><div class="track"><div id="bar-${t}"></div></div></div>`,
+          `<div class="core" data-team="${t}" style="--team:${c};--accent:${c}"><div class="core-health"><div><span><i></i>${t} CORE</span><b id="hp-${t}">1000</b></div><div class="track"><div id="bar-${t}"></div></div></div><div class="core-result" id="wins-${t}" aria-label="${t} round wins"><strong>0<small>WINS</small></strong><div class="win-pips"><i></i><i></i><i></i></div></div></div>`,
       )
       .join(
         "",
-      )}</div><button id="pause" aria-label="Pause game">Ⅱ</button></header><aside class="location"><span>FLOOR 01 / HEADQUARTERS</span><h2 id="room">RED BASE</h2><p><i></i> Training session · No hostiles</p></aside><div id="warning" role="alert">YOUR CORE IS UNDER ATTACK</div><div id="toast"></div><div class="map"><div>OFFICE01 <span>N ↑</span></div><canvas id="minimap" width="190" height="190"></canvas></div><footer><div class="health"><span>PLAYER / RED TEAM</span><strong><span id="player-hp">100</span> <small>HP</small></strong><div class="health-track"><div class="healthline"></div></div></div><div class="weapon"><span>EQUIPPED WEAPON</span><strong id="weapon">PISTOL</strong><small id="mode">SEMI-AUTO</small></div><div class="ammo"><span>AMMUNITION</span><strong id="ammo">∞</strong></div><div class="controls"><p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / ↑↓←→ Move &nbsp; <kbd>↖</kbd> Aim &nbsp; <kbd>LMB</kbd> Fire</p><p><kbd>C</kbd> <span id="movement-mode">W follows aim</span> &nbsp; <kbd>SPACE</kbd> Jump &nbsp; <kbd>1</kbd> Pistol <kbd>2</kbd> Special <kbd>3</kbd> Skill <kbd>E</kbd> Pick up &nbsp; <kbd>F2</kbd> Debug &nbsp; <kbd>ESC</kbd> Pause &nbsp; <button id="sound">SOUND ON</button></p></div></footer><div id="crosshair"><i></i></div><div id="damage"></div><pre id="debug"></pre><div id="overlay"><div class="pause-card"><span>WELCOME TO THE OFFICE</span><h1 class="game-logo"><picture><source media="(max-width: 600px)" srcset="/branding/office-core-characters.webp"><img src="/branding/office-core-lobby-wide.webp" alt="Office Core" width="2172" height="724" fetchpriority="high"></picture></h1><p>Two teams. Up to four players per team. One floor. A very different workday.</p><div class="brief"><b>MISSION / OFFICE01</b><p>Protect your Core. Break theirs. First team to win 3 rounds takes the match.<br>Collect weapons, ammo and med-kits. Press E beside a Core Buster to begin a 10-second disarm.</p></div><fieldset class="control-choice"><legend>VÄLJ DIN STYRNING</legend><label><input type="radio" name="controls" value="classic"><span><b>Klassisk</b><small>WASD följer kartan. Musen siktar fritt.</small></span></label><label><input type="radio" name="controls" value="aim"><span><b>Siktstyrd</b><small>W följer siktet. S backar, A/D går sidledes.</small></span></label></fieldset><button id="play">START PLAYTEST <span>↗</span></button><small>Byt när som helst i pausmenyn eller med C. Valet sparas på denna enhet.</small></div></div>`;
+      )}<small id="core-series">ROUND 1 · FIRST TO 3</small></div><button id="pause" aria-label="Pause game">Ⅱ</button></header><aside class="location"><span>FLOOR 01 / HEADQUARTERS</span><h2 id="room">RED BASE</h2><p><i></i> Training session · No hostiles</p></aside><div id="warning" role="alert">YOUR CORE IS UNDER ATTACK</div><div id="toast"></div><div class="map"><div>OFFICE01 <span>N ↑</span></div><canvas id="minimap" width="190" height="190"></canvas></div><footer><div class="health"><span>PLAYER / RED TEAM</span><strong><span id="player-hp">100</span> <small>HP</small></strong><div class="health-track"><div class="healthline"></div></div></div><div class="shield-vitals"><span>SHIELD</span><strong id="player-shield">0</strong><div class="shield-track"><div id="shield-fill"></div></div><label>SPRINT <span id="sprint-time">4.0s</span></label><progress id="sprint-energy" max="4" value="4" aria-label="Sprint energy"></progress></div><div class="weapon"><span>EQUIPPED WEAPON</span><strong id="weapon">PISTOL</strong><small id="mode">SEMI-AUTO</small></div><div class="ammo"><span>AMMUNITION</span><strong id="ammo">∞</strong></div></footer><div id="crosshair"><i></i></div><div id="damage"></div><pre id="debug"></pre><div id="overlay"><div class="pause-card"><span>WELCOME TO THE OFFICE</span><h1 class="game-logo"><picture><source media="(max-width: 600px)" srcset="/branding/office-core-characters.webp"><img src="/branding/office-core-lobby-wide.webp" alt="Office Core" width="2172" height="724" fetchpriority="high"></picture></h1><p>Two teams. Up to four players per team. One floor. A very different workday.</p><div class="brief"><b>MISSION / OFFICE01</b><p>Protect your Core. Break theirs. First team to win 3 rounds takes the match.<br>Collect weapons, ammo and med-kits. Press E beside a Core Buster to begin a 10-second disarm.</p></div><fieldset class="control-choice"><legend>VÄLJ DIN STYRNING</legend><label><input type="radio" name="controls" value="classic"><span><b>Klassisk</b><small>WASD följer kartan. Musen siktar fritt.</small></span></label><label><input type="radio" name="controls" value="aim"><span><b>Siktstyrd</b><small>W följer siktet. S backar, A/D går sidledes.</small></span></label></fieldset><button id="sound" class="pause-sound">SOUND ON</button><button id="play">START PLAYTEST <span>↗</span></button><small>Byt när som helst i pausmenyn eller med C. Valet sparas på denna enhet.</small></div></div>`;
     this.minimap = this.el.querySelector("#minimap")!;
     this.ctx = this.minimap.getContext("2d")!;
     window.addEventListener("pointermove", (e) => {
@@ -62,18 +65,17 @@ export class HUD {
     }
   }
   wins(wins: { RED: number; BLUE: number }, round: number) {
-    let panel = this.el.querySelector<HTMLElement>("#team-wins");
-    if (!panel) {
-      panel = document.createElement("aside");
-      panel.id = "team-wins";
-      this.el.append(panel);
-    }
-    panel.hidden = !this.statsStarted;
     const key = `${round}:${wins.RED}:${wins.BLUE}`;
     if (key === this.winsKey) return;
     this.winsKey = key;
-    panel.innerHTML = `<div class="score-heading"><span>ROUND ${round}</span><small>FIRST TO 3</small></div><div class="team-score-grid">${(["RED", "BLUE"] as const).map((team) => `<div class="team-score" style="--accent:${TEAMS[team]}"><span>${team}</span><strong>${wins[team]}<small> WINS</small></strong><div class="win-pips">${[0, 1, 2].map((n) => `<i class="${n < wins[team] ? "earned" : ""}"></i>`).join("")}</div></div>`).join("")}</div>`;
+    for (const team of ["RED", "BLUE"] as const) {
+      const result = this.el.querySelector(`#wins-${team}`)!;
+      result.setAttribute("aria-label", `${team}: ${wins[team]} of 3 round wins`);
+      result.innerHTML = `<strong>${wins[team]}<small>WINS</small></strong><div class="win-pips">${[0, 1, 2].map(n => `<i class="${n < wins[team] ? "earned" : ""}"></i>`).join("")}</div>`;
+    }
+    this.el.querySelector("#core-series")!.textContent = `ROUND ${round} · FIRST TO 3`;
   }
+
   scoreboard(players: { name: string; kills?: number; team?: string }[]) {
     let list = this.el.querySelector<HTMLElement>("#kill-counter");
     if (!list) {
@@ -110,6 +112,41 @@ export class HUD {
       row.append(rank, name, count);
       list.append(row);
     }
+    if (!this.combatFeed) {
+      this.combatFeed = document.createElement("section");
+      this.combatFeed.id = "combat-feed";
+      this.combatFeed.setAttribute("aria-label", "Recent eliminations");
+      this.combatFeed.setAttribute("aria-live", "polite");
+      const heading = document.createElement("b");
+      heading.className = "score-heading";
+      heading.textContent = "RECENT EVENTS";
+      const events = document.createElement("ol");
+      this.combatFeed.append(heading, events);
+    }
+    list.append(this.combatFeed);
+  }
+  combatDeath(event: CombatDeath) {
+    if (!this.combatFeed) this.scoreboard([]);
+    const events = this.combatFeed!.querySelector("ol")!;
+    const row = document.createElement("li");
+    const text = document.createElement("span");
+    const [prefix, weapon, suffix] = deathDescriptionParts(event);
+    text.append(document.createTextNode(prefix));
+    if (weapon && event.source) {
+      const item = document.createElement("span");
+      item.className = "event-weapon";
+      item.append(document.createTextNode(weapon));
+      const icon = document.createElement("img");
+      icon.src = `/ui/equipment/${event.source}.png`;
+      icon.alt = "";
+      icon.className = "event-weapon-icon";
+      item.append(icon);
+      text.append(item);
+    }
+    text.append(document.createTextNode(suffix));
+    row.append(text);
+    events.prepend(row);
+    while (events.children.length > 5) events.lastElementChild!.remove();
   }
   disarm(progress?: number) {
     let panel = this.el.querySelector<HTMLElement>("#disarm-progress");
@@ -147,6 +184,18 @@ export class HUD {
       bar.setAttribute("aria-label", `${healthText} HP av 100`);
     }
 
+    this.el.querySelector("#player-shield")!.textContent = String(
+      Math.ceil(player.shield),
+    );
+    this.el.querySelector<HTMLElement>("#shield-fill")!.style.width =
+      `${player.shield}%`;
+    this.el.querySelector<HTMLProgressElement>("#sprint-energy")!.value =
+      player.stamina;
+    this.el.querySelector("#sprint-time")!.textContent = player.injured
+      ? "INJURED"
+      : player.sprintExhausted
+        ? "RECOVERING"
+        : `${player.stamina.toFixed(1)}s`;
     const warcry = this.el.querySelector<HTMLButtonElement>("#warcry");
     if (warcry) {
       warcry.hidden = !weapons.carryingCoreBuster;
@@ -164,13 +213,7 @@ export class HUD {
       bombs.id = "buster-countdowns";
       this.el.append(bombs);
     }
-    bombs.hidden = weapons.charges.length === 0;
-    bombs.innerHTML = weapons.charges
-      .map(
-        (charge, index) =>
-          `<div class="buster-countdown"><span>CORE BUSTER ${weapons.charges.length > 1 ? index + 1 : ""}</span><strong>${Math.max(0, charge.timer).toFixed(1)}s</strong><progress aria-label="Core buster countdown" max="25" value="${Math.max(0, charge.timer)}"></progress></div>`,
-      )
-      .join("");
+    updateBombCountdowns(bombs, weapons.charges);
     this.toastTime -= dt;
     this.warningTime -= dt;
     (this.el.querySelector("#toast") as HTMLElement).style.opacity =
@@ -200,7 +243,7 @@ export class HUD {
           ? "1"
           : Number.isFinite(weapons.ammo)
             ? String(weapons.ammo) +
-              (weapons.id === "bazooka" ? ` / ${weapons.bazookaReserve}` : "")
+              (weapons.id !== "coreBuster" ? ` / ${weapons.reserve}` : "")
             : "∞";
     this.el.querySelector("#mode")!.textContent = weapons.remoteControlled
       ? "W/S: DRIVE · A/D: STEER · E: DETONATE"
@@ -215,7 +258,9 @@ export class HUD {
           : weapons.reloadRemaining > 0
             ? `RELOADING · ${weapons.reloadRemaining.toFixed(1)}s`
             : weapons.ammo === 0
-              ? "EMPTY · FIND AMMO"
+              ? weapons.reserve > 0
+                ? "EMPTY · R TO RELOAD"
+                : "EMPTY · FIND AMMO"
               : `${weapons.id === "coreBuster" ? "LMB / E: PLACE · 25s FUSE" : weapons.id === "burstGun" ? "5-SHOT BURST" : WEAPONS[weapons.id].automatic ? "AUTOMATIC" : "SEMI-AUTO"} / ${WEAPONS[weapons.id].damage} DMG`;
     let inventory = this.el.querySelector<HTMLDivElement>("#inventory-slots");
     if (!inventory) {
@@ -259,10 +304,21 @@ export class HUD {
           weapons.utilityKind === "rcCar"
             ? "car"
             : weapons.utilityKind === "superMedkit"
-              ? "medkit"
+              ? "superMedkit"
               : "trap",
         empty: weapons.utilityCount <= 0 && !weapons.remoteControlled,
         active: weapons.pulseTrapSelected || weapons.remoteControlled,
+      },
+      {
+        key: "4",
+        name: "MED-KIT",
+        icon: "medkit",
+        empty: !player.medkit,
+        active: false,
+      },
+      {
+        key: "5", name: "BOSS KEY", icon: "bossKey",
+        empty: !player.bossLookoutKey, active: false,
       },
       ...(weapons.carryingBeacon
         ? [
@@ -276,6 +332,7 @@ export class HUD {
           ]
         : []),
     ];
+    if (player.bossLookoutSelected) for (const slot of slots) slot.active = slot.icon === "bossKey";
     const key = JSON.stringify(slots);
     if (key !== this.inventoryKey) {
       this.inventoryKey = key;
@@ -283,21 +340,44 @@ export class HUD {
         .map(
           (
             slot,
-          ) => `<div class="inventory-slot ${slot.active ? "selected" : ""} ${slot.empty ? "empty" : ""} ${slot.icon === "trap" ? "plasma" : ""}" ${slot.active ? 'aria-current="true"' : ""}>
-        <kbd>${slot.key}</kbd><svg viewBox="0 0 64 36" aria-hidden="true">${inventoryIcon(slot.icon)}</svg><b>${slot.name}</b><small>${slot.empty ? "EMPTY" : slot.active ? "EQUIPPED" : "CARRIED"}</small></div>`,
+          ) => `<div data-weapon="${slot.icon}" class="inventory-slot ${slot.active ? "selected" : ""} ${slot.empty ? "empty" : ""} ${slot.icon === "trap" ? "plasma" : ""}" ${slot.active ? 'aria-current="true"' : ""}>
+        <kbd>${slot.key}</kbd>${slot.icon === "empty" ? '<span class="empty-equipment">—</span>' : `<img class="equipment-icon" src="/ui/equipment/${slot.icon}.${slot.icon === "bossKey" ? "svg" : "png"}" alt="" draggable="false">`}<b>${slot.name}</b><small>${slot.empty ? "EMPTY" : slot.active ? "EQUIPPED" : "CARRIED"}</small><progress class="inventory-reload" hidden aria-label="Reload progress"></progress></div>`,
         )
         .join("");
+    }
+    for (const slot of Array.from(
+      inventory.querySelectorAll<HTMLElement>("[data-weapon]"),
+    )) {
+      const state = weapons.reloads[slot.dataset.weapon as WeaponId];
+      const progress = slot.querySelector<HTMLProgressElement>("progress")!;
+      progress.hidden = !state;
+      if (state) {
+        progress.max = state.duration;
+        progress.value = state.duration - state.remaining;
+        slot.querySelector("small")!.textContent =
+          `RELOAD · ${state.remaining.toFixed(1)}s`;
+      } else {
+        const selected = slot.classList.contains("selected");
+        slot.querySelector("small")!.textContent = slot.classList.contains(
+          "empty",
+        )
+          ? "EMPTY"
+          : selected
+            ? "EQUIPPED"
+            : "CARRIED";
+      }
     }
     let reload = this.el.querySelector<HTMLProgressElement>("#weapon-reload");
     if (!reload) {
       reload = document.createElement("progress");
       reload.id = "weapon-reload";
       reload.max = 5;
-      reload.setAttribute("aria-label", "Bazooka reload progress");
+      reload.setAttribute("aria-label", "Weapon reload progress");
       this.el.querySelector(".weapon")!.append(reload);
     }
     reload.hidden = weapons.reloadRemaining <= 0;
-    reload.value = 5 - weapons.reloadRemaining;
+    reload.max = weapons.reloadDuration;
+    reload.value = weapons.reloadDuration - weapons.reloadRemaining;
     const p = player.root.position;
     const base = office01.bases.find(
       (b) => Math.abs(b.x - p.x) < 5 && Math.abs(b.z - p.z) < 5,
@@ -356,22 +436,3 @@ export class HUD {
   }
 }
 
-function inventoryIcon(id: string) {
-  if (id === "car")
-    return '<path d="M12 18h40v10H12zM22 7h22v13H22zM44 9h8v8h-8zM15 18V5h2v13z"/><circle class="cutout" cx="21" cy="28" r="7"/><circle class="cutout" cx="46" cy="28" r="7"/><circle class="accent" cx="21" cy="28" r="3"/><circle class="accent" cx="46" cy="28" r="3"/>';
-  if (id === "medkit")
-    return '<path d="M10 10h44v22H10zM24 5h16v5H24z"/><path class="accent" d="M28 14h8v14h-8zm-4 3h16v8H24z"/>';
-  if (id === "trap")
-    return '<path d="M10 10h42v20H10z"/><path class="accent" d="M5 14h9v13H5zm12-3h32v4H17z"/><path class="cutout" d="M23 19h4v8h-4zm8 0h4v8h-4zm8 0h4v8h-4z"/>';
-  if (id === "beacon")
-    return '<path d="M20 6h37v9H20zM26 15h8v8h-8zM29 22l-14 11H6l18-16zm6-3 16 14h-9L29 23z"/><circle class="accent" cx="49" cy="10" r="3"/>';
-  if (id === "coreBuster")
-    return '<path d="M11 7h42v24H11z"/><path class="accent" d="M24 11h16v12H24z"/><path d="M19 3h26v4H19z"/>';
-  if (id === "bazooka")
-    return '<path d="M5 8h53v13H5zM27 21h8v10h-8z"/><path class="accent" d="M47 5h7v19h-7z"/>';
-  if (id === "pistol")
-    return '<path d="M8 7h43v11H30l-3 14H14l4-14H8z"/><path class="accent" d="M37 9h12v5H37z"/>';
-  if (id === "empty")
-    return '<path fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="4 4" d="M10 8h44v21H10z"/>';
-  return '<path d="M5 11h54v9H38l-4 13h-9l2-13H16l-6 8H5zM27 6h16v5H27z"/><path class="accent" d="M43 12h13v6H43z"/>';
-}

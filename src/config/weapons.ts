@@ -1,4 +1,11 @@
-export type WeaponId = "pistol" | "machineGun" | "bazooka" | "burstGun" | "pulseGun" | "coreBuster";
+export type WeaponId =
+  | "pistol"
+  | "machineGun"
+  | "bazooka"
+  | "burstGun"
+  | "pulseGun"
+  | "coreBuster"
+  | "huntingRifle";
 export interface WeaponData {
   name: string;
   damage: number;
@@ -8,6 +15,14 @@ export interface WeaponData {
   automatic: boolean;
 }
 export const WEAPONS: Record<WeaponId, WeaponData> = {
+  huntingRifle: {
+    name: "HUNTING RIFLE",
+    damage: 100,
+    fireRate: 1 / 8,
+    range: 120,
+    ammo: 10,
+    automatic: false,
+  },
   pistol: {
     name: "PISTOL",
     damage: 20,
@@ -16,10 +31,38 @@ export const WEAPONS: Record<WeaponId, WeaponData> = {
     ammo: 60,
     automatic: false,
   },
-  coreBuster: { name: "CORE BUSTER", damage: 1000, fireRate: 1, range: 4, ammo: 1, automatic: false },
-  bazooka: { name: "BAZOOKA", damage: 120, fireRate: 1, range: 40, ammo: 3, automatic: false },
-  burstGun: { name: "BURST GUN", damage: 8, fireRate: 12.5, range: 25, ammo: 100, automatic: false },
-  pulseGun: { name: "PULSE GUN", damage: 21, fireRate: 4, range: 20, ammo: 30, automatic: false },
+  coreBuster: {
+    name: "CORE BUSTER",
+    damage: 1000,
+    fireRate: 1,
+    range: 4,
+    ammo: 1,
+    automatic: false,
+  },
+  bazooka: {
+    name: "BAZOOKA",
+    damage: 120,
+    fireRate: 1,
+    range: 40,
+    ammo: 3,
+    automatic: false,
+  },
+  burstGun: {
+    name: "BURST GUN",
+    damage: 8,
+    fireRate: 12.5,
+    range: 25,
+    ammo: 100,
+    automatic: false,
+  },
+  pulseGun: {
+    name: "PULSE GUN",
+    damage: 21,
+    fireRate: 4,
+    range: 20,
+    ammo: 30,
+    automatic: false,
+  },
   machineGun: {
     name: "MACHINE GUN",
     damage: 8,

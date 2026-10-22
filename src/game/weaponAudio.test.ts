@@ -59,6 +59,45 @@ function mockContext() {
   };
   return { context, sources };
 }
+test("player hit audio counts separately, varies grunts and resets on respawn", () => {
+  const { context } = mockContext();
+  const audio = new WeaponAudio(context as unknown as AudioContext);
+  const played: {
+    name: string;
+    distance: number;
+    pan: number;
+    volume?: number;
+  }[] = [];
+  audio.playSpatialSample = (name, distance, pan, volume) => {
+    played.push({ name, distance, pan, volume });
+    return true;
+  };
+  for (let hit = 1; hit <= 12; hit++) {
+    const before = played.length;
+    audio.playPlayerHit("red", 8, 0.5);
+    assert.equal(
+      played.length - before,
+      Number(hit % 3 === 0) + Number(hit % 4 === 0),
+    );
+  }
+  assert.equal(played.filter((p) => p.name === "bulletImpact").length, 3);
+  const grunts = played.filter((p) => p.name.startsWith("grunt"));
+  assert.equal(grunts.length, 4);
+  assert.ok(grunts.every((p) => /^grunt[1-5]$/.test(p.name)));
+  assert.ok(grunts.slice(1).every((p, i) => p.name !== grunts[i].name));
+  assert.ok(played.every((p) => p.distance === 8 && p.pan === 0.5));
+  const count = played.length;
+  audio.playPlayerHit("blue");
+  audio.resetPlayerHits("red");
+  audio.playPlayerHit("red");
+  assert.equal(played.length, count);
+  audio.playPlayerHit("blue", 0, 0, false);
+  audio.playPlayerHit("blue");
+  assert.equal(played.length, count + 1);
+  audio.playDeath(12, -0.5);
+  assert.equal(played.at(-1)?.name, "deathScream");
+  assert.equal(played.at(-1)?.distance, 12);
+});
 test("sustained fire renews sound for every shot through the entire magazine", () => {
   const { context, sources } = mockContext();
   const audio = new WeaponAudio(context as unknown as AudioContext);
@@ -96,4 +135,19 @@ test("single click plays once and is not cut on trigger release", () => {
   audio.releaseMachineGun();
   assert.equal(sources.length, 1);
   assert.equal(sources[0].stopped, false);
+});
+
+test("exhaustion picks among three breath recordings without consecutive repeats", () => {
+  const { context } = mockContext();
+  const audio = new WeaponAudio(context as unknown as AudioContext);
+  const names: string[] = [];
+  audio.playSpatialSample = (name, distance, pan) => {
+    assert.equal(distance, 8);
+    assert.equal(pan, .25);
+    names.push(name);
+    return true;
+  };
+  for (let i = 0; i < 20; i++) audio.playExhaustedBreath(8, .25);
+  assert.ok(names.every(name => /^breath[123]$/.test(name)));
+  assert.ok(names.slice(1).every((name, i) => name !== names[i]));
 });

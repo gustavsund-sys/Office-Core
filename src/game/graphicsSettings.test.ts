@@ -6,6 +6,8 @@ import {
   smoothEnough,
   recommendGraphics,
   combatStats,
+  readGraphics,
+  GRAPHICS_KEY,
 } from "./graphicsSettings";
 import { inactivityState } from "../../shared/inactivity";
 test("render levels fit the viewport and retain aspect ratio", () => {
@@ -15,7 +17,7 @@ test("render levels fit the viewport and retain aspect ratio", () => {
     [800, 600],
     [1920, 1080],
   ])
-    for (const tier of ["low", "medium", "standard", "high"] as const) {
+    for (const tier of ["low", "medium", "standard"] as const) {
       const size = renderSize(w, h, tier);
       assert.ok(size.width <= w && size.height <= h);
       assert.ok(Math.abs(size.width / size.height - w / h) < 0.01);
@@ -116,16 +118,32 @@ test("fallback ranks FPS first and uses stall percentage only for exact FPS ties
   const base = frameStats(Array(100).fill(20));
   assert.equal(
     recommendGraphics([
-      { tier: "high", stats: { ...base, fps: 43, stalls: 0.1 } },
+      { tier: "standard", stats: { ...base, fps: 43, stalls: 0.1 } },
       { tier: "low", stats: { ...base, fps: 42, stalls: 0 } },
     ]),
-    "high",
+    "standard",
   );
   assert.equal(
     recommendGraphics([
-      { tier: "high", stats: { ...base, fps: 43, stalls: 0.1 } },
+      { tier: "standard", stats: { ...base, fps: 43, stalls: 0.1 } },
       { tier: "medium", stats: { ...base, fps: 43, stalls: 0.02 } },
     ]),
     "medium",
   );
+});
+
+test("saved High graphics migrates to Standard", () => {
+  const original = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  const saved = new Map([[GRAPHICS_KEY, "high"]]);
+  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: {
+    getItem: (key: string) => saved.get(key) ?? null,
+    setItem: (key: string, value: string) => saved.set(key, value),
+  }});
+  try {
+    assert.equal(readGraphics(), "standard");
+    assert.equal(saved.get(GRAPHICS_KEY), "standard");
+  } finally {
+    if (original) Object.defineProperty(globalThis, "localStorage", original);
+    else Reflect.deleteProperty(globalThis, "localStorage");
+  }
 });

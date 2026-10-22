@@ -1,3 +1,5 @@
+import { BloodStains } from "../effects/blood";
+import { mergeStaticParts } from "../weapons/staticModel";
 import { nearView, viewPlanes } from "../game/viewRegion";
 import {
   Color3,
@@ -24,6 +26,7 @@ import { TEAMS, type Team } from "../config/game";
 import type { Obstacle } from "../game/collision";
 export class World {
   authoritative = false;
+  coreBreached = false;
   private palmAsset?: Promise<AssetContainer>;
   obstacles: Obstacle[] = [];
   solids: Mesh[] = [];
@@ -31,6 +34,7 @@ export class World {
   surfaceTextures = new Map<string, Texture>();
   destructibles: Destructible[] = [];
   explosions: Explosions;
+  blood: BloodStains;
   alarmLights = new Map<
     Team,
     { light: PointLight; lens: Mesh; material: StandardMaterial }
@@ -40,6 +44,7 @@ export class World {
     public shadows: ShadowGenerator,
   ) {
     this.explosions = new Explosions(this);
+    this.blood = new BloodStains(this);
     const map = shadows?.getShadowMap();
     if (map)
       map.getCustomRenderList = (_face, list, length) => {
@@ -147,16 +152,22 @@ export class World {
         ? this.finish(color, "metal")
         : this.mat(color, glow);
     const surface = /^(wall|column)$/.test(name)
-      ? "plaster"
+      ? name === "column" || Math.abs(x) > 72
+        ? "plaster-concrete"
+        : Math.abs(z) < 20
+          ? "plaster-panels"
+          : "plaster-aged"
       : /^(desk|counter|meetingTable|archive shelf|shelf ledge|wood pallet)$/.test(
             name,
           )
         ? "wood"
-        : /^(walkable floor|base carpet|sofa|sofa back|fabric partition|chair seat|chair back)$/.test(
-              name,
-            )
-          ? "carpet"
-          : undefined;
+        : /^(walkable floor|corridor runner|room carpet)$/.test(name)
+          ? "carpet-worn"
+          : /^(base carpet|sofa|sofa back|fabric partition|chair seat|chair back)$/.test(
+                name,
+              )
+            ? "carpet"
+            : undefined;
     if (surface && !glow && typeof document !== "undefined") {
       const key = `${color}:${surface}`;
       let material = this.materials.get(key);
@@ -690,6 +701,7 @@ export class World {
     }
   }
   propDetails(kind: string, x: number, z: number, w: number, d: number) {
+    const meshStart = this.scene.meshes.length;
     const detail = (
       name: string,
       dx: number,
@@ -882,6 +894,11 @@ export class World {
           "#3a505b",
         );
     }
+    mergeStaticParts(
+      this,
+      this.scene.meshes.slice(meshStart) as Mesh[],
+      new Vector3(x, 0, z),
+    );
   }
   officeObject(kind: string, x: number, z: number, w: number, d: number) {
     const box = (

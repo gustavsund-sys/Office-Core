@@ -1,3 +1,5 @@
+import { tacticalShieldModel } from "../player/tacticalShield";
+import { office01 } from "../maps/office01";
 import { PulseTraps } from "../game/pulseTrap";
 import { Beacons } from "../game/beacon";
 import { MeshBuilder, TransformNode } from "@babylonjs/core";
@@ -40,16 +42,54 @@ export class Pickup {
   }[] = [];
   healthDrops: {
     root: TransformNode;
-    type: "medkit" | "superMedkit";
+    type: "medkit" | "superMedkit" | "shield";
     cooldown: number;
     interval: number;
   }[] = [];
   initialDelays = new Map<object, number>();
   onAmmo = (_weapons: Weapons) => {};
+  onShield = (_weapons: Weapons) => {};
+  onMedkit = (_weapons: Weapons) => {};
   constructor(public world: World) {
     this.beacons = new Beacons(world);
     this.pulseTraps = new PulseTraps(world);
-    for (const spot of activeMap.spawns) {
+    const supportSpawns: (Omit<SpawnPoint, "type"> & {
+      type: "medkit" | "shield";
+    })[] = office01.weaponEnds.flatMap((zone, i) =>
+      (["medkit", "shield"] as const).map((type, j) => ({
+        id: `support-${i}-${type}`,
+        type,
+        x: zone.x + (j ? 2 : -2),
+        z: zone.z + 5,
+        weapon: "pistol",
+        pool: ["pistol"],
+        interval: 20,
+        initialDelay: 0,
+        amount: 0,
+      })),
+    );
+    for (const spot of [...activeMap.spawns, ...supportSpawns]) {
+      if (spot.type === "shield") {
+        const root = new TransformNode("tactical shield pickup", world.scene);
+        root.position.set(spot.x, 0.75, spot.z);
+        const model = tacticalShieldModel(world);
+        model.parent = root;
+        model.scaling.setAll(1.3);
+        world.label(
+          "E · TACTICAL SHIELD · 100",
+          spot.x,
+          spot.z + 1.4,
+          "#65ceff",
+          3,
+        );
+        this.healthDrops.push({
+          root,
+          type: "shield",
+          cooldown: 0,
+          interval: 20,
+        });
+        continue;
+      }
       if (spot.type !== "medkit" && spot.type !== "superMedkit") continue;
       const superKit = spot.type === "superMedkit";
       const root = new TransformNode(spot.type, world.scene);
@@ -345,10 +385,7 @@ export class Pickup {
       (drop) => (drop.cooldown = this.initialDelays.get(drop) ?? 0),
     );
     this.healthDrops.forEach(
-      (drop, i) =>
-        (drop.cooldown = activeMap.spawns.filter(
-          (p) => p.type === "medkit" || p.type === "superMedkit",
-        )[i].initialDelay),
+      (drop) => (drop.cooldown = this.initialDelays.get(drop) ?? 0),
     );
     this.endpoints.forEach(
       (drop) => (drop.cooldown = this.initialDelays.get(drop) ?? 0),
@@ -391,15 +428,25 @@ export class Pickup {
     for (const drop of this.healthDrops) {
       const player = weapons.player;
       const p = player.root.position;
-      if (player.hp <= 0 || player.hp >= 100 || !drop.root.isEnabled())
-        continue;
+      if (player.hp <= 0 || !drop.root.isEnabled()) continue;
       if (
         Math.hypot(p.x - drop.root.position.x, p.z - drop.root.position.z) >=
         2.2
       )
         continue;
-      player.hp =
-        drop.type === "superMedkit" ? 100 : Math.min(100, player.hp + 50);
+      if (drop.type === "shield") {
+        if (player.shield >= 100 || !this.chooseRequested) continue;
+        player.shield = 100;
+        this.chooseRequested = false;
+        this.onShield(weapons);
+      } else if (player.hp < 100) {
+        player.hp =
+          drop.type === "superMedkit" ? 100 : Math.min(100, player.hp + 50);
+      } else {
+        if (player.medkit) continue;
+        player.medkit = true;
+      }
+      if (drop.type !== "shield") this.onMedkit(weapons);
       drop.cooldown = drop.interval;
       drop.root.setEnabled(false);
       onPick();

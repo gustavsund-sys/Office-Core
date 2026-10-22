@@ -144,7 +144,8 @@ test("custom ammo grants its configured amount and respawns after its own interv
     s.player.root.position.set(0, 0, 0);
     const before = s.weapons.ammo;
     pickup.update(0, 0, s.weapons, () => {});
-    assert.equal(s.weapons.ammo, before + 17);
+    assert.equal(s.weapons.ammo, before);
+    assert.equal(s.weapons.reserve, 17);
     assert.equal(pickup.ammoDrops[0].cooldown, 13);
     pickup.tickTimers(12);
     assert.equal(pickup.ammoDrops[0].root.isEnabled(), false);
@@ -252,10 +253,14 @@ test("med-kits heal living injured players, cap HP, and respawn per location", (
       assert.equal(drop.root.isEnabled(), true);
       s.player.hp = 100;
       pickups.update(0, 11, s.weapons, () => {});
-      assert.equal(drop.root.isEnabled(), true);
+      assert.equal(drop.root.isEnabled(), false);
+      assert.equal(s.player.medkit, true);
+      pickups.update(10, 21, s.weapons, () => {});
+      assert.equal(drop.root.isEnabled(), true); // Cannot carry a second kit.
       s.player.hp = 80;
-      pickups.update(0, 11, s.weapons, () => {});
+      pickups.update(0, 21, s.weapons, () => {});
       assert.equal(s.player.hp, 100);
+      assert.equal(s.player.medkit, true); // Injured pickup heals immediately.
       s.player.hp = 30;
       pickups.update(0, 11, s.weapons, () => {});
       assert.equal(s.player.hp, 30);

@@ -81,6 +81,7 @@ export class Destructible implements Hittable {
     this.hp = Math.max(0, this.hp - amount);
     this.flash = 0.12;
     if (this.hp === 0) {
+      if (this.prop.kind === "coreDoor") this.world.coreBreached = true;
       // Remove both rendered parts and collision references, opening the route.
       for (const mesh of this.meshes) {
         this.world.shadows.removeShadowCaster(mesh);
