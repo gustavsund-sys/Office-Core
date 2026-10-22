@@ -156,6 +156,15 @@ export function buildLookoutRoom(
   // Enclosed observation room with a recessed gun window and a visible floor.
   box("Boss Lookout floor", x, height - 0.2, 0, 14, 0.4, 14, "#374952");
   box("Lookout ceiling", x, height + 3.4, 0, 14, 0.25, 14, "#263944");
+  const roofLabel = world.label(
+    side < 0 ? "RED BOSS LOOKOUT" : "BLUE BOSS LOOKOUT",
+    x,
+    0,
+    side < 0 ? "#ff8278" : "#79cfff",
+    12,
+  );
+  roofLabel.position.y = height + 3.55;
+  roofLabel.isPickable = false;
   box(
     "Lookout rear wall",
     x + side * 6.85,
@@ -192,10 +201,10 @@ export function buildLookoutRoom(
   box(
     "Lookout window sill",
     front,
-    height + 0.12,
+    height + 0.55,
     0,
     0.425,
-    0.24,
+    1.1,
     2.4,
     "#627b88",
   );
@@ -223,7 +232,7 @@ export function buildLookoutRoom(
   box(
     "Window upper light",
     front + side * 0.3,
-    height + 2.0,
+    height + 2.6,
     0,
     0.12,
     0.08,
@@ -232,7 +241,7 @@ export function buildLookoutRoom(
     true,
   );
   // Inner console and fixed tripod. Only the yaw ring and pitch trunnion move.
-  const pivot = new Vector3(front + side * 0.75, height + 1.1, 0);
+  const pivot = new Vector3(front + side * 0.25, height + 1.55, 0);
   const foot = new Vector3(pivot.x, height + 0.1, 0);
   box(
     "Turret mounting plinth",

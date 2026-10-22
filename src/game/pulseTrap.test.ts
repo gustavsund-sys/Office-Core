@@ -532,3 +532,34 @@ test("two starting mines consume one inventory charge per placement", async () =
     t.close();
   }
 });
+
+test("Pulse Trap detects and damages an elevated Lookout operator beneath the room", () => {
+  const s = setup();
+  try {
+    const owner = s.actor("owner", "RED", 0, 0);
+    const trap = s.place(owner);
+    const defender = s.actor("lookout", "BLUE", trap.x, trap.z);
+    defender.player.root.position.y = 20;
+    defender.player.bossLookoutActive = true;
+    s.world
+      .box(
+        "raised Lookout floor",
+        trap.x,
+        19.8,
+        trap.z,
+        14,
+        0.4,
+        14,
+        "#334455",
+        true,
+      )
+      .computeWorldMatrix(true);
+    s.traps.update(PULSE_TRAP.arm + 0.1, [owner, defender]);
+    assert.equal(defender.player.hp, 50);
+    assert.equal(s.traps.traps.size, 0);
+    defender.player.bossLookoutActive = false;
+    assert.equal(defender.player.blastPosition.y, 20.7);
+  } finally {
+    s.close();
+  }
+});

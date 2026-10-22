@@ -143,11 +143,45 @@ test("exhaustion picks among three breath recordings without consecutive repeats
   const names: string[] = [];
   audio.playSpatialSample = (name, distance, pan) => {
     assert.equal(distance, 8);
-    assert.equal(pan, .25);
+    assert.equal(pan, 0.25);
     names.push(name);
     return true;
   };
-  for (let i = 0; i < 20; i++) audio.playExhaustedBreath(8, .25);
-  assert.ok(names.every(name => /^breath[123]$/.test(name)));
+  for (let i = 0; i < 20; i++) audio.playExhaustedBreath(8, 0.25);
+  assert.ok(names.every((name) => /^breath[123]$/.test(name)));
   assert.ok(names.slice(1).every((name, i) => name !== names[i]));
+});
+
+test("turret taps retain the isolated final report; held fire uses one series voice and a release tail", () => {
+  const { context, sources } = mockContext();
+  const audio = new WeaponAudio(context as unknown as AudioContext);
+  const recording = context.createBuffer(1, 5600, 1000);
+  const samples = recording.getChannelData(0);
+  for (const onset of [
+    40, 160, 280, 400, 520, 640, 760, 880, 1000, 1120, 1240, 1360, 1480, 1600,
+    1720,
+  ]) {
+    for (let i = 0; i < 16; i++) samples[onset + i] = 1 - i / 20;
+  }
+  audio.prepareTurret(recording as unknown as AudioBuffer);
+  const single = audio.buffers.get("turretSingle")!;
+  assert.ok(single.length > 3700 && single.length < 4000);
+  audio.playTurret();
+  assert.equal(sources[0].buffer, single);
+  audio.updateTurret(false);
+  assert.equal(sources.length, 1);
+  assert.equal(sources[0].stopped, false);
+  audio.playTurret();
+  context.currentTime = 0.1;
+  audio.playTurret();
+  assert.equal(sources.at(-1).loop, true);
+  assert.equal(sources.at(-1).buffer, audio.buffers.get("turret"));
+  const count = sources.length;
+  audio.playTurret();
+  assert.equal(sources.length, count);
+  audio.updateTurret(false);
+  assert.equal(sources.at(-1).buffer, single);
+  assert.equal(sources.at(-1).loop, false);
+  audio.updateTurret(false);
+  assert.equal(sources.length, count + 1);
 });

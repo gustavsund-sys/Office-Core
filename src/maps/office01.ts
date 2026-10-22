@@ -110,7 +110,11 @@ for (const sx of [-1, 1])
   );
 corridors.push({ x: 0, z: -46, w: 138, d: 6 });
 // Accessible ground-floor lift lobbies below both observation rooms.
-for (const side of [-1, 1]) corridors.push({ x: side * 86, z: -12, w: 28, d: 10 });
+for (const side of [-1, 1]) {
+  corridors.push({ x: side * 86, z: -12, w: 28, d: 10 });
+  // Reachable ground directly beneath the elevated Lookout for explosive counters.
+  corridors.push({ x: side * 94, z: 0, w: 14, d: 14 });
+}
 const footprint: Wall[] = [
   ...rooms,
   ...corridors,

@@ -29,6 +29,8 @@ export interface PlayerCommand {
   moveZ: number;
   aimX: number;
   aimZ: number;
+  aimY?: number;
+  scoped?: boolean;
   sprint?: boolean;
   fire: boolean;
   pressed: boolean;
@@ -36,6 +38,8 @@ export interface PlayerCommand {
   shotTarget?: Vector3;
 }
 export class Input {
+  scoped = false;
+  scopeRoot?: TransformNode;
   keys = new Set<string>();
   down = false;
   pressed = false;
@@ -198,6 +202,32 @@ export class Input {
       : ray.origin.add(ray.direction.scale(100));
   }
   command(world: World, pos: Vector3): PlayerCommand {
+    if (this.scoped) {
+      const ray = world.scene.activeCamera!.getForwardRay(120);
+      const hit = world.scene.pickWithRay(
+        ray,
+        (m) =>
+          m.isEnabled() &&
+          (!this.scopeRoot || !m.isDescendantOf(this.scopeRoot)) &&
+          (!!m.metadata?.solid || !!m.metadata?.damageable),
+      );
+      const end =
+        hit?.hit && hit.pickedPoint
+          ? hit.pickedPoint
+          : ray.origin.add(ray.direction.scale(120));
+      const pressed = this.pressed;
+      this.pressed = false;
+      return {
+        moveX: 0,
+        moveZ: 0,
+        aimX: end.x,
+        aimZ: end.z,
+        aimY: end.y,
+        scoped: true,
+        fire: this.down,
+        pressed,
+      };
+    }
     if (this.remote) {
       const command = {
         moveX: 0,
@@ -296,6 +326,14 @@ export class Player {
       this.barrier.material = material;
     }
     this.barrier?.setEnabled(active);
+  }
+  scoped = false;
+  crouched = false;
+  bossLookoutActive = false;
+  /** Ground-level blast exposure while operating the elevated turret. */
+  get blastPosition() {
+    const p = this.root.position;
+    return new Vector3(p.x, this.bossLookoutActive ? 0.7 : p.y + 0.7, p.z);
   }
   bossLookoutKey = false;
   bossLookoutSelected = false;
@@ -854,6 +892,10 @@ export class Player {
   }
   simulate(c: PlayerCommand, dt: number) {
     this.landed = false;
+    if (this.bossLookoutActive) {
+      this.verticalVelocity = 0;
+      return;
+    }
     const speed = Math.hypot(this.knockbackX, this.knockbackZ);
     if (speed > 0) {
       const elapsed = Math.min(dt, speed / 2);
@@ -909,11 +951,20 @@ export class Player {
     this.faceAim(c);
   }
   faceAim(c: PlayerCommand) {
+    this.scoped = !!c.scoped && this.weaponId === "huntingRifle";
     const dx = c.aimX - this.root.position.x;
     const dz = c.aimZ - this.root.position.z;
     const range = Math.hypot(dx, dz);
     const bearing = range > 0.05 ? Math.atan2(dx, dz) : this.root.rotation.y;
     this.aimTarget = undefined;
+    if (this.scoped && c.aimY !== undefined) {
+      this.root.rotation.y = bearing;
+      this.gun.rotation.x = -Math.atan2(
+        c.aimY - (this.root.position.y + AIM_HEIGHT),
+        Math.max(0.01, range),
+      );
+      return;
+    }
     if (c.facingYaw !== undefined || this.weaponId === "coreBuster") {
       this.root.rotation.y = c.facingYaw ?? bearing;
       if (this.weaponId !== "coreBuster") this.gun.rotation.x = 0;
@@ -983,7 +1034,8 @@ export class Player {
       this.landingBlend,
     );
     this.motionState = pose.state;
-    if (this.groundRing) this.groundRing.position.y = 0.06 - this.root.position.y;
+    if (this.groundRing)
+      this.groundRing.position.y = 0.06 - this.root.position.y;
     this.showTacticalShield();
     this.legs.forEach((hip, i) => {
       hip.rotation.x = pose.hips[i].x;
@@ -1055,7 +1107,9 @@ export class Player {
       command.shotTarget ??
       new Vector3(
         command.aimX,
-        this.root.position.y + AIM_HEIGHT,
+        command.scoped && this.weaponId === "huntingRifle"
+          ? (command.aimY ?? this.root.position.y + AIM_HEIGHT)
+          : this.root.position.y + AIM_HEIGHT,
         command.aimZ,
       );
     // In the overhead view, lower the shot to a small vehicle under the aim point.
@@ -1077,13 +1131,17 @@ export class Player {
     }
     const delta = target.subtract(origin);
     const barrel = Vector3.TransformNormal(
-      Vector3.Forward(), this.gun.computeWorldMatrix(true),
+      Vector3.Forward(),
+      this.gun.computeWorldMatrix(true),
     ).normalize();
     // The cursor can enter the space between the body and the muzzle. Continue
     // out of the barrel there; converging on that point would reverse the shot.
-    if (delta.lengthSquared() <= 0.000001 ||
-        Vector3.Dot(delta, this.direction) <= 0.001 ||
-        Vector3.Dot(delta, barrel) <= 0.001) return barrel;
+    if (
+      delta.lengthSquared() <= 0.000001 ||
+      Vector3.Dot(delta, this.direction) <= 0.001 ||
+      Vector3.Dot(delta, barrel) <= 0.001
+    )
+      return barrel;
     return delta.normalize();
   }
   get direction() {

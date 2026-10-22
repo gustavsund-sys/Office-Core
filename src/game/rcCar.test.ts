@@ -322,3 +322,33 @@ test("a killed driver detonates the deployed car and clears remote control", () 
   assert.equal(actor.weapons.remoteControlled, false);
   engine.dispose();
 });
+
+test("RC explosion reaches Lookout blast exposure beneath the raised floor", () => {
+  const { engine, scene, system, actor } = setup();
+  system.command(actor, undefined, true);
+  const car = system.snapshot()[0];
+  const victim = {
+    hp: 100,
+    position: new Vector3(car.x, 21, car.z),
+    blastPosition: new Vector3(car.x, 0.7, car.z),
+    canDamageFrom: () => true,
+    damage(amount: number) {
+      this.hp = Math.max(0, this.hp - amount);
+    },
+  };
+  const body = MeshBuilder.CreateBox("operator", {}, scene);
+  body.position.copyFrom(victim.position);
+  body.metadata = { damageable: victim };
+  body.computeWorldMatrix(true);
+  const floor = MeshBuilder.CreateBox(
+    "raised floor",
+    { width: 14, height: 0.4, depth: 14 },
+    scene,
+  );
+  floor.position.set(car.x, 19.8, car.z);
+  floor.metadata = { solid: true };
+  floor.computeWorldMatrix(true);
+  system.detonate(actor.id);
+  assert.equal(victim.hp, 0);
+  engine.dispose();
+});

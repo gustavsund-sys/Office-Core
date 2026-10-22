@@ -23,6 +23,7 @@ import { type Snapshot, type NetInput } from "../../shared/protocol";
 import type { Game } from "./game";
 type Context = Pick<
   Game,
+  | "boss"
   | "beaconAudio"
   | "cores"
   | "hud"
@@ -234,7 +235,7 @@ export function tickOnline(this: Context, dt: number) {
   this.networkElapsed += dt;
   const command = this.input.command(this.world, this.player.root.position);
   const rcInput = this.rc.control(command.pressed, dt);
-  if (this.rc.locked) {
+  if (this.rc.locked || this.boss?.active || this.boss?.selected) {
     command.moveX = 0;
     command.moveZ = 0;
     command.fire = false;
@@ -249,7 +250,7 @@ export function tickOnline(this: Context, dt: number) {
     this.player.grounded
   )
     this.pendingPlantAt = this.time;
-  if (!this.rc.locked) this.player.faceAim(command);
+  if (!this.rc.locked && !this.boss?.active) this.player.faceAim(command);
   if (
     command.pressed &&
     snapshot?.started &&
@@ -279,7 +280,8 @@ export function tickOnline(this: Context, dt: number) {
       this.weapons.reloadRemaining <= 0 &&
       !this.weapons.carryingBeacon &&
       !this.weapons.pulseTrapSelected &&
-      !this.weapons.remoteControlled,
+      !this.weapons.remoteControlled &&
+      !this.boss?.active,
   );
   if (predictedShot) {
     this.player.recoil = 1;
@@ -353,12 +355,30 @@ export function tickOnline(this: Context, dt: number) {
         command.aimZ,
       ),
       ...this.onlineInput,
+      scoped: !!command.scoped,
+      aimY:
+        command.aimY === undefined
+          ? undefined
+          : this.player.root.position.y +
+            1.1 +
+            (command.aimY - this.player.root.position.y - 1.1) *
+              Math.min(
+                1,
+                100 /
+                  Math.max(
+                    1,
+                    Math.hypot(
+                      command.aimX - this.player.root.position.x,
+                      command.aimZ - this.player.root.position.z,
+                    ),
+                  ),
+              ),
       moveX: this.paused ? 0 : command.moveX / length,
       moveZ: this.paused ? 0 : command.moveZ / length,
       sprint: !this.paused && !this.rc.locked && command.sprint,
       fire: !this.paused && command.fire,
       pressed: !this.paused && this.onlinePressed,
-      ...(this.rc.locked
+      ...(this.rc.locked || this.boss?.active
         ? {
             moveX: 0,
             moveZ: 0,
@@ -466,6 +486,12 @@ export function tickOnline(this: Context, dt: number) {
       }
       player.root.setEnabled(state.hp > 0);
       player.hp = state.hp;
+      player.bossLookoutActive = !!state.lookout;
+      if (!own) {
+        player.crouched = !!state.lookout?.crouched;
+        player.root.scaling.y = player.crouched ? 0.48 : 1;
+        player.gun.setEnabled(!state.lookout);
+      }
       player.shield = state.shield ?? 0;
       player.medkit = state.medkit ?? false;
       if (!own) {
@@ -487,7 +513,8 @@ export function tickOnline(this: Context, dt: number) {
             Vector3.Distance(player.root.position, target) > 8 ? 1 : 1,
           ),
         );
-      if (own && state.rcRemote) player.root.rotation.y = state.yaw;
+      if (own && (state.rcRemote || state.lookout))
+        player.root.rotation.y = state.yaw;
       else if (own) player.faceAim(command);
       else {
         player.root.rotation.y = state.yaw;
@@ -498,9 +525,12 @@ export function tickOnline(this: Context, dt: number) {
       if (this.onlineModels.get(state.id) !== state.weapon) {
         player.setWeaponModel(state.weapon);
         this.onlineModels.set(state.id, state.weapon);
-        if (own && !state.rcRemote) player.faceAim(command);
+        if (own && !state.rcRemote && !state.lookout) player.faceAim(command);
       }
-      if (!own) player.gun.rotation.x = state.gunPitch ?? 0;
+      if (!own) {
+        player.gun.rotation.x = state.gunPitch ?? 0;
+        player.scoped = state.scoped ?? false;
+      }
       if (own && newSnapshot) {
         this.weapons.remoteControlled = state.rcRemote ?? false;
         this.weapons.carryingBeacon = state.beacon ?? false;

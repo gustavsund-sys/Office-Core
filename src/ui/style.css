@@ -3573,3 +3573,5 @@ footer #weapon-reload { position: absolute; left: 20px; bottom: -3px; width: cal
 /* Observation-room atmosphere stays local to this view. */
 .boss-vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 45%, transparent 35%, #03090e26 72%, #020608a6 100%); }
 .boss-lookout-overlay.scoped .boss-vignette { display: none; }
+
+.rifle-scoped #crosshair { display: none; }

@@ -2,6 +2,7 @@ import type { CombatDeath } from "../src/ui/combatFeed";
 import type { Team } from "../src/config/game";
 import type { WeaponId } from "../src/config/weapons";
 export const MSG = {
+  lookout: "lookout",
   activity: "activity",
   idle: "idle",
   loadout: "loadout",
@@ -35,6 +36,8 @@ export interface NetInput {
   moveZ: number;
   aimX: number;
   aimZ: number;
+  aimY?: number;
+  scoped?: boolean;
   sprint?: boolean;
   useMedkit?: boolean;
   fire: boolean;
@@ -45,7 +48,16 @@ export interface NetInput {
   reload?: boolean;
   slot: 0 | 1 | 2 | 3;
 }
+export interface NetLookout {
+  side: number;
+  ammo: number;
+  yaw: number;
+  pitch: number;
+  crouched: boolean;
+}
 export interface NetPlayer {
+  lookout?: NetLookout;
+  lookoutKey?: boolean;
   rcRemote?: boolean;
   beacon?: boolean;
   loadout?: import("../src/game/loadout").Loadout;
@@ -72,6 +84,7 @@ export interface NetPlayer {
   z: number;
   yaw: number;
   gunPitch?: number;
+  scoped?: boolean;
   stamina?: number;
   sprintExhausted?: boolean;
   sprinting?: boolean;
@@ -87,6 +100,7 @@ export interface NetPlayer {
   reload: number;
 }
 export interface Snapshot {
+  lookoutKeys?: string[];
   rcCars?: import("../src/game/rcCar").RCCarState[];
   seq?: number;
   serverTime?: number;
@@ -140,6 +154,7 @@ export interface NetEvent {
   damage?: number;
   inputSeq?: number;
   kind:
+    | "turretTrace"
     | "rcExplosion"
     | "medkit"
     | "shieldPickup"
@@ -192,6 +207,8 @@ export function validInput(value: unknown): value is NetInput {
           "moveZ",
           "aimX",
           "aimZ",
+          "aimY",
+          "scoped",
           "fire",
           "pressed",
           "jump",
@@ -226,6 +243,9 @@ export function validInput(value: unknown): value is NetInput {
     Math.abs(v.moveZ) <= 1 &&
     Math.abs(v.aimX) < 200 &&
     Math.abs(v.aimZ) < 200 &&
+    (v.aimY === undefined ||
+      (Number.isFinite(v.aimY) && Math.abs(v.aimY) < 200)) &&
+    (v.scoped === undefined || typeof v.scoped === "boolean") &&
     [v.fire, v.pressed, v.jump, v.interact].every(
       (x) => typeof x === "boolean",
     ) &&

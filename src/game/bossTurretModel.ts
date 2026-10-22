@@ -150,12 +150,169 @@ export function bossTurretModel(world: World): Mesh {
   for (let i = 0; i < 7; i++) {
     const x = -0.12 - i * 0.025,
       y = 0.04 - Math.max(0, i - 2) * 0.018;
-    box("brass ammunition belt", x, y, 0.02, 0.017, 0.018, 0.12, "#b49c61");
     box("belt link", x, y, 0.005, 0.021, 0.024, 0.022, "#3a4643");
   }
   box("charging handle", 0.1, 0.025, -0.06, 0.085, 0.025, 0.035, "#8d9889");
   for (const x of [-0.077, 0.077])
     for (const z of [-0.15, 0.05, 0.17])
       box("receiver rivet", x, 0.04, z, 0.009, 0.018, 0.018, "#a4aa99");
+  // Small rigid details share the existing material palette and merge into the
+  // cached model: no per-frame animation or additional texture downloads.
+  const steel = "#47534f",
+    edge = "#88918a",
+    dark = "#1d2a2b";
+  for (const side of [-1, 1]) {
+    box(
+      "receiver inset side plate",
+      side * 0.076,
+      0.015,
+      -0.025,
+      0.008,
+      0.075,
+      0.33,
+      steel,
+    );
+    box(
+      "receiver machined upper seam",
+      side * 0.081,
+      0.065,
+      0.01,
+      0.006,
+      0.008,
+      0.32,
+      edge,
+    );
+    box(
+      "receiver lower reinforcing rail",
+      side * 0.081,
+      -0.042,
+      0.015,
+      0.012,
+      0.013,
+      0.36,
+      dark,
+    );
+    for (const z of [-0.15, 0.05, 0.17]) {
+      const screw = tube(
+        "recessed receiver screw",
+        z,
+        0.012,
+        0.018,
+        edge,
+        -0.015,
+      );
+      screw.rotation.set(0, 0, Math.PI / 2);
+      screw.position.x = side * 0.084;
+      box(
+        "screw head slot",
+        side * 0.091,
+        -0.015,
+        z,
+        0.002,
+        0.003,
+        0.011,
+        dark,
+      );
+    }
+    for (let i = 0; i < 4; i++)
+      box(
+        "stock molded inset grooves",
+        side * 0.056,
+        -0.005,
+        -0.55 + i * 0.04,
+        0.003,
+        0.08,
+        0.009,
+        dark,
+      );
+  }
+  box("ejection port recess", 0.084, 0.018, 0.075, 0.008, 0.045, 0.11, dark);
+  const door = box(
+    "ejection port hinged lip",
+    0.099,
+    -0.008,
+    0.075,
+    0.035,
+    0.007,
+    0.115,
+    steel,
+  );
+  door.rotation.z = -0.3;
+  box(
+    "charging handle slide channel",
+    0.086,
+    0.041,
+    -0.09,
+    0.008,
+    0.018,
+    0.18,
+    dark,
+  );
+  box("feed cover latch", 0, 0.125, -0.135, 0.045, 0.018, 0.038, edge);
+  for (let i = 0; i < 6; i++)
+    box(
+      "feed cover stiffening ribs",
+      0,
+      0.121,
+      -0.075 + i * 0.037,
+      0.13,
+      0.008,
+      0.009,
+      steel,
+    );
+  for (const z of [0.21, 0.55, 0.94, 1.17])
+    tube("barrel machined collar", z, 0.022, 0.057, edge);
+  // A dark recessed bore and crown make the muzzle read as an open barrel.
+  tube("muzzle recessed bore", 1.341, 0.002, 0.043, "#101b20");
+  const crown = MeshBuilder.CreateTorus(
+    "muzzle crown",
+    {
+      diameter: 0.053,
+      thickness: 0.009,
+      tessellation: 12,
+    },
+    world.scene,
+  );
+  crown.rotation.x = Math.PI / 2;
+  crown.position.set(0, 0.025, 1.343);
+  crown.parent = root;
+  crown.material = world.finish(steel, "metal");
+  crown.isPickable = false;
+  // Compact ammunition can, with stamped panels, straps and latch hardware.
+  box("ammunition can", -0.255, -0.175, 0.015, 0.18, 0.23, 0.27, steel);
+  box("ammunition can lid", -0.255, -0.055, 0.015, 0.195, 0.018, 0.285, edge);
+  box("ammunition can inset", -0.347, -0.17, 0.015, 0.006, 0.16, 0.21, dark);
+  for (const z of [-0.075, 0.105]) {
+    box("ammunition can strap", -0.352, -0.17, z, 0.01, 0.22, 0.018, edge);
+    box("ammunition lid clasp", -0.358, -0.07, z, 0.014, 0.04, 0.026, steel);
+  }
+  for (let i = 0; i < 7; i++) {
+    const x = -0.12 - i * 0.025;
+    const y = 0.04 - Math.max(0, i - 2) * 0.018;
+    const cartridge = tube(
+      "rounded brass cartridge",
+      0.025,
+      0.105,
+      0.017,
+      "#b49c61",
+      y,
+    );
+    cartridge.position.x = x;
+    const tip = MeshBuilder.CreateCylinder(
+      "copper cartridge tip",
+      {
+        diameterTop: 0.003,
+        diameterBottom: 0.017,
+        height: 0.025,
+        tessellation: 6,
+      },
+      world.scene,
+    );
+    tip.rotation.x = Math.PI / 2;
+    tip.position.set(x, y, 0.09);
+    tip.parent = root;
+    tip.material = world.finish("#b49c61", "metal");
+    tip.isPickable = false;
+  }
   return finishStaticModel(world, "Boss M60 turret", root);
 }

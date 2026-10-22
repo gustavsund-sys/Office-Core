@@ -81,13 +81,14 @@ export function applyOnline(this: Context, snapshot: Snapshot) {
     this.predictedPosition ?? this.player.root.position
   ).clone();
   this.player.hp = own.hp;
+  this.player.bossLookoutActive = !!own.lookout;
   this.player.shield = own.shield ?? 0;
   this.player.medkit = own.medkit ?? false;
   this.pendingInputs = replayMovement(
     this.player,
     own,
     this.pendingInputs,
-    snapshot.started && own.hp > 0 && !own.rcRemote,
+    snapshot.started && own.hp > 0 && !own.rcRemote && !own.lookout,
   );
   const correction = previousPosition.subtract(this.player.root.position);
   this.lastPositionCorrection = correction.length();

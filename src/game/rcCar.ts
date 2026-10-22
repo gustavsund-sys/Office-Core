@@ -219,7 +219,8 @@ export class RCCars {
       if (v && v.hp > 0 && mesh.isEnabled() && !victims.has(v))
         victims.set(
           v,
-          (v as Hittable & { position?: Vector3 }).position ??
+          (v as Hittable & { blastPosition?: Vector3 }).blastPosition ??
+            (v as Hittable & { position?: Vector3 }).position ??
             mesh.getAbsolutePosition(),
         );
     }

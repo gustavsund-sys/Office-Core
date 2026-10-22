@@ -388,11 +388,11 @@ test("third-person shots converge toward the crosshair while walls still block",
   }
 });
 
-test("rotating top-down preserves original height and 60-degree angle at every heading", () => {
+test("rotating top-down clears the Lookout roof and preserves its 60-degree angle at every heading", () => {
   const player = new Vector3(10, 0, 12);
   for (const yaw of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
     const { position, target } = rotatingCameraPose(player, yaw);
-    assert.equal(position.y, 23);
+    assert.equal(position.y, 32);
     assert.ok(
       Math.abs(
         Math.atan2(

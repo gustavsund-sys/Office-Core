@@ -540,7 +540,8 @@ export class PulseTraps {
           ) < 1.1 &&
           !this.blocked(
             new Vector3(k.x, 0.5, k.z),
-            a.player.root.position.add(new Vector3(0, 0.7, 0)),
+            a.player.blastPosition ??
+              a.player.root.position.add(new Vector3(0, 0.7, 0)),
           ),
       );
       if (actor) {
@@ -565,7 +566,8 @@ export class PulseTraps {
           ) < PULSE_TRAP.detectionRadius &&
           !this.blocked(
             origin,
-            a.player.root.position.add(new Vector3(0, 0.7, 0)),
+            a.player.blastPosition ??
+              a.player.root.position.add(new Vector3(0, 0.7, 0)),
           ),
       );
       const nearest = Math.min(
@@ -621,8 +623,7 @@ export class PulseTraps {
           ?.metadata?.damageable as Hittable | undefined;
         const before = a.player.hp;
         if (victim) victim.damage(damage);
-        else if (a.player.invulnerable <= 0)
-          a.player.takeDamage(damage);
+        else if (a.player.invulnerable <= 0) a.player.takeDamage(damage);
         if (a.player.hp < before)
           this.onHit(
             t.owner,

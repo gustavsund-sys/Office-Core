@@ -17,20 +17,8 @@ import type { Player, Input } from "../player/player";
 import type { Hittable } from "../core/hittable";
 import { office01 } from "../maps/office01";
 
-export const LOOKOUT = {
-  shots: 100,
-  damage: 8,
-  interval: 0.1,
-  range: 350,
-  height: 20,
-};
-export function lookoutPose(side: number) {
-  return {
-    door: new Vector3(side * 94, 0, -13),
-    station: new Vector3(side * 94, LOOKOUT.height, 0),
-    yaw: (-side * Math.PI) / 2,
-  };
-}
+import { LOOKOUT, lookoutPose } from "./lookoutConfig";
+export { LOOKOUT, lookoutPose } from "./lookoutConfig";
 export function keyModel(world: World) {
   const root = new Mesh("Boss Lookout key", world.scene);
   const ring = MeshBuilder.CreateTorus(
@@ -53,8 +41,11 @@ export function keyModel(world: World) {
   for (const m of root.getChildMeshes()) m.isPickable = false;
   return root;
 }
-/** Local playtest prototype. Round rewards are retained until the next round. */
+/** Presentation shared by local playtests and server-authoritative matches. */
 export class BossLookout {
+  online?: { send: (action: string, controls?: object) => void };
+  private networkClock = 0;
+  testFireRemaining = 0;
   active = false;
   selected = false;
   available = false;
@@ -65,6 +56,8 @@ export class BossLookout {
   private lastRound = 1;
   private yaw = 0;
   private pitch = 0.24;
+  private recoilKick = 0;
+  private recoilBack = 0;
   private fire = false;
   private scope = false;
   private cooldown = 0;
@@ -89,6 +82,10 @@ export class BossLookout {
     private toast: (text: string) => void,
     private hit: (target: Hittable, damage: number) => void,
     private shot: () => void,
+    private firingSound: (
+      firing: boolean,
+      naturalTail: boolean,
+    ) => void = () => {},
   ) {
     this.overlay.className = "boss-lookout-overlay";
     this.overlay.hidden = true;
@@ -165,7 +162,11 @@ export class BossLookout {
     window.addEventListener("pointerup", (e) => {
       if (e.button === 0 || e.buttons === 0) this.fire = false;
     });
+    window.addEventListener("keyup", (e) => {
+      if (e.code === "KeyC") this.player.crouched = false;
+    });
     window.addEventListener("blur", () => {
+      this.player.crouched = false;
       this.fire = false;
       this.scope = false;
     });
@@ -200,8 +201,37 @@ export class BossLookout {
   }
   key(e: KeyboardEvent) {
     if (e.repeat) return this.active;
+    if (this.online) {
+      if (this.active) {
+        if (e.code === "KeyB") this.online.send("exit");
+        if (e.code === "KeyC") this.player.crouched = true;
+        return e.code !== "Escape";
+      }
+      if (e.code === "Digit5") {
+        this.selected = this.player.bossLookoutKey;
+        return true;
+      }
+      if (["Digit1", "Digit2", "Digit3", "Digit4"].includes(e.code))
+        this.selected = false;
+      if (e.code === "KeyE" && this.player.hp > 0) {
+        const pos = this.player.root.position;
+        if (
+          this.drops.some(
+            (k) => k.isEnabled() && Vector3.Distance(pos, k.position) < 3,
+          ) ||
+          [-1, 1].some(
+            (side) => Vector3.Distance(pos, lookoutPose(side).door) < 3.5,
+          )
+        ) {
+          this.online.send("interact");
+          return true;
+        }
+      }
+      return false;
+    }
     if (this.active) {
       if (e.code === "KeyB") this.exit();
+      if (e.code === "KeyC") this.player.crouched = true;
       return e.code !== "Escape";
     }
     if (e.code === "Digit5") {
@@ -238,6 +268,7 @@ export class BossLookout {
     this.selected = false;
     this.side = side;
     this.active = true;
+    this.player.bossLookoutActive = true;
     this.ammo = LOOKOUT.shots;
     this.cooldown = 0;
     this.fire = false;
@@ -247,11 +278,17 @@ export class BossLookout {
     this.savedMinZ = this.view.minZ;
     this.yaw = lookoutPose(side).yaw;
     this.pitch = 0.24;
+    this.recoilKick = 0;
+    this.recoilBack = 0;
     this.fallbackPointer = undefined;
     this.atmosphere?.enter();
     const rig = this.turrets?.get(side);
     if (rig) this.viewGun = rig.gun;
-    this.player.root.position.copyFrom(lookoutPose(side).station);
+    this.player.root.position.copyFrom(
+      lookoutPose(side).station.add(
+        new Vector3(-side * LOOKOUT.eyeOffset, 0, 0),
+      ),
+    );
     this.player.verticalVelocity = 0;
     this.input.clear();
     this.lockMouse();
@@ -259,7 +296,22 @@ export class BossLookout {
   exit() {
     if (!this.active) return;
     this.active = false;
+    this.recoilKick = 0;
+    this.recoilBack = 0;
+    const restingRig = this.turrets?.get(this.side);
+    if (restingRig) restingRig.gun.position.z = 0.25;
+    this.testFireRemaining = 0;
+    this.player.bossLookoutActive = false;
+    this.player.crouched = false;
+    if (this.player.root.scaling) this.player.root.scaling.y = 1;
+    this.player.legs?.forEach((hip) => {
+      hip.rotation.x = 0;
+    });
+    this.player.knees?.forEach((knee) => {
+      knee.rotation.x = 0;
+    });
     this.fire = false;
+    this.firingSound?.(false, true);
     this.scope = false;
     this.player.root.position.copyFrom(
       lookoutPose(this.side).door.add(new Vector3(0, 0, -2)),
@@ -284,19 +336,77 @@ export class BossLookout {
     this.view.minZ = 0.08;
     this.view.position.copyFrom(
       lookoutPose(this.side).station.add(
-        // Move 15% from the former eye position toward the fixed gun pivot.
-        new Vector3(-this.side * 5.3575, 1.61, 0),
+        // Stand just behind the opening; the lowered eye remains behind cover.
+        new Vector3(
+          -this.side * LOOKOUT.eyeOffset,
+          this.player.crouched ? LOOKOUT.crouchEyeHeight : LOOKOUT.eyeHeight,
+          0,
+        ),
       ),
     );
     this.view.rotationQuaternion = null;
-    this.view.rotation.set(this.pitch, this.yaw, 0);
+    const firingPitch = Math.max(-1.3, this.pitch - this.recoilKick);
+    this.view.rotation.set(firingPitch, this.yaw, 0);
     const rig = this.turrets.get(this.side);
     if (rig) {
       rig.yaw.rotation.y = this.yaw;
-      rig.pitch.rotation.x = this.pitch;
+      rig.pitch.rotation.x = firingPitch;
+      rig.gun.position.z = 0.25 - this.recoilBack;
     }
+    this.player.root.scaling.y = this.player.crouched ? 0.48 : 1;
+    this.player.legs?.forEach((hip) => {
+      hip.rotation.x = this.player.crouched ? -0.65 : 0;
+    });
+    this.player.knees?.forEach((knee) => {
+      knee.rotation.x = this.player.crouched ? 1.2 : 0;
+    });
     this.player.setViewVisibility(0);
+    this.view.getViewMatrix(true);
     return true;
+  }
+  syncOnline(snapshot: import("../../shared/protocol").Snapshot, id: string) {
+    const self = snapshot.players.find((p) => p.id === id);
+    if (!self) {
+      this.exit();
+      return;
+    }
+    const state = self.lookout;
+    if (state && !this.active) {
+      this.player.bossLookoutKey = true;
+      this.enter(state.side);
+    }
+    if (!state && this.active) this.exit();
+    if (self.lookoutKey && !this.player.bossLookoutKey) {
+      this.selected = true;
+      this.toast("BOSS LOOKOUT KEY · [5] · E at a Lookout door");
+    }
+    this.player.bossLookoutKey = !!self.lookoutKey;
+    this.drops.forEach((key, i) =>
+      key.setEnabled(
+        (snapshot.lookoutKeys ?? []).includes(
+          office01.weaponEnds[i].x < 0 ? "RED" : "BLUE",
+        ),
+      ),
+    );
+    if (state) this.ammo = state.ammo;
+    for (const p of snapshot.players)
+      if (p.lookout && p.id !== id) {
+        const rig = this.turrets.get(p.lookout.side);
+        if (rig) {
+          rig.yaw.rotation.y = p.lookout.yaw;
+          rig.pitch.rotation.x = p.lookout.pitch;
+        }
+      }
+  }
+  networkShot(event: import("../../shared/protocol").NetEvent, own: boolean) {
+    const start = new Vector3(event.x, event.y, event.z);
+    const end = new Vector3(event.endX!, event.endY!, event.endZ!);
+    this.rounds?.launch(start, end, true, () => {}, Vector3.Up());
+    if (own) {
+      this.recoilKick = Math.min(0.035, this.recoilKick + 0.012);
+      this.recoilBack = Math.min(0.065, this.recoilBack + 0.045);
+      this.shot();
+    }
   }
   decorateHud() {
     if (!this.active && !this.player.bossLookoutSelected) return;
@@ -327,21 +437,52 @@ export class BossLookout {
 
     this.overlay.classList.toggle("scoped", this.scope);
     this.overlay.querySelector(".boss-status")!.textContent =
-      `BOSS LOOKOUT · ${this.ammo} / 100 · RMB: SCOPE · B: BAIL`;
+      `BOSS LOOKOUT · ${this.ammo} / 100 · RMB: SCOPE · C: CROUCH · B: BAIL`;
     if (paused) {
+      this.testFireRemaining = 0;
+      this.firingSound?.(false, false);
       this.fire = false;
       this.scope = false;
+      if (this.online && this.active)
+        this.online.send("aim", {
+          yaw: this.yaw,
+          pitch: this.pitch,
+          fire: false,
+          crouched: false,
+        });
       this.fallbackPointer = undefined;
       if (this.active && document.pointerLockElement)
         document.exitPointerLock();
       return;
     }
+    this.testFireRemaining = Math.max(0, this.testFireRemaining - dt);
+    this.firingSound?.(
+      this.active && (this.fire || this.testFireRemaining > 0),
+      true,
+    );
     this.rounds?.update(dt);
     this.prompt.hidden = true;
     if (this.active) {
+      // Exponential recovery stays consistent across different frame rates.
+      this.recoilKick *= Math.exp(-12 * dt);
+      this.recoilBack *= Math.exp(-22 * dt);
       this.cooldown = Math.max(0, this.cooldown - dt);
       this.camera();
-      if (this.fire && this.cooldown <= 0) {
+      this.networkClock += dt;
+      if (this.online && this.networkClock >= 0.05) {
+        this.networkClock = 0;
+        this.online.send("aim", {
+          yaw: this.yaw,
+          pitch: this.pitch - this.recoilKick,
+          fire: this.fire,
+          crouched: this.player.crouched,
+        });
+      }
+      if (
+        !this.online &&
+        (this.fire || this.testFireRemaining > 0) &&
+        this.cooldown <= 0
+      ) {
         this.cooldown = LOOKOUT.interval;
         this.ammo--;
         this.shot();
@@ -349,7 +490,10 @@ export class BossLookout {
         const picked = this.world.scene.pickWithRay(
           ray,
           (m) =>
-            m.isPickable &&
+            (m.isPickable ||
+              /^(walkable floor|corridor runner|room carpet|base carpet)$/.test(
+                m.name,
+              )) &&
             m.isEnabled() &&
             !this.player.bodyMeshes.some((body) => body === m),
         );
@@ -367,7 +511,7 @@ export class BossLookout {
           if (
             groundDistance > 0 &&
             groundDistance <
-              Math.min(LOOKOUT.range, picked?.distance ?? Infinity)
+              Math.min(LOOKOUT.range, picked?.hit ? picked.distance : Infinity)
           ) {
             const point = ray.origin.add(ray.direction.scale(groundDistance));
             if (
@@ -406,7 +550,12 @@ export class BossLookout {
           },
           normal,
         );
-        tracer.material = this.world.mat("#ffe4a2", true);
+
+        // Apply after tracing this shot; the next shot follows the lifted aim.
+        this.recoilKick = Math.min(0.035, this.recoilKick + 0.012);
+        this.recoilBack = Math.min(0.065, this.recoilBack + 0.045);
+        this.camera();
+
         if (this.ammo <= 0) {
           this.exit();
           this.toast("Boss Lookout empty · returned to door");

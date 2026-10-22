@@ -1,3 +1,4 @@
+import { ServerLookout } from "./lookout";
 import type { CombatDeath } from "../src/ui/combatFeed";
 import { BloodCadence } from "../src/effects/bloodCadence";
 import { inactivityState, IDLE_CLOSE_CODE } from "../shared/inactivity";
@@ -147,16 +148,33 @@ export class OfficeRoom extends Room {
       (base) => new Damageable(this.world, "core", base.x, base.z, base.team),
     );
     this.cores.forEach((core) => core.setActive(false));
+    this.lookout = new ServerLookout(this.world, (event) => this.event(event));
     this.pickup = new Pickup(this.world);
     this.pickup.onMedkit = (weapons) => {
-      const entry = [...this.participants].find(([, p]) => p.weapons === weapons);
-      if (entry) this.event({ kind: "medkit", player: entry[0],
-        x: weapons.player.root.position.x, y: 0, z: weapons.player.root.position.z });
+      const entry = [...this.participants].find(
+        ([, p]) => p.weapons === weapons,
+      );
+      if (entry)
+        this.event({
+          kind: "medkit",
+          player: entry[0],
+          x: weapons.player.root.position.x,
+          y: 0,
+          z: weapons.player.root.position.z,
+        });
     };
     this.pickup.onShield = (weapons) => {
-      const entry = [...this.participants].find(([, p]) => p.weapons === weapons);
-      if (entry) this.event({ kind: "shieldPickup", player: entry[0],
-        x: weapons.player.root.position.x, y: 0, z: weapons.player.root.position.z });
+      const entry = [...this.participants].find(
+        ([, p]) => p.weapons === weapons,
+      );
+      if (entry)
+        this.event({
+          kind: "shieldPickup",
+          player: entry[0],
+          x: weapons.player.root.position.x,
+          y: 0,
+          z: weapons.player.root.position.z,
+        });
     };
     this.pickup.onAmmo = (weapons) => {
       const entry = [...this.participants].find(
@@ -320,6 +338,17 @@ export class OfficeRoom extends Room {
               ? payload.version.slice(0, 40)
               : "unknown",
         }),
+      );
+    });
+    this.onMessage(MSG.lookout, (client, payload) => {
+      if (!this.permit(client)) return;
+      const p = this.participants.get(client.sessionId);
+      if (!p || !this.started || this.winner || p.awaitingLoadout) return;
+      this.lookout.command(
+        client.sessionId,
+        p,
+        payload,
+        this.rc.controlling(client.sessionId),
       );
     });
     this.onMessage(MSG.input, (client, payload) => {
@@ -614,10 +643,13 @@ export class OfficeRoom extends Room {
           ),
         );
         const victim = victimEntry?.[1];
-        if (victimEntry && victim && target.hp <= 0) this.pendingDeaths.set(victimEntry[0], {
-          victimName: victim.name, killerName: participant.name,
-          source: source ?? participant.weapons.id, self: victim === participant,
-        });
+        if (victimEntry && victim && target.hp <= 0)
+          this.pendingDeaths.set(victimEntry[0], {
+            victimName: victim.name,
+            killerName: participant.name,
+            source: source ?? participant.weapons.id,
+            self: victim === participant,
+          });
         const core = target instanceof Damageable && target.team;
         const hostile = victim
           ? victim.team !== participant.team
@@ -827,6 +859,10 @@ export class OfficeRoom extends Room {
     );
   }
   spawn(p: Participant) {
+    const pilotId = [...this.participants].find(
+      ([, actor]) => actor === p,
+    )?.[0];
+    if (pilotId) this.lookout.exit(pilotId, p);
     this.bloodCadence.resetPlayer(String(p.player.root.uniqueId));
     p.life++;
     p.inputCredit = 0;
@@ -886,6 +922,7 @@ export class OfficeRoom extends Room {
         life: p.life,
       })),
     );
+    this.lookout.update(dt, this.participants);
     this.pickup.tickTimers(dt);
     for (const [id, p] of this.participants) {
       if (p.awaitingLoadout) continue;
@@ -997,13 +1034,32 @@ export class OfficeRoom extends Room {
             warcry: false,
             reload: false,
           };
+        if (p.player.bossLookoutActive)
+          input = {
+            ...input,
+            moveX: 0,
+            moveZ: 0,
+            fire: false,
+            pressed: false,
+            jump: false,
+            interact: false,
+            slot: 0,
+            reload: false,
+            warcry: false,
+            useMedkit: false,
+          };
         p.weapons.remoteControlled = this.rc.controlling(id);
         if (input.warcry) p.weapons.activateWarcry();
         if (input.slot) p.weapons.switchSlot(input.slot);
         if (input.reload) p.weapons.requestReload();
         if (input.useMedkit && !this.rc.controlling(id) && p.player.useMedkit())
-          this.event({ kind: "medkit", player: id, x: p.player.root.position.x,
-            y: 0, z: p.player.root.position.z });
+          this.event({
+            kind: "medkit",
+            player: id,
+            x: p.player.root.position.x,
+            y: 0,
+            z: p.player.root.position.z,
+          });
         if (input.jump && p.player.grounded) {
           p.player.jump();
           this.event({
@@ -1013,12 +1069,13 @@ export class OfficeRoom extends Room {
             z: p.player.root.position.z,
           });
         }
-        p.player.update(
-          this.rc.controlling(id)
-            ? { ...input, facingYaw: p.player.root.rotation.y }
-            : input,
-          p.lastSeq >= 0 ? (queued ? 1 / 30 : 0) : stepDt,
-        );
+        if (!p.player.bossLookoutActive)
+          p.player.update(
+            this.rc.controlling(id)
+              ? { ...input, facingYaw: p.player.root.rotation.y }
+              : input,
+            p.lastSeq >= 0 ? (queued ? 1 / 30 : 0) : stepDt,
+          );
         if (queued?.seq !== undefined) p.ack = queued.seq;
         if (p.player.landed)
           this.event({
@@ -1130,6 +1187,7 @@ export class OfficeRoom extends Room {
     const alive = this.cores.filter((core) => core.active && core.hp > 0);
     if (alive.length === 1) {
       this.winner = alive[0].team;
+      for (const [id, p] of this.participants) this.lookout.exit(id, p);
       this.rc.reset();
       for (const p of this.participants.values()) {
         p.weapons.remoteControlled = false;
@@ -1143,9 +1201,11 @@ export class OfficeRoom extends Room {
       console.info("match ended", this.roomId);
     }
   }
+  lookout!: ServerLookout;
   rc!: RCCars;
   snapshot(): Snapshot {
     return {
+      lookoutKeys: [...this.lookout.keys],
       rcCars: this.rc.snapshot(),
       serverTime: Date.now(),
       placedMedkits: [...this.pickup.pulseTraps.medkits.values()].map((k) => ({
@@ -1158,6 +1218,8 @@ export class OfficeRoom extends Room {
       owner: this.owner,
       players: [...this.participants].map(([id, p]) => ({
         id,
+        lookout: this.lookout.snapshot(id),
+        lookoutKey: p.player.bossLookoutKey,
         rcRemote: this.rc.controlling(id),
         ack: p.ack,
         verticalVelocity: p.player.verticalVelocity,
@@ -1171,6 +1233,7 @@ export class OfficeRoom extends Room {
         z: p.player.root.position.z,
         yaw: p.player.root.rotation.y,
         gunPitch: p.player.gun.rotation.x,
+        scoped: p.player.scoped,
         knockbackX: p.player.knockbackX,
         knockbackZ: p.player.knockbackZ,
         hp: p.player.hp,
@@ -1311,6 +1374,7 @@ export class OfficeRoom extends Room {
     if (!this.countdownUntil) this.countdownUntil = this.time + 3;
   }
   completeNextRound() {
+    this.lookout.reset(this.participants, this.winner);
     this.ledger.resetRound();
     resetRound(
       this.world,
@@ -1348,6 +1412,7 @@ export class OfficeRoom extends Room {
     this.preparing = false;
     this.seriesWinner = undefined;
     this.winner = undefined;
+    this.lookout.reset(this.participants);
     this.wins = { RED: 0, BLUE: 0 };
     this.round = 1;
     this.countdownUntil = 0;
@@ -1403,6 +1468,7 @@ export class OfficeRoom extends Room {
     if (!p) return;
     this.optimizedClients.delete(client.sessionId);
     this.streamClients.delete(client.sessionId);
+    this.lookout.exit(client.sessionId, p);
     p.connected = false;
     this.rc.remove(client.sessionId);
     this.rc.watches.delete(client.sessionId);

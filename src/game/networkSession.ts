@@ -11,6 +11,7 @@ import { Multiplayer } from "../network/client";
 import type { Game } from "./game";
 type Context = Pick<
   Game,
+  | "boss"
   | "applyOnline"
   | "beaconAudio"
   | "beaconImpact"
@@ -92,6 +93,12 @@ export function installMultiplayer(this: Context) {
     };
     net.onSnapshot = (snapshot) => this.applyOnline(snapshot);
     net.onEvent = (event) => {
+      if (event.kind === "turretTrace") {
+        this.boss?.networkShot(event, event.player === net.room?.sessionId);
+        if (this.sound && event.player !== net.room?.sessionId)
+          this.weaponAudio?.playTurret();
+        return;
+      }
       // Own shots are presented immediately. Server hits/impacts remain authoritative.
       if (
         event.player === net.room?.sessionId &&

@@ -1,4 +1,5 @@
-import { BossLookout, lookoutPose } from "./bossLookout";
+import { RifleScope, SniperGlints } from "./rifleScope";
+import { BossLookout, lookoutPose, LOOKOUT } from "./bossLookout";
 import type { DeathSource } from "../ui/combatFeed";
 import { RoundMedia } from "./roundMedia";
 import { GRAPHICS, readGraphics, renderSize } from "./graphicsSettings";
@@ -85,6 +86,8 @@ import { MSG, type Snapshot, type NetInput } from "../../shared/protocol";
 export class Game {
   rc!: RCSession;
   boss?: BossLookout;
+  rifleScope?: RifleScope;
+  sniperGlints?: SniperGlints;
   loadout!: LoadoutUI;
   beaconAudio = new BeaconAudio();
   pulseTrapAudio = new PulseTrapAudio();
@@ -164,6 +167,7 @@ export class Game {
   testFireTimer = 1;
   testFiring = false;
   testShootingEnabled = true;
+  private testSniperHome?: { position: Vector3; weapon: WeaponId };
   respawnRemaining = 0;
   busterScreamPlayed = false;
   paused = true;
@@ -664,7 +668,11 @@ export class Game {
     bossTest.addEventListener("click", () => {
       if (!this.boss || this.multiplayer?.room) return;
       this.boss.reward();
-      this.player.root.position.set(office01.weaponEnds[0].x, 0, office01.weaponEnds[0].z - 5);
+      this.player.root.position.set(
+        office01.weaponEnds[0].x,
+        0,
+        office01.weaponEnds[0].z - 5,
+      );
       this.cameraTarget.copyFrom(this.player.root.position);
     });
     panel.querySelector("#test-low-hp")!.before(bossTest);
@@ -672,10 +680,80 @@ export class Game {
     bossDoorTest.textContent = "TEST: LOOKOUT DOOR";
     bossDoorTest.addEventListener("click", () => {
       if (!this.boss || this.multiplayer?.room || this.boss.active) return;
-      this.player.root.position.copyFrom(lookoutPose(CONFIG.player.team === "RED" ? -1 : 1).door.add(new Vector3(0, 0, -2)));
+      this.player.root.position.copyFrom(
+        lookoutPose(CONFIG.player.team === "RED" ? -1 : 1).door.add(
+          new Vector3(0, 0, -2),
+        ),
+      );
       this.cameraTarget.copyFrom(this.player.root.position);
     });
     bossTest.after(bossDoorTest);
+    const enterTurretTest = document.createElement("button");
+    enterTurretTest.textContent = "TEST: GÅ DIREKT TILL TURRET";
+    enterTurretTest.addEventListener("click", () => {
+      if (
+        !this.boss ||
+        this.multiplayer?.room ||
+        !this.match.started ||
+        this.match.winner ||
+        this.player.hp <= 0
+      )
+        return;
+      this.rifleScope?.exit();
+      this.setPaused(false);
+      if (!this.boss.active) {
+        this.player.bossLookoutKey = true;
+        this.boss.enter(CONFIG.player.team === "RED" ? -1 : 1);
+      }
+    });
+    bossDoorTest.after(enterTurretTest);
+    const turretFireTest = document.createElement("button");
+    turretFireTest.textContent = "TEST: TURRETELD 3 S";
+    turretFireTest.addEventListener("click", () => {
+      if (!this.boss?.active || this.paused) return;
+      this.boss.testFireRemaining = 3;
+    });
+    enterTurretTest.after(turretFireTest);
+    const sniperTest = document.createElement("button");
+    sniperTest.textContent = "TEST: SNIPER MOT TURRET";
+    sniperTest.addEventListener("click", () => {
+      if (
+        !this.boss ||
+        this.multiplayer?.room ||
+        !this.match.started ||
+        this.player.hp <= 0
+      )
+        return;
+      this.rifleScope?.exit();
+      if (!this.boss.active) {
+        this.player.bossLookoutKey = true;
+        this.boss.enter(CONFIG.player.team === "RED" ? -1 : 1);
+      }
+      this.hud.toast("TESTSKYTT · SIKTAR UTAN ATT SKJUTA · HÅLL C FÖR SKYDD");
+    });
+    enterTurretTest.after(sniperTest);
+    const rifleLookoutTest = document.createElement("button");
+    rifleLookoutTest.textContent = "TEST: SIKTA MOT LOOKOUT";
+    rifleLookoutTest.addEventListener("click", () => {
+      if (
+        !this.boss ||
+        this.multiplayer?.room ||
+        !this.match.started ||
+        this.player.hp <= 0
+      )
+        return;
+      this.boss.exit();
+      this.rifleScope?.exit();
+      const side = CONFIG.player.team === "RED" ? 1 : -1;
+      const target = lookoutPose(side).station.add(
+        new Vector3(-side * LOOKOUT.eyeOffset, LOOKOUT.eyeHeight, 0),
+      );
+      this.player.root.position.set(target.x - side * 80, 0, 0);
+      this.weapons.equip("huntingRifle");
+      this.rifleScope?.aimAt(target);
+      this.hud.toast("GEVÄRSTEST · SIKTAR MOT MOTSTÅNDARNAS BOSS LOOKOUT");
+    });
+    sniperTest.after(rifleLookoutTest);
     panel.querySelector("#test-low-hp")!.addEventListener("click", () => {
       if (this.player.hp <= 0) return;
       this.player.hp = 20;
@@ -733,10 +811,40 @@ export class Game {
     this.rc.system.onHit = (owner, target, damage) =>
       this.recordLocalHit(owner, target, damage, "car");
     this.debug = new Debug(this.world, this.player);
-    if (this.testToolsEnabled) this.boss = new BossLookout(this.world, this.player, this.input, this.camera,
-      () => this.paused, text => this.hud.toast(text),
-      (target, damage) => this.recordLocalHit("local", target, damage, "machineGun"),
-      () => { if (this.sound) this.weaponAudio?.play("machineGun"); });
+    this.boss = new BossLookout(
+      this.world,
+      this.player,
+      this.input,
+      this.camera,
+      () => this.paused,
+      (text) => this.hud.toast(text),
+      (target, damage) =>
+        this.recordLocalHit("local", target, damage, "machineGun"),
+      () => {
+        if (this.sound) this.weaponAudio?.playTurret();
+      },
+      (firing, tail) =>
+        this.weaponAudio?.updateTurret(
+          firing && this.sound,
+          tail && this.sound,
+        ),
+    );
+    this.rifleScope = new RifleScope(
+      this.player,
+      this.input,
+      this.camera,
+      () =>
+        this.match.started &&
+        !this.paused &&
+        !this.boss?.active &&
+        !this.rc.locked &&
+        this.player.hp > 0 &&
+        this.weapons.id === "huntingRifle" &&
+        !this.weapons.pulseTrapSelected &&
+        !this.weapons.carryingBeacon,
+    );
+    this.sniperGlints = new SniperGlints(this.world);
+
     this.cameraTarget.copyFrom(this.player.root.position);
     this.updateCamera(10);
     this.resize();
@@ -782,7 +890,7 @@ export class Game {
       .querySelector("#pause")!
       .addEventListener("click", () => this.setPaused(!this.paused));
     window.addEventListener("keydown", (e) => {
-      if (!this.paused && !this.multiplayer?.room && this.boss?.key(e)) return;
+      if (!this.paused && this.boss?.key(e)) return;
       if (e.code === "KeyE" && this.input.remote) return;
       if (!this.paused && !e.repeat && this.multiplayer?.room) {
         if (e.code === "Space") {
@@ -819,7 +927,8 @@ export class Game {
         if (e.code === "Digit1") this.weapons.switchSlot(1);
         if (e.code === "Digit2") this.weapons.switchSlot(2);
         if (e.code === "Digit3") this.weapons.switchSlot(3);
-        if (e.code === "Digit4" && this.player.useMedkit() && this.sound) this.weaponAudio?.playHealthUp();
+        if (e.code === "Digit4" && this.player.useMedkit() && this.sound)
+          this.weaponAudio?.playHealthUp();
         if (e.code === "KeyQ") this.weapons.activateWarcry();
         if (e.code === "KeyE") this.pickup.chooseRequested = true;
         if (e.code === "KeyR" && !e.repeat) {
@@ -827,7 +936,12 @@ export class Game {
           this.weapons.requestReload();
         }
       }
-      if (e.code === "KeyC" && !e.repeat) {
+      if (
+        e.code === "KeyC" &&
+        !e.repeat &&
+        !this.boss?.active &&
+        !this.input.scoped
+      ) {
         this.setControlScheme(!this.input.aimRelativeMovement);
         this.hud.toast(
           this.input.aimRelativeMovement
@@ -848,6 +962,7 @@ export class Game {
       this.sound = !this.sound;
       if (!this.sound) {
         this.weaponAudio?.releaseMachineGun(false);
+        this.weaponAudio?.updateTurret(false, false);
         this.weaponAudio?.setAlarm(false);
         this.weaponAudio?.setBusterClock(false);
         this.weaponAudio?.updateFootsteps([], this.player.root.position, false);
@@ -896,6 +1011,7 @@ export class Game {
   }
   updateCamera(dt: number) {
     if (this.boss?.camera()) return;
+    if (this.rifleScope?.camera()) return;
     return updateCameraImpl.call(this, dt);
   }
   tick() {
@@ -919,10 +1035,49 @@ export class Game {
       );
     }
     const dt = Math.min(this.engine.getDeltaTime() / 1000, 0.05);
+    if (
+      this.input.scoped &&
+      (this.paused ||
+        this.boss?.active ||
+        this.weapons.id !== "huntingRifle" ||
+        this.player.hp <= 0)
+    )
+      this.rifleScope?.exit();
+    this.sniperGlints?.update(
+      dt,
+      !!this.boss?.active && !this.paused,
+      this.camera.position,
+      this.multiplayer?.room
+        ? [...this.onlinePlayers.entries()]
+            .filter(
+              ([id]) =>
+                this.multiplayer?.snapshot?.players.find((p) => p.id === id)
+                  ?.team !== CONFIG.player.team,
+            )
+            .map(([, p]) => p)
+        : this.testPlayer
+          ? [this.testPlayer]
+          : [],
+    );
     advanceCountdown.call(this, dt);
-    if (!this.multiplayer?.room) {
+    if (this.boss && this.multiplayer?.room) {
+      const net = this.multiplayer;
+      this.boss.online = {
+        send: (action, controls) =>
+          net.room?.send(MSG.lookout, { action, ...controls }),
+      };
+      if (net.snapshot) this.boss.syncOnline(net.snapshot, net.room!.sessionId);
+      this.boss.update(
+        dt,
+        this.paused || !net.snapshot?.started || !!net.snapshot?.winner,
+      );
+    } else if (this.boss) {
+      this.boss.online = undefined;
       if (this.match.winner) this.boss?.exit();
-      this.boss?.syncRound(this.currentRound, this.teamWins[CONFIG.player.team as Team]);
+      this.boss?.syncRound(
+        this.currentRound,
+        this.teamWins[CONFIG.player.team as Team],
+      );
       this.boss?.update(dt, this.paused);
     }
     if (!this.paused) this.updateInjuryEffects(dt);
@@ -968,7 +1123,14 @@ export class Game {
         }
       }
       let command = this.input.command(this.world, this.player.root.position);
-      if (this.boss?.active || this.boss?.selected) command = {...command, moveX: this.boss.active ? 0 : command.moveX, moveZ: this.boss.active ? 0 : command.moveZ, fire: false, pressed: false};
+      if (this.boss?.active || this.boss?.selected)
+        command = {
+          ...command,
+          moveX: this.boss.active ? 0 : command.moveX,
+          moveZ: this.boss.active ? 0 : command.moveZ,
+          fire: false,
+          pressed: false,
+        };
       const rcActors = [
         {
           id: "local",
@@ -1074,7 +1236,43 @@ export class Game {
           this.localLedger.damage.delete("bot");
         }
       }
+      if (this.testPlayer && this.testWeapons && this.boss?.active) {
+        const side = CONFIG.player.team === "RED" ? -1 : 1;
+        const target = lookoutPose(side).station.add(
+          new Vector3(-side * LOOKOUT.eyeOffset, LOOKOUT.eyeHeight, 0),
+        );
+        if (!this.testSniperHome) {
+          this.testSniperHome = {
+            position: this.testPlayer.root.position.clone(),
+            weapon: this.testWeapons.id,
+          };
+          this.testPlayer.root.position.set(target.x - side * 80, 0, target.z);
+          this.testPlayer.hp = 100;
+          this.testPlayer.root.setEnabled(true);
+          this.testWeapons.equip("huntingRifle");
+        }
+        // Hold a fixed standing-height aim: ducking must break the threat, not drag it down.
+        this.testPlayer.update(
+          {
+            moveX: 0,
+            moveZ: 0,
+            aimX: target.x,
+            aimY: target.y,
+            aimZ: target.z,
+            scoped: true,
+            fire: false,
+            pressed: false,
+          },
+          dt,
+        );
+      } else if (this.testSniperHome && this.testPlayer && this.testWeapons) {
+        this.testPlayer.root.position.copyFrom(this.testSniperHome.position);
+        this.testWeapons.equip(this.testSniperHome.weapon);
+        this.testPlayer.scoped = false;
+        this.testSniperHome = undefined;
+      }
       if (
+        !this.boss?.active &&
         this.testPlayer &&
         this.testPlayer.hp > 0 &&
         this.testWeapons &&
@@ -1444,17 +1642,31 @@ export class Game {
     );
   }
   updateInjuryEffects(dt: number) {
-    const players = [this.player, ...this.onlinePlayers.values(), ...(this.testPlayer ? [this.testPlayer] : [])];
+    const players = [
+      this.player,
+      ...this.onlinePlayers.values(),
+      ...(this.testPlayer ? [this.testPlayer] : []),
+    ];
     for (const player of players) {
       // Use acknowledged/replayed movement, not render-only extrapolation, for the local cue.
-      const exhausted = player === this.player && this.multiplayer?.room
-        ? this.predictedExhausted : player.sprintExhausted;
-      if (!exhausted || player.hp <= 0 || !player.root.isEnabled()) this.exhaustionHeard.delete(player);
+      const exhausted =
+        player === this.player && this.multiplayer?.room
+          ? this.predictedExhausted
+          : player.sprintExhausted;
+      if (!exhausted || player.hp <= 0 || !player.root.isEnabled())
+        this.exhaustionHeard.delete(player);
       else if (!this.exhaustionHeard.has(player)) {
         this.exhaustionHeard.add(player);
-        const distance = player === this.player ? 0 : Vector3.Distance(player.root.position, this.player.root.position);
-        if (this.sound) this.weaponAudio?.playExhaustedBreath(distance,
-          (player.root.position.x - this.player.root.position.x) / Math.max(10, distance));
+        const distance =
+          player === this.player
+            ? 0
+            : Vector3.Distance(player.root.position, this.player.root.position);
+        if (this.sound)
+          this.weaponAudio?.playExhaustedBreath(
+            distance,
+            (player.root.position.x - this.player.root.position.x) /
+              Math.max(10, distance),
+          );
       }
       if (!player.injured || !player.root.isEnabled()) {
         player.injuryDrop = player.injuryGrunt = 0;
@@ -1468,9 +1680,17 @@ export class Game {
       }
       if (player.injuryGrunt <= 0) {
         player.injuryGrunt = 3;
-        const distance = player === this.player ? 0 : Vector3.Distance(player.root.position, this.player.root.position);
-        if (this.sound) this.weaponAudio?.playGrunt(String(player.root.uniqueId), distance,
-          (player.root.position.x - this.player.root.position.x) / Math.max(10, distance));
+        const distance =
+          player === this.player
+            ? 0
+            : Vector3.Distance(player.root.position, this.player.root.position);
+        if (this.sound)
+          this.weaponAudio?.playGrunt(
+            String(player.root.uniqueId),
+            distance,
+            (player.root.position.x - this.player.root.position.x) /
+              Math.max(10, distance),
+          );
       }
     }
   }
@@ -1482,13 +1702,25 @@ export class Game {
       get position() {
         return player.root.position.add(new Vector3(0, 1, 0));
       },
+      get blastPosition() {
+        return player.blastPosition;
+      },
       canDamageFrom: () => true,
       damage: (amount: number) => {
         if (player.hp > 0 && player.invulnerable <= 0) {
-          const damage = Math.min(player.hp, Math.max(0, amount - player.shield));
+          const damage = Math.min(
+            player.hp,
+            Math.max(0, amount - player.shield),
+          );
           player.takeDamage(amount);
           if (damage <= 0) {
-            if (this.sound) this.weaponAudio?.playImpact(Vector3.Distance(player.root.position, this.player.root.position));
+            if (this.sound)
+              this.weaponAudio?.playImpact(
+                Vector3.Distance(
+                  player.root.position,
+                  this.player.root.position,
+                ),
+              );
             return;
           }
           const distance = Vector3.Distance(
@@ -1521,7 +1753,12 @@ export class Game {
       mesh.isPickable = true;
     }
   }
-  recordLocalHit(id: string, target: Hittable, damage: number, source?: DeathSource) {
+  recordLocalHit(
+    id: string,
+    target: Hittable,
+    damage: number,
+    source?: DeathSource,
+  ) {
     const victim = [
       ["local", this.player],
       ["bot", this.testPlayer],
@@ -1529,12 +1766,15 @@ export class Game {
     const entry = victim.find(([, player]) =>
       player?.bodyMeshes.some((m) => m.metadata?.damageable === target),
     );
-    if (entry && target.hp <= 0) this.hud.combatDeath({
-      victimName: this.match.members[entry[0] === "local" ? 0 : 1]?.name ?? "Player",
-      killerName: this.match.members[id === "local" ? 0 : 1]?.name,
-      source: source ?? (id === "local" ? this.weapons.id : this.testWeapons?.id),
-      self: entry[0] === id,
-    });
+    if (entry && target.hp <= 0)
+      this.hud.combatDeath({
+        victimName:
+          this.match.members[entry[0] === "local" ? 0 : 1]?.name ?? "Player",
+        killerName: this.match.members[id === "local" ? 0 : 1]?.name,
+        source:
+          source ?? (id === "local" ? this.weapons.id : this.testWeapons?.id),
+        self: entry[0] === id,
+      });
     const material = entry
       ? "player"
       : target instanceof Destructible

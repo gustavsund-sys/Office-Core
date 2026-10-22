@@ -9,6 +9,7 @@ export class WeaponAudio {
     huntingReload: 1,
     magazineReload: 1,
     machineGun: 1,
+    turret: 1,
     bazooka: 1,
     burstGun: 1,
     pulseGun: 1,
@@ -247,6 +248,7 @@ export class WeaponAudio {
         "huntingReload",
         "magazineReload",
         "machineGun",
+        "turret",
         "bazooka",
         "pulseGun",
         "burstGun",
@@ -309,7 +311,8 @@ export class WeaponAudio {
           const decoded = await this.context.decodeAudioData(
             await response.arrayBuffer(),
           );
-          if (name === "machineGun") this.prepareMachineGun(decoded);
+          if (name === "turret") this.prepareTurret(decoded);
+          else if (name === "machineGun") this.prepareMachineGun(decoded);
           else if (
             ["ricochet", "plasmaMine", "bulletImpact", "deathScream"].includes(
               name,
@@ -352,6 +355,77 @@ export class WeaponAudio {
     };
     this.buffers.set("machineGun", slice(last, end));
   }
+  private turretVoice?: { source: AudioBufferSourceNode; gain: GainNode };
+  private turretLoopEnd = 0;
+  private turretShots = 0;
+  private turretLastShot = 0;
+  prepareTurret(recording: AudioBuffer) {
+    const channels = Array.from(
+      { length: recording.numberOfChannels },
+      (_, i) => recording.getChannelData(i),
+    );
+    const { first, last, end } = machineGunRegions(
+      channels,
+      recording.sampleRate,
+    );
+    const slice = (start: number) => {
+      const buffer = this.context.createBuffer(
+        channels.length,
+        Math.max(1, end - start),
+        recording.sampleRate,
+      );
+      channels.forEach((channel, i) =>
+        buffer.getChannelData(i).set(channel.subarray(start)),
+      );
+      return buffer;
+    };
+    this.buffers.set("turret", slice(first));
+    this.buffers.set("turretSingle", slice(last));
+    this.turretLoopEnd = Math.max(0.1, (last - first) / recording.sampleRate);
+  }
+  private startTurret(name: string, loop = false, offset = 0) {
+    const source = this.context.createBufferSource(),
+      gain = this.context.createGain();
+    source.buffer = this.buffers.get(name)!;
+    source.loop = loop;
+    source.loopEnd = this.turretLoopEnd;
+    gain.gain.value = this.levels.turret;
+    source.connect(gain).connect(this.master);
+    source.onended = () => {
+      source.disconnect();
+      gain.disconnect();
+    };
+    source.start(0, offset);
+    return { source, gain };
+  }
+  playTurret() {
+    if (!this.buffers.has("turret")) return;
+    this.turretLastShot = this.context.currentTime;
+    if (this.turretShots++ === 0)
+      this.turretVoice = this.startTurret("turretSingle");
+    else if (this.turretShots === 2) {
+      this.fadeVoice(this.turretVoice);
+      this.turretVoice = this.startTurret("turret", true, 0.1);
+    }
+  }
+  updateTurret(firing: boolean, naturalTail = true) {
+    if (firing || !this.turretShots) return;
+    if (this.turretShots > 1 || !naturalTail) {
+      this.fadeVoice(this.turretVoice);
+      if (naturalTail)
+        this.startTurret(
+          "turretSingle",
+          false,
+          Math.min(
+            0.1,
+            Math.max(0, this.context.currentTime - this.turretLastShot),
+          ),
+        );
+    }
+    this.turretVoice = undefined;
+    this.turretShots = 0;
+  }
+
   private trimLeadingSilence(recording: AudioBuffer) {
     const channels = Array.from(
       { length: recording.numberOfChannels },

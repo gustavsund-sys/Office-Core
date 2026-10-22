@@ -1,6 +1,8 @@
 export const CONFIG = {
   camera: {
-    height: 23,
+    // Keep the orthographic camera above the raised Lookout roof (23.525 m).
+    // Moving along the same viewing axis preserves framing and zoom.
+    height: 32,
     angle: 60,
     distance: 1,
     smoothing: 7,
