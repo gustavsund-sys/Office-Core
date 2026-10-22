@@ -759,6 +759,7 @@ export function tickOnline(this: Context, dt: number) {
   this.updateBeaconPrompt();
   this.updateEngagement(dt);
   this.hud.update(dt, this.cores, this.weapons, this.player);
+  this.boss?.decorateHud();
   net.reportMotion(
     this.engine.getFps(),
     this.pendingInputs.length,
