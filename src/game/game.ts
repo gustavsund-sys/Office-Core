@@ -1,3 +1,5 @@
+import { CombatLighting } from "../effects/combatLighting";
+import { Warzone } from "../effects/warzone";
 import { LookoutEntryFilm } from "./lookoutEntryFilm";
 import { RifleScope, SniperGlints } from "./rifleScope";
 import { BossLookout, lookoutPose, LOOKOUT } from "./bossLookout";
@@ -147,6 +149,7 @@ export class Game {
   scene: Scene;
   camera: FreeCamera;
   world: World;
+  warzone: Warzone;
   player: Player;
   input: Input;
   weapons: Weapons;
@@ -219,7 +222,7 @@ export class Game {
       new Vector3(0, 1, 0),
       this.scene,
     );
-    ambient.intensity = 0.48;
+    ambient.intensity = 0.37;
     ambient.diffuse = Color3.FromHexString("#c6dce9");
     ambient.groundColor = Color3.FromHexString("#756452");
     const sun = new DirectionalLight(
@@ -228,8 +231,8 @@ export class Game {
       this.scene,
     );
     sun.position.set(12, 30, -20);
-    sun.intensity = 1.05;
-    sun.diffuse = Color3.FromHexString("#ffdfb0");
+    sun.intensity = 0.8;
+    sun.diffuse = Color3.FromHexString("#d4dfeb");
     const quality = GRAPHICS[readGraphics() ?? "standard"];
     const shadows = new ShadowGenerator(quality.shadow || 512, sun);
     this.scene.shadowsEnabled = quality.shadow > 0;
@@ -262,6 +265,8 @@ export class Game {
     this.world = new World(this.scene, shadows);
     this.world.explosions.amount = quality.effects;
     this.world.build();
+    this.world.lighting = new CombatLighting(this.world);
+    this.warzone = new Warzone(this.world, quality.effects);
     this.world.explosions.onBurst = (position, power, sound) => {
       const distance = Vector3.Distance(position, this.player.root.position);
       const strength = Math.max(0, 1 - distance / 22) * power;
@@ -675,7 +680,8 @@ export class Game {
     const bossKillTest = document.createElement("button");
     bossKillTest.textContent = "TEST: +1 BOSS KEY KILL";
     bossKillTest.addEventListener("click", () => {
-      if (!this.multiplayer?.room) this.boss?.recordKill(CONFIG.player.team === "RED" ? "BLUE" : "RED");
+      if (!this.multiplayer?.room)
+        this.boss?.recordKill(CONFIG.player.team === "RED" ? "BLUE" : "RED");
     });
     bossTest.after(bossKillTest);
     const bossDoorTest = document.createElement("button");
@@ -834,7 +840,10 @@ export class Game {
           tail && this.sound,
         ),
     );
-    this.boss.onEnter = () => this.lookoutEntryFilm.play(this.sound, () => this.boss?.resumeAfterEntryFilm());
+    this.boss.onEnter = () =>
+      this.lookoutEntryFilm.play(this.sound, () =>
+        this.boss?.resumeAfterEntryFilm(),
+      );
     this.boss.onExit = () => this.lookoutEntryFilm.cancel();
     this.rifleScope = new RifleScope(
       this.player,
@@ -944,7 +953,7 @@ export class Game {
         }
       }
       if (
-        e.code === "KeyC" &&
+        e.code === "KeyK" &&
         !e.repeat &&
         !this.boss?.active &&
         !this.input.scoped
@@ -1076,7 +1085,10 @@ export class Game {
       if (net.snapshot) this.boss.syncOnline(net.snapshot, net.room!.sessionId);
       this.boss.update(
         dt,
-        this.paused || this.lookoutEntryFilm.active || !net.snapshot?.started || !!net.snapshot?.winner,
+        this.paused ||
+          this.lookoutEntryFilm.active ||
+          !net.snapshot?.started ||
+          !!net.snapshot?.winner,
       );
     } else if (this.boss) {
       this.boss.online = undefined;
@@ -1398,6 +1410,8 @@ export class Game {
       this.world.blood.update(dt);
       finishLocalRound.call(this);
     }
+    this.warzone.update(this.paused ? 0 : dt);
+    this.world.lighting?.update(dt);
     const alarmTeam =
       this.intrudedTeam ??
       (this.time < this.breachUntil ? this.breachTeam : undefined);
@@ -1814,7 +1828,8 @@ export class Game {
     if (entry && entry[0] !== id) {
       this.localLedger.hit(id, entry[0], damage, this.time);
       if (target.hp <= 0) {
-        if (id === "local" && entry[0] === "bot") this.boss?.recordKill(this.match.members[1]?.team ?? "BLUE");
+        if (id === "local" && entry[0] === "bot")
+          this.boss?.recordKill(this.match.members[1]?.team ?? "BLUE");
         const base = office01.bases.find(
           (b) =>
             b.team ===

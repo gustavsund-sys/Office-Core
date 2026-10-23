@@ -54,6 +54,7 @@ const fastPlayer = new Set([
   "yaw",
   "gunPitch",
   "scoped",
+  "crouched",
   "reloadDuration",
   "reloadKind",
   "hp",

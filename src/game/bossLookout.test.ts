@@ -266,6 +266,7 @@ test("a missed mesh pick with distance zero still produces a floor tracer and im
     overlay: { classList, querySelector: () => ({ textContent: "" }) },
     prompt: {},
     world: {
+      explosions: { muzzle: () => true },
       scene: {
         pickWithRay: () => ({
           hit: false,

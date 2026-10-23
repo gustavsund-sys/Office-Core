@@ -88,6 +88,7 @@ export class RCSession {
   }
   explosion(owner: string, position: Vector3) {
     rcCarDebris(this.world, position);
+    this.world.explosions.filmedImpact("rc", position);
     if (owner === this.owner) {
       this.watch = { position: position.clone(), remaining: RC.watch };
       this.input.clear();

@@ -204,6 +204,12 @@ props.push(
   { kind: "cabinet", x: 49, z: 13, destructible: true },
   { kind: "copier", x: 41, z: 5.5, destructible: true },
 );
+// Shared physical positions: identical collision in local and multiplayer games.
+export const BURNING_BINS = [
+  { x: -16, z: 9 },
+  { x: 16, z: 9 },
+  { x: 0, z: 44 },
+] as const;
 export const office01 = {
   name: "Office01",
   size,

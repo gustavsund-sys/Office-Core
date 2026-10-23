@@ -99,7 +99,7 @@ export class RifleScope {
       minZ: this.view.minZ,
     };
     const delta = target.subtract(
-      this.player.root.position.add(new Vector3(0, 1.5, 0)),
+      this.player.root.position.add(new Vector3(0, this.player.crouched ? 0.975 : 1.5, 0)),
     );
     this.yaw = Math.atan2(delta.x, delta.z);
     this.pitch = -Math.atan2(delta.y, Math.hypot(delta.x, delta.z));
@@ -129,7 +129,7 @@ export class RifleScope {
     this.view.mode = Camera.PERSPECTIVE_CAMERA;
     this.view.fov = 0.2;
     this.view.minZ = 0.08;
-    this.view.position.copyFrom(this.player.root.position).y += 1.5;
+    this.view.position.copyFrom(this.player.root.position).y += this.player.crouched ? 0.975 : 1.5;
     this.view.rotationQuaternion = null;
     this.view.rotation.set(this.pitch, this.yaw, 0);
     this.player.setViewVisibility(0);

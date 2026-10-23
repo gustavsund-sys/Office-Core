@@ -38,6 +38,7 @@ export interface NetInput {
   aimZ: number;
   aimY?: number;
   scoped?: boolean;
+  crouched?: boolean;
   sprint?: boolean;
   useMedkit?: boolean;
   fire: boolean;
@@ -87,6 +88,7 @@ export interface NetPlayer {
   yaw: number;
   gunPitch?: number;
   scoped?: boolean;
+  crouched?: boolean;
   stamina?: number;
   sprintExhausted?: boolean;
   sprinting?: boolean;
@@ -149,6 +151,8 @@ export interface Snapshot {
   winner?: Team;
 }
 export interface NetEvent {
+  /** Authoritative floor contact for turret VFX cadence. */
+  groundHit?: boolean;
   message?: string;
   blood?: boolean;
   material?: "player" | "metal" | "glass" | "wood";
@@ -212,6 +216,7 @@ export function validInput(value: unknown): value is NetInput {
           "aimZ",
           "aimY",
           "scoped",
+          "crouched",
           "fire",
           "pressed",
           "jump",
@@ -249,6 +254,7 @@ export function validInput(value: unknown): value is NetInput {
     (v.aimY === undefined ||
       (Number.isFinite(v.aimY) && Math.abs(v.aimY) < 200)) &&
     (v.scoped === undefined || typeof v.scoped === "boolean") &&
+    (v.crouched === undefined || typeof v.crouched === "boolean") &&
     [v.fire, v.pressed, v.jump, v.interact].every(
       (x) => typeof x === "boolean",
     ) &&

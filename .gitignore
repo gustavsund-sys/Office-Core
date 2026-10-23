@@ -14,3 +14,6 @@ dist/
 firebase-debug.log*
 server-dist/
 .firebase/
+
+# Licensed fire footage: keep converted assets local; do not publish stock files in Git.
+/public/vfx/fire/

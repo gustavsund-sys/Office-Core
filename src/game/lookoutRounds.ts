@@ -1,3 +1,4 @@
+import { GroundHitCadence } from "../effects/filmedImpacts";
 import {
   Color4,
   Color3,
@@ -38,6 +39,7 @@ interface Round {
   surface: boolean;
   arrive: () => void;
   normal: Vector3;
+  shooter: string;
 }
 export function impactCenterToRef(
   anchor: Vector3,
@@ -66,6 +68,7 @@ interface Impact {
 }
 /** Visual travel and deferred hits; target selection still happens on the firing frame. */
 export class LookoutRounds {
+  private groundHits = new Map<string, GroundHitCadence>();
   private tracerMaterial?: StandardMaterial;
   private right = new Vector3(1, 0, 0);
   private up = Vector3.Up();
@@ -77,6 +80,7 @@ export class LookoutRounds {
   constructor(
     private scene: Scene,
     private visualImpacts = true,
+    private groundImpact: (position: Vector3) => void = () => {},
   ) {}
   get pending() {
     return this.rounds.length;
@@ -87,6 +91,7 @@ export class LookoutRounds {
     surface: boolean,
     arrive: () => void,
     normal = Vector3.Up(),
+    shooter = "local",
   ) {
     const distance = Vector3.Distance(start, end),
       direction = end.subtract(start).normalize();
@@ -116,6 +121,7 @@ export class LookoutRounds {
       surface,
       arrive,
       normal: normal.clone(),
+      shooter,
     };
     this.rounds.push(shot);
     return mesh;
@@ -154,8 +160,17 @@ export class LookoutRounds {
         }
         this.trails.push({ mesh: round.mesh, life: 0.075 });
         round.arrive();
-        if (round.surface && this.visualImpacts)
+        if (round.surface && this.visualImpacts) {
           this.impact(round.end, round.normal);
+          let cadence = this.groundHits.get(round.shooter);
+          if (!cadence)
+            this.groundHits.set(
+              round.shooter,
+              (cadence = new GroundHitCadence()),
+            );
+          if (cadence.hit(round.end, round.normal))
+            this.groundImpact(round.end);
+        }
         continue;
       }
       const head = (round.distance * round.age) / round.duration;
@@ -268,6 +283,7 @@ export class LookoutRounds {
     });
   }
   clear() {
+    this.groundHits.clear();
     for (const round of this.rounds) releaseEffect(round.mesh);
     this.rounds = [];
     for (const trail of this.trails) releaseEffect(trail.mesh);

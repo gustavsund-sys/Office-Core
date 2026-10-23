@@ -1237,6 +1237,7 @@ export class OfficeRoom extends Room {
         yaw: p.player.root.rotation.y,
         gunPitch: p.player.gun.rotation.x,
         scoped: p.player.scoped,
+        crouched: p.player.crouched,
         knockbackX: p.player.knockbackX,
         knockbackZ: p.player.knockbackZ,
         hp: p.player.hp,

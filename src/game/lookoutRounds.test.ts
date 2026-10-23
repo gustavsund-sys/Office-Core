@@ -112,3 +112,70 @@ test("unscoped tracers stay legible at range without making scoped tracers overs
   assert.equal(lookoutTracerWidth(1, 1, 1080), 0.028);
   assert.equal(lookoutTracerWidth(350, 1, 720), 0.12);
 });
+
+test("filmed sparks count every fifth floor contact per shooter, after arrival only", () => {
+  const engine = new NullEngine(),
+    scene = new Scene(engine);
+  let sparks = 0;
+  const rounds = new LookoutRounds(scene, true, () => sparks++);
+  const start = new Vector3(0, 20, 0);
+  for (let i = 0; i < 4; i++)
+    rounds.launch(
+      start,
+      new Vector3(0, 0.06, 10),
+      true,
+      () => {},
+      Vector3.Up(),
+      "a",
+    );
+  rounds.launch(
+    start,
+    new Vector3(0, 2, 10),
+    true,
+    () => {},
+    new Vector3(0, 0, -1),
+    "a",
+  );
+  rounds.launch(
+    start,
+    new Vector3(0, 0.06, 10),
+    false,
+    () => {},
+    Vector3.Up(),
+    "a",
+  );
+  rounds.launch(
+    start,
+    new Vector3(0, 0.06, 10),
+    true,
+    () => {},
+    Vector3.Up(),
+    "b",
+  );
+  rounds.update(0.1);
+  assert.equal(sparks, 0);
+  rounds.launch(
+    start,
+    new Vector3(0, 0.06, 10),
+    true,
+    () => {},
+    Vector3.Up(),
+    "a",
+  );
+  assert.equal(sparks, 0);
+  rounds.update(0.1);
+  assert.equal(sparks, 1);
+  rounds.clear();
+  rounds.launch(
+    start,
+    new Vector3(0, 0.06, 10),
+    true,
+    () => {},
+    Vector3.Up(),
+    "a",
+  );
+  rounds.update(0.1);
+  assert.equal(sparks, 1);
+  scene.dispose();
+  engine.dispose();
+});

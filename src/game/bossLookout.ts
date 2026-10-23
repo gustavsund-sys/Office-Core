@@ -105,7 +105,7 @@ export class BossLookout {
     this.held.position.set(0.3, 1.2, 0.55);
     this.held.scaling.setAll(0.55);
     this.held.setEnabled(false);
-    this.rounds = new LookoutRounds(world.scene);
+    this.rounds = new LookoutRounds(world.scene, true, position => world.explosions.filmedImpact("spark", position));
     this.atmosphere = new LookoutAtmosphere(world.scene);
     for (const side of [-1, 1])
       this.turrets.set(side, buildLookoutRoom(world, side, LOOKOUT.height));
@@ -210,10 +210,6 @@ export class BossLookout {
         if (e.code === "KeyC") this.player.crouched = true;
         return e.code !== "Escape";
       }
-      if (e.code === "Digit5") {
-        this.selected = this.player.bossLookoutKey;
-        return true;
-      }
       if (["Digit1", "Digit2", "Digit3", "Digit4"].includes(e.code))
         this.selected = false;
       if (e.code === "KeyE" && this.player.hp > 0) {
@@ -233,10 +229,6 @@ export class BossLookout {
       if (e.code === "KeyB") this.exit();
       if (e.code === "KeyC") this.player.crouched = true;
       return e.code !== "Escape";
-    }
-    if (e.code === "Digit5") {
-      this.selected = this.player.bossLookoutKey;
-      return true;
     }
     if (["Digit1", "Digit2", "Digit3", "Digit4"].includes(e.code))
       this.selected = false;
@@ -390,8 +382,8 @@ export class BossLookout {
     }
     if (!state && this.active) this.exit();
     if (self.lookoutKey && !this.player.bossLookoutKey) {
-      this.selected = true;
-      this.toast("BOSS LOOKOUT KEY · [5] · E at a Lookout door");
+      this.selected = false;
+      this.toast("BOSS LOOKOUT KEY · E at your team’s Lookout door");
     }
     this.player.bossLookoutKey = !!self.lookoutKey;
     this.player.bossLookoutKills = self.lookoutKills ?? 0;
@@ -409,7 +401,14 @@ export class BossLookout {
   networkShot(event: import("../../shared/protocol").NetEvent, own: boolean) {
     const start = new Vector3(event.x, event.y, event.z);
     const end = new Vector3(event.endX!, event.endY!, event.endZ!);
-    this.rounds?.launch(start, end, true, () => {}, Vector3.Up());
+    this.world.explosions.muzzle(
+      start,
+      false,
+      end.subtract(start),
+      1.587,
+      "turret",
+    );
+    this.rounds?.launch(start, end, true, () => {}, event.groundHit === false ? Vector3.Zero() : Vector3.Up(), event.player ?? "remote");
     if (own) {
       this.recoilKick = Math.min(0.035, this.recoilKick + 0.012);
       this.recoilBack = Math.min(0.065, this.recoilBack + 0.045);
@@ -421,7 +420,7 @@ export class BossLookout {
     const ui = document.querySelector("#ui")!;
     ui.querySelector("#weapon")!.textContent = this.active
       ? "LOOKOUT MACHINE GUN"
-      : "BOSS LOOKOUT KEY [5]";
+      : "BOSS LOOKOUT KEY";
     ui.querySelector("#mode")!.textContent = this.active
       ? "RMB: SCOPE · B: BAIL"
       : "E AT A BOSS LOOKOUT DOOR";
@@ -550,6 +549,13 @@ export class BossLookout {
         // Close cover can sit behind an extended barrel: never draw a backward tracer.
         if (Vector3.Dot(end.subtract(start), ray.direction) <= 0)
           start.copyFrom(ray.origin);
+        this.world.explosions.muzzle(
+          start,
+          false,
+          end.subtract(start),
+          1.587,
+          "turret",
+        );
         const tracer = this.rounds!.launch(
           start,
           end,

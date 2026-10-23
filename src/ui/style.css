@@ -3576,7 +3576,7 @@ footer #weapon-reload { position: absolute; left: 20px; bottom: -3px; width: cal
 
 .rifle-scoped #crosshair { display: none; }
 
-.inventory-slot .boss-key-progress-label { font-size: 7px; letter-spacing: 0; white-space: nowrap; }
+.inventory-slot .boss-key-progress-label { font-size: 9px; font-weight: 700; letter-spacing: 0; white-space: nowrap; }
 
 .inventory-slot.boss-key-received {
   animation: boss-key-received 3s ease-out both;
@@ -3607,3 +3607,55 @@ footer #weapon-reload { position: absolute; left: 20px; bottom: -3px; width: cal
 .lookout-entry-film { position: fixed; inset: 0; z-index: 20000; background: #05090d; display: grid; place-items: center; }
 .lookout-entry-film video { width: 100%; height: 100%; object-fit: contain; }
 .lookout-entry-film button { position: absolute; right: 28px; bottom: 28px; padding: 12px 20px; color: #ffe398; background: #11232ded; border: 1px solid #d1ad5b; font-weight: 800; cursor: pointer; }
+
+/* Menu news is isolated from the fixed gameplay HUD. */
+.open-whats-new { position: fixed; bottom: 8px; right: 140px; z-index: 210; padding: 6px 12px; background: #163744; color: #ffe398; border: 1px solid #a88b4b; border-radius: 4px; cursor: pointer; }
+dialog.whats-new { box-sizing: border-box; width: min(1040px, 94vw); max-height: 92dvh; padding: 0; color: #d8e5eb; background: #0d1b25; border: 1px solid #52636b; border-radius: 16px; box-shadow: 0 28px 100px #000c; overflow: auto; }
+.whats-new::backdrop { background: #030a12ce; backdrop-filter: blur(7px); }
+.whats-new .whats-new-heading { display: flex; justify-content: space-between; gap: 16px; padding: 26px 30px 22px; background: linear-gradient(120deg,#1c3542,#0d1b25); }
+.whats-new-heading span, .news-title small { font-size: 10px; letter-spacing: 2px; color: #e8c77c; }
+.whats-new h1 { margin: 6px 0; font-size: clamp(28px,4vw,48px); line-height: 1; letter-spacing: -1px; color: #fff4d6; }
+.whats-new-heading p { margin: 10px 0 0; font-size: 13px; color: #a4b9c5; }
+.whats-new button { font-family: inherit; cursor: pointer; }
+.whats-new-close { align-self: flex-start; width: 36px; height: 36px; color: #edf5fa; background: #ffffff0a; border: 1px solid #63737e; border-radius: 8px; font-size: 26px; }
+.whats-new-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; padding: 0 24px 24px; }
+.news-feature { min-width: 0; overflow: hidden; border: 1px solid #344c59; border-radius: 10px; background: #132733; }
+.news-art { position: relative; height: 200px; overflow: hidden; background: #142936; }
+.news-art > img { width: 100%; height: 100%; object-fit: cover; }
+.news-tag { position: absolute; left: 12px; bottom: 12px; padding: 7px 10px; background: #081722e8; border-left: 3px solid #e6bd61; color: #ffe6a8; font-size: 9px; font-weight: 800; letter-spacing: 1px; }
+.news-rifle .news-tag { border-color: #8bd6eb; color: #c8f2ff; }
+.news-copy { padding: 18px; }
+.news-title { display: flex; align-items: center; gap: 12px; min-height: 56px; }
+.news-title > img { object-fit: contain; filter: drop-shadow(0 4px 8px #0007); }
+.news-title h2 { margin: 4px 0 0; font-size: 23px; color: #fff0c4; }
+.news-rifle h2 { color: #d5f4ff; }
+.news-title small { font-size: 8px; letter-spacing: 1px; }
+.news-copy p, .news-copy li { font-size: 12px; line-height: 1.65; }
+.news-copy p { color: #b5c9d3; margin: 14px 0; }
+.news-copy strong { color: #f3f5ee; }
+.news-copy ul { margin: 0; padding-left: 17px; }
+.news-copy li + li { margin-top: 8px; }
+.whats-new kbd { display: inline-block; padding: 1px 5px; border: 1px solid #67808d; border-radius: 3px; color: #d9f5ff; background: #081721; font: 10px system-ui; }
+.whats-new .whats-new-footer { position: static; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 26px; width: auto; height: auto; min-height: 0; background: #091720; border: 0; border-top: 1px solid #344a56; border-radius: 0; }
+.whats-new-footer span { font-size: 11px; color: #8da7b6; }
+.whats-new-done { padding: 13px 18px; background: #e8c16b; color: #15232b; border: 0; border-radius: 5px; font-weight: 900; font-size: 11px; }
+.whats-new button:focus-visible { outline: 3px solid #91e3ff; outline-offset: 3px; }
+@media(max-width: 680px) { .whats-new-cards { grid-template-columns: 1fr; padding: 0 14px 14px; } .whats-new .whats-new-heading { padding: 20px; } .news-art { height: 180px; } .whats-new .whats-new-footer { flex-direction: column; align-items: stretch; padding: 16px; } .whats-new-footer span { display: none; } }
+
+/* Passive access reward: fixed fifth position, visually separate from hotkeys. */
+.inventory-slot[data-weapon="bossKey"] {
+  border-color: #b99a52;
+  border-radius: 10px 3px 10px 3px;
+  background: radial-gradient(ellipse at 50% 30%, #6a54213d, transparent 75%), #17272d;
+  box-shadow: inset 0 -2px #b99a5260;
+}
+.inventory-slot[data-weapon="bossKey"].empty { opacity: .8; border-color: #716647; }
+
+.inventory-slot[data-weapon="bossKey"] b { color: #ffe3a0; letter-spacing: .7px; }
+.inventory-slot[data-weapon="bossKey"] .inventory-reload { accent-color: #e7bd63; }
+.inventory-slot[data-weapon="bossKey"] .equipment-icon {
+  width: 100%;
+  margin-left: 0;
+  justify-self: center;
+  object-fit: contain;
+}

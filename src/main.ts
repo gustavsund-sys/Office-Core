@@ -145,6 +145,10 @@ async function start() {
     }
   }
   loading.remove();
+  if (params.get("builder") !== "1") {
+    const { installWhatsNew } = await import("./ui/whatsNew");
+    installWhatsNew(document.querySelector("#overlay")!);
+  }
 }
 void start().catch((error) => {
   document.querySelector(".game-loading")?.remove();

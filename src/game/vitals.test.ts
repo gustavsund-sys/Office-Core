@@ -195,3 +195,26 @@ test("network validation and movement reconciliation retain sprint state", () =>
     s.engine.dispose();
   }
 });
+
+test("crouch lowers the player, slows movement and prevents sprint until released", () => {
+  const s = setup();
+  try {
+    const crouch = { ...command, crouched: true };
+    assert.equal(validInput(crouch), true);
+    assert.equal(validInput({ ...crouch, crouched: "yes" }), false);
+    s.player.simulate(crouch, 0.1);
+    assert.equal(s.player.crouched, true);
+    assert.equal(s.player.root.scaling.y, 0.65);
+    assert.equal(s.player.sprinting, false);
+    assert.equal(s.player.stamina, 4);
+    assert.ok(Math.abs(s.player.root.position.x - CONFIG.player.speed * 0.055) < 1e-7);
+    assert.equal(s.player.jump(), false);
+    s.player.simulate({ ...command, sprint: false, crouched: false }, 0.1);
+    assert.equal(s.player.root.scaling.y, 1);
+    assert.equal(s.player.crouched, false);
+    assert.equal(s.player.jump(), true);
+  } finally {
+    s.scene.dispose();
+    s.engine.dispose();
+  }
+});

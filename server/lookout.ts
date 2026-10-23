@@ -238,6 +238,11 @@ export class ServerLookout {
             )) &&
           !player.bodyMeshes.includes(m as never),
       );
+      let groundHit =
+        !!picked?.hit &&
+        !picked.pickedMesh?.metadata?.damageable &&
+        (picked.getNormal(true)?.y ?? 0) > 0.8 &&
+        (picked.pickedPoint?.y ?? 1) < 0.2;
       let end =
         picked?.hit && picked.pickedPoint
           ? picked.pickedPoint
@@ -247,8 +252,10 @@ export class ServerLookout {
         : undefined;
       if (!picked?.hit && direction.y < -0.0001) {
         const distance = (0.06 - origin.y) / direction.y;
-        if (distance > 0 && distance < LOOKOUT.range)
+        if (distance > 0 && distance < LOOKOUT.range) {
           end = origin.add(direction.scale(distance));
+          groundHit = true;
+        }
       }
       const start = Vector3.TransformCoordinates(
         TURRET_MUZZLE,
@@ -256,6 +263,7 @@ export class ServerLookout {
       );
       this.event({
         kind: "turretTrace",
+        groundHit,
         player: id,
         weapon: "machineGun",
         x: start.x,

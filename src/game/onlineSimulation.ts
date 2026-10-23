@@ -291,7 +291,15 @@ export function tickOnline(this: Context, dt: number) {
     const start = this.player.shotOrigin;
     const direction = this.player.shotDirection(command, start);
     if (this.weapons.id === "huntingRifle") this.player.kickBack(direction);
-    if (!this.world.explosions.muzzle(start, this.weapons.id === "pulseGun")) {
+    if (
+      !this.world.explosions.muzzle(
+        start,
+        this.weapons.id === "pulseGun",
+        direction,
+        this.weapons.id === "huntingRifle" ? 1.75 : 1.3,
+        this.weapons.id,
+      )
+    ) {
       const muzzle = pooledFlash(this.scene, 0.23);
       muzzle.position.copyFrom(start);
       muzzle.material = this.world.mat("#ffe8a1", true);
@@ -356,6 +364,7 @@ export function tickOnline(this: Context, dt: number) {
       ),
       ...this.onlineInput,
       scoped: !!command.scoped,
+      crouched: !this.paused && !this.rc.locked && !!command.crouched,
       aimY:
         command.aimY === undefined
           ? undefined
@@ -488,8 +497,12 @@ export function tickOnline(this: Context, dt: number) {
       player.hp = state.hp;
       player.bossLookoutActive = !!state.lookout;
       if (!own) {
-        player.crouched = !!state.lookout?.crouched;
-        player.root.scaling.y = player.crouched ? 0.48 : 1;
+        player.crouched = state.lookout?.crouched ?? state.crouched ?? false;
+        player.root.scaling.y = player.crouched
+          ? state.lookout
+            ? 0.48
+            : 0.65
+          : 1;
         player.gun.setEnabled(!state.lookout);
       }
       player.shield = state.shield ?? 0;

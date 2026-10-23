@@ -24,7 +24,7 @@ export function showTutorial(): Promise<void> {
     },
     {
       title: "Rör dig. Sikta. Överlev.",
-      text: "WASD eller piltangenterna flyttar spelaren. Sikta med musen och skjut med vänster musknapp (LMB). C växlar mellan klassisk och siktstyrd rörelse.",
+      text: "WASD eller piltangenterna flyttar spelaren. Sikta med musen och skjut med vänster musknapp (LMB). Håll C för att ducka. K växlar mellan klassisk och siktstyrd rörelse.",
       image: "/loadout/machineGun.webp",
       tips: [
         "Space: hoppa · E: plocka upp / desarmera · Esc: paus",

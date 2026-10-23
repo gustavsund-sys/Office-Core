@@ -178,7 +178,11 @@ export class Weapons {
   visuals = true;
   constructor(
     public player: Player,
-    public onHit: (target: Hittable, damage: number, source?: DeathSource) => void,
+    public onHit: (
+      target: Hittable,
+      damage: number,
+      source?: DeathSource,
+    ) => void,
     public onShot: () => void,
     public onShield: () => void = () => {},
     public onImpact: (position: Vector3) => void = () => {},
@@ -380,7 +384,15 @@ export class Weapons {
       );
       tracer.isPickable = false;
       this.effects.push({ mesh: tracer, life: 0.065 });
-      if (!this.player.world.explosions.muzzle(start, this.id === "pulseGun")) {
+      if (
+        !this.player.world.explosions.muzzle(
+          start,
+          this.id === "pulseGun",
+          end.subtract(start),
+          this.id === "huntingRifle" ? 1.75 : 1.3,
+          this.id,
+        )
+      ) {
         const flash = pooledFlash(scene, 0.23);
         flash.position.copyFrom(start);
         flash.material = this.player.world.mat("#ffe8a1", true);
@@ -498,7 +510,8 @@ export class Weapons {
     for (const { victim, damage } of hits) {
       const before = victim.hp;
       victim.damage(damage);
-      if (victim.hp < before) this.onHit(victim, before - victim.hp, "coreBuster");
+      if (victim.hp < before)
+        this.onHit(victim, before - victim.hp, "coreBuster");
     }
   }
   private updateRockets(dt: number) {
@@ -573,7 +586,8 @@ export class Weapons {
                   : WEAPONS.bazooka.damage
                 : Math.max(1, Math.round(90 * (1 - distance / 4))),
             );
-            if (victim.hp < before) this.onHit(victim, before - victim.hp, "bazooka");
+            if (victim.hp < before)
+              this.onHit(victim, before - victim.hp, "bazooka");
           }
           this.onImpact(hit.pickedPoint);
           this.player.world.explosions.burst(

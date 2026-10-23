@@ -33,6 +33,7 @@ export interface PlayerCommand {
   aimY?: number;
   scoped?: boolean;
   sprint?: boolean;
+  crouched?: boolean;
   fire: boolean;
   pressed: boolean;
   facingYaw?: number;
@@ -225,6 +226,7 @@ export class Input {
         aimZ: end.z,
         aimY: end.y,
         scoped: true,
+        crouched: this.keys.has("KeyC"),
         fire: this.down,
         pressed,
       };
@@ -256,6 +258,7 @@ export class Input {
         aimZ: pos.z + Math.cos(this.yaw) * 100,
         facingYaw: this.yaw,
         sprint: this.keys.has("ShiftLeft") || this.keys.has("ShiftRight"),
+        crouched: this.keys.has("KeyC"),
         fire: this.down,
         pressed: this.pressed,
       };
@@ -287,6 +290,7 @@ export class Input {
       aimX: aim.x,
       aimZ: aim.z,
       sprint: this.keys.has("ShiftLeft") || this.keys.has("ShiftRight"),
+        crouched: this.keys.has("KeyC"),
       fire: this.down,
       pressed: this.pressed,
     };
@@ -368,6 +372,8 @@ export class Player {
     return damage;
   }
   resetVitals() {
+    this.crouched = false;
+    this.root.scaling.y = 1;
     this.shield = 0;
     this.medkit = false;
     this.stamina = 4;
@@ -401,7 +407,7 @@ export class Player {
     return this.root.position.y <= 0 && this.verticalVelocity === 0;
   }
   jump() {
-    if (!this.grounded) return false;
+    if (!this.grounded || this.crouched) return false;
     this.verticalVelocity = 5;
     return true;
   }
@@ -900,6 +906,8 @@ export class Player {
       this.verticalVelocity = 0;
       return;
     }
+    this.crouched = !!c.crouched && this.grounded;
+    this.root.scaling.y = this.crouched ? 0.65 : 1;
     const speed = Math.hypot(this.knockbackX, this.knockbackZ);
     if (speed > 0) {
       const elapsed = Math.min(dt, speed / 2);
@@ -926,7 +934,7 @@ export class Player {
     }
     const moving = !!(c.moveX || c.moveZ);
     const sprintTime =
-      c.sprint && moving && this.hp > 20 && !this.sprintExhausted
+      c.sprint && !this.crouched && moving && this.hp > 20 && !this.sprintExhausted
         ? Math.min(dt, this.stamina)
         : 0;
     this.sprinting = sprintTime > 0;
@@ -943,7 +951,7 @@ export class Player {
         this.sprintExhausted = false;
       }
     }
-    const travelTime = this.injured ? dt * 0.6 : dt + sprintTime * 0.5;
+    const travelTime = this.crouched ? dt * 0.55 : this.injured ? dt * 0.6 : dt + sprintTime * 0.5;
     const l = Math.hypot(c.moveX, c.moveZ) || 1;
     move(
       this.root.position,
@@ -964,8 +972,8 @@ export class Player {
     if (this.scoped && c.aimY !== undefined) {
       this.root.rotation.y = bearing;
       this.gun.rotation.x = -Math.atan2(
-        c.aimY - (this.root.position.y + AIM_HEIGHT),
-        Math.max(0.01, range),
+        c.aimY - (this.root.position.y + AIM_HEIGHT * this.root.scaling.y),
+        Math.max(0.01, range) * this.root.scaling.y,
       );
       return;
     }
@@ -998,8 +1006,8 @@ export class Player {
     this.gun.rotation.x =
       distance > 0.001
         ? Math.atan2(
-            this.root.position.y + this.gun.position.y - this.aimTarget.y,
-            distance,
+            this.root.position.y + this.gun.position.y * this.root.scaling.y - this.aimTarget.y,
+            distance * this.root.scaling.y,
           )
         : 0;
   }
@@ -1042,9 +1050,9 @@ export class Player {
       this.groundRing.position.y = 0.06 - this.root.position.y;
     this.showTacticalShield();
     this.legs.forEach((hip, i) => {
-      hip.rotation.x = pose.hips[i].x;
+      hip.rotation.x = pose.hips[i].x - (this.crouched ? 0.55 : 0);
       hip.rotation.z = pose.hips[i].z;
-      this.knees[i].rotation.x = pose.hips[i].knee;
+      this.knees[i].rotation.x = pose.hips[i].knee + (this.crouched ? 1 : 0);
     });
     this.recoil = Math.max(0, this.recoil - dt * 6);
     this.gun.position.z = this.weaponZ - this.recoil * 0.12;

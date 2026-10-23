@@ -94,7 +94,8 @@ export function installMultiplayer(this: Context) {
     net.onSnapshot = (snapshot) => this.applyOnline(snapshot);
     net.onEvent = (event) => {
       if (event.kind === "lookoutNotice") {
-        if (event.player === net.room?.sessionId && event.message) this.hud.toast(event.message);
+        if (event.player === net.room?.sessionId && event.message)
+          this.hud.toast(event.message);
         return;
       }
       if (event.kind === "turretTrace") {
@@ -242,7 +243,15 @@ export function installMultiplayer(this: Context) {
         this.weaponAudio?.playMovement("land");
       if (event.kind === "trace") {
         if (
-          !this.world.explosions.muzzle(position, event.weapon === "pulseGun")
+          !this.world.explosions.muzzle(
+            position,
+            event.weapon === "pulseGun",
+            new Vector3(event.endX!, event.endY!, event.endZ!).subtract(
+              position,
+            ),
+            event.weapon === "huntingRifle" ? 1.75 : 1.3,
+            event.weapon,
+          )
         ) {
           const muzzle = pooledFlash(this.scene, 0.23);
           muzzle.position.copyFrom(position);

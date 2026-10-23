@@ -19,7 +19,8 @@ import {
   TransformNode,
 } from "@babylonjs/core";
 import { OBJECTS } from "../maps/layout";
-import { office01 } from "../maps/office01";
+import type { CombatLighting } from "../effects/combatLighting";
+import { BURNING_BINS, office01 } from "../maps/office01";
 import { Explosions } from "../effects/explosions";
 import { Destructible } from "../core/destructible";
 import { TEAMS, type Team } from "../config/game";
@@ -34,6 +35,7 @@ export class World {
   surfaceTextures = new Map<string, Texture>();
   destructibles: Destructible[] = [];
   explosions: Explosions;
+  lighting?: CombatLighting;
   blood: BloodStains;
   alarmLights = new Map<
     Team,
@@ -500,6 +502,63 @@ export class World {
       this.label(b.team + " SPAWN", b.spawn.x, b.spawn.z, c, 3.5);
     }
     office01.walls.forEach((b) => this.wall(b.x, b.z, b.w, b.d));
+    for (const bin of BURNING_BINS) {
+      const start = this.scene.meshes.length;
+      this.box(
+        "burning steel bin",
+        bin.x,
+        0.55,
+        bin.z,
+        1.05,
+        1.1,
+        1.05,
+        "#273133",
+        true,
+      );
+      this.box(
+        "charred rubbish",
+        bin.x,
+        1.12,
+        bin.z,
+        0.9,
+        0.08,
+        0.9,
+        "#151817",
+      );
+      for (const side of [-1, 1]) {
+        this.box(
+          "bin rim",
+          bin.x + side * 0.53,
+          1.16,
+          bin.z,
+          0.07,
+          0.13,
+          1.17,
+          "#52534a",
+        );
+        this.box(
+          "bin rim",
+          bin.x,
+          1.16,
+          bin.z + side * 0.53,
+          1.17,
+          0.13,
+          0.07,
+          "#52534a",
+        );
+        this.box(
+          "bin reinforcing rib",
+          bin.x + side * 0.54,
+          0.5,
+          bin.z,
+          0.04,
+          0.85,
+          0.12,
+          "#484e49",
+        );
+      }
+      mergeStaticParts(this, this.scene.meshes.slice(start) as Mesh[]);
+    }
     for (const p of office01.props) {
       const meshStart = this.scene.meshes.length;
       const obstacleStart = this.obstacles.length;

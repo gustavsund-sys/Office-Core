@@ -1,3 +1,7 @@
+import { FilmedImpacts, type FilmedImpactKind } from "./filmedImpacts";
+
+import type { MuzzleWeapon } from "./muzzleFlash";
+import { MuzzleFlashes } from "./muzzleFlash";
 import type { ExplosionPack } from "./cc0Comparison";
 import { SpriteExplosions, localSpriteVFX } from "./spriteExplosions";
 import {
@@ -41,6 +45,13 @@ export class Explosions {
   random: () => number = Math.random;
   spriteMode = false;
   private sprites?: SpriteExplosions;
+  private muzzleFlashes?: MuzzleFlashes;
+  private filmedImpacts?: FilmedImpacts;
+  filmedImpact(kind: FilmedImpactKind, position: Vector3) {
+    if (!this.visuals) return;
+    this.filmedImpacts ??= new FilmedImpacts(this.world.scene);
+    this.filmedImpacts.emit(kind, position);
+  }
   setSpriteMode(enabled: boolean) {
     this.update(10);
     this.spriteMode = enabled;
@@ -50,7 +61,19 @@ export class Explosions {
     this.setSpriteMode(true);
     if (this.sprites) this.sprites.preparePack(pack);
   }
-  muzzle(position: Vector3, energy = false) {
+  muzzle(
+    position: Vector3,
+    energy = false,
+    direction?: Vector3,
+    size = 1,
+    weapon?: MuzzleWeapon,
+  ) {
+    if (this.visuals && direction) {
+      this.muzzleFlashes ??= new MuzzleFlashes(this.world.scene);
+      this.muzzleFlashes.emit(position, direction, energy, size, weapon);
+      this.world.lighting?.pulse(position, weapon === "huntingRifle", energy);
+      return true;
+    }
     if (!this.visuals || !this.spriteMode || !this.sprites) return false;
     this.sprites.muzzle(position, energy);
     return true;
@@ -331,6 +354,8 @@ export class Explosions {
   }
   update(dt: number) {
     this.sprites?.update(dt);
+    this.muzzleFlashes?.update(dt);
+    this.filmedImpacts?.update(dt);
     for (const p of this.particles) {
       p.life -= dt;
       if (p.life <= 0) {
