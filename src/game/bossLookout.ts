@@ -1,5 +1,10 @@
 import { CONFIG, type Team } from "../config/game";
-import { earnLookoutKill, exhaustLookout, lookoutTeam } from "./lookoutReward";
+import {
+  earnLookoutKill,
+  exhaustLookout,
+  lookoutTeam,
+  loseLookoutOnDeath,
+} from "./lookoutReward";
 import { LookoutRounds } from "./lookoutRounds";
 import { TURRET_MUZZLE } from "./bossTurretModel";
 import {
@@ -52,7 +57,6 @@ export class BossLookout {
   testFireRemaining = 0;
   active = false;
   selected = false;
-  available = false;
   ammo = LOOKOUT.shots;
   private side = 1;
   private occupied = new Set<number>();
@@ -69,7 +73,6 @@ export class BossLookout {
   private savedFov = 0.8;
   private savedMinZ = 1;
   private rounds?: LookoutRounds;
-  private drops: Mesh[] = [];
   private turrets = new Map<number, LookoutRig>();
   private atmosphere?: LookoutAtmosphere;
   private held: Mesh;
@@ -179,8 +182,6 @@ export class BossLookout {
     this.player.bossLookoutKills = 10;
     this.player.bossLookoutAmmo = LOOKOUT.shots;
     this.ammo = LOOKOUT.shots;
-    this.available = false;
-    this.drops.forEach((k) => k.setEnabled(false));
     this.toast(
       "BOSS KEY UNLOCKED! · 10 enemy kills · Use your team's lift · 100 turret rounds",
     );
@@ -189,7 +190,7 @@ export class BossLookout {
     if (earnLookoutKill(this.player, CONFIG.player.team as Team, victim))
       this.reward();
   }
-  syncRound(round: number, _wins: number) {
+  syncRound(round: number) {
     if (round !== this.lastRound) {
       this.rounds?.clear();
       this.exit();
@@ -198,7 +199,6 @@ export class BossLookout {
         this.player.bossLookoutAmmo = LOOKOUT.shots;
       }
       this.selected = false;
-      this.drops.forEach((k) => k.setEnabled(false));
       this.lastRound = round;
     }
   }
@@ -219,9 +219,6 @@ export class BossLookout {
       if (e.code === "KeyE" && this.player.hp > 0) {
         const pos = this.player.root.position;
         if (
-          this.drops.some(
-            (k) => k.isEnabled() && Vector3.Distance(pos, k.position) < 3,
-          ) ||
           [-1, 1].some(
             (side) => Vector3.Distance(pos, lookoutPose(side).door) < 3.5,
           )
@@ -245,17 +242,6 @@ export class BossLookout {
       this.selected = false;
     if (e.code !== "KeyE" || this.player.hp <= 0) return false;
     const pos = this.player.root.position;
-    const drop = this.drops.find(
-      (k) => k.isEnabled() && Vector3.Distance(pos, k.position) < 3,
-    );
-    if (drop && !this.player.bossLookoutKey) {
-      this.player.bossLookoutKey = true;
-      this.available = false;
-      this.selected = true;
-      this.drops.forEach((k) => k.setEnabled(false));
-      this.toast("BOSS LOOKOUT KEY · [5] · E at a Lookout door");
-      return true;
-    }
     for (const side of [-1, 1])
       if (Vector3.Distance(pos, lookoutPose(side).door) < 3.5) {
         if (lookoutTeam(side) !== CONFIG.player.team)
@@ -314,7 +300,7 @@ export class BossLookout {
     if (!this.active) return;
     this.onExit?.();
     if (!this.online) {
-      this.player.bossLookoutAmmo = this.ammo;
+      this.player.bossLookoutAmmo = this.player.bossLookoutKey ? this.ammo : 0;
       if (this.ammo <= 0) exhaustLookout(this.player);
     }
     this.active = false;
@@ -410,7 +396,6 @@ export class BossLookout {
     this.player.bossLookoutKey = !!self.lookoutKey;
     this.player.bossLookoutKills = self.lookoutKills ?? 0;
     this.player.bossLookoutAmmo = self.lookoutAmmo ?? LOOKOUT.shots;
-    this.drops.forEach((key) => key.setEnabled(false));
     if (state) this.ammo = state.ammo;
     for (const p of snapshot.players)
       if (p.lookout && p.id !== id) {
@@ -445,6 +430,12 @@ export class BossLookout {
       : "1 KEY";
   }
   update(dt: number, paused: boolean) {
+    if (!this.player.bossLookoutKey) this.selected = false;
+    if (!this.online && loseLookoutOnDeath(this.player, this.player.hp)) {
+      this.selected = false;
+      this.ammo = 0;
+      this.toast("Boss Key lost on death · Get 10 enemy kills for a new key");
+    }
     if (this.active && this.player.hp <= 0) this.exit();
     this.player.bossLookoutSelected =
       this.selected && this.player.bossLookoutKey;
@@ -452,7 +443,6 @@ export class BossLookout {
     this.player.gun.setEnabled(
       !this.player.bossLookoutSelected && !this.active,
     );
-    for (const drop of this.drops) if (drop.isEnabled()) drop.rotation.y += dt;
     document.body.classList.toggle("boss-lookout-active", this.active);
     for (const [side, turret] of this.turrets)
       turret.gun.setEnabled(!this.active || side !== this.side || !this.scope);
@@ -590,15 +580,6 @@ export class BossLookout {
     }
     if (this.player.hp <= 0) return;
     if (
-      this.drops.some(
-        (k) =>
-          k.isEnabled() &&
-          Vector3.Distance(k.position, this.player.root.position) < 3,
-      )
-    ) {
-      this.prompt.hidden = false;
-      this.prompt.textContent = "E · PICK UP BOSS LOOKOUT KEY";
-    } else if (
       [-1, 1].some(
         (s) =>
           Vector3.Distance(lookoutPose(s).door, this.player.root.position) <

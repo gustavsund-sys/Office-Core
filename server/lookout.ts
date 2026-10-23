@@ -2,6 +2,7 @@ import {
   earnLookoutKill,
   exhaustLookout,
   lookoutTeam,
+  loseLookoutOnDeath,
 } from "../src/game/lookoutReward";
 import { Ray, Vector3 } from "@babylonjs/core";
 import type { World } from "../src/map/builder";
@@ -42,10 +43,11 @@ export class ServerLookout {
       ]),
     );
   }
-  reset(actors: Map<string, LookoutActor>, reward?: Team) {
+  reset(actors: Map<string, LookoutActor>, preserveProgress = false) {
     for (const [id, actor] of actors) {
+      loseLookoutOnDeath(actor.player, actor.player.hp);
       this.exit(id, actor);
-      if (!reward) {
+      if (!preserveProgress) {
         actor.player.bossLookoutKey = false;
         actor.player.bossLookoutKills = 0;
         actor.player.bossLookoutAmmo = 100;
@@ -57,7 +59,7 @@ export class ServerLookout {
   exit(id: string, actor: LookoutActor) {
     const pilot = this.pilots.get(id);
     if (!pilot) return;
-    actor.player.bossLookoutAmmo = pilot.ammo;
+    actor.player.bossLookoutAmmo = actor.player.bossLookoutKey ? pilot.ammo : 0;
     if (pilot.ammo <= 0) exhaustLookout(actor.player);
     this.pilots.delete(id);
     actor.player.bossLookoutActive = false;
@@ -160,6 +162,8 @@ export class ServerLookout {
   }
   update(dt: number, actors: Map<string, LookoutActor>) {
     this.clock += dt;
+    for (const actor of actors.values())
+      loseLookoutOnDeath(actor.player, actor.player.hp);
     for (let i = this.impacts.length - 1; i >= 0; i--) {
       const hit = this.impacts[i];
       hit.remaining -= dt;

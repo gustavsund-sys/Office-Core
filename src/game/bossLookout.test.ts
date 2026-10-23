@@ -16,7 +16,7 @@ test("Core victories no longer grant keys; enemy kills unlock them immediately",
     exit: () => {},
     toast: () => notices++,
   }) as BossLookout;
-  boss.syncRound(2, 1);
+  boss.syncRound(2);
   assert.equal(boss.player.bossLookoutKey, false);
   for (let i = 0; i < 9; i++) boss.recordKill("BLUE");
   boss.recordKill("RED");
@@ -27,7 +27,7 @@ test("Core victories no longer grant keys; enemy kills unlock them immediately",
   assert.equal(notices, 1);
   boss.recordKill("BLUE");
   assert.equal(notices, 1);
-  boss.syncRound(3, 2);
+  boss.syncRound(3);
   assert.equal(boss.player.bossLookoutKey, true);
 });
 

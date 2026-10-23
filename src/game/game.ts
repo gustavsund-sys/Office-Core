@@ -1081,10 +1081,7 @@ export class Game {
     } else if (this.boss) {
       this.boss.online = undefined;
       if (this.match.winner) this.boss?.exit();
-      this.boss?.syncRound(
-        this.currentRound,
-        this.teamWins[CONFIG.player.team as Team],
-      );
+      this.boss?.syncRound(this.currentRound);
       this.boss?.update(dt, this.paused || this.lookoutEntryFilm.active);
     }
     if (!this.paused) this.updateInjuryEffects(dt);

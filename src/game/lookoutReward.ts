@@ -22,6 +22,11 @@ export function exhaustLookout(state: LookoutRewardState) {
   state.bossLookoutKills = 0;
   state.bossLookoutAmmo = 0;
 }
+export function loseLookoutOnDeath(state: LookoutRewardState, hp: number) {
+  if (hp > 0 || !state.bossLookoutKey) return false;
+  exhaustLookout(state);
+  return true;
+}
 export function lookoutTeam(side: number): Team {
   return side < 0 ? "RED" : "BLUE";
 }

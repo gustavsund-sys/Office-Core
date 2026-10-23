@@ -1377,7 +1377,7 @@ export class OfficeRoom extends Room {
     if (!this.countdownUntil) this.countdownUntil = this.time + 3;
   }
   completeNextRound() {
-    this.lookout.reset(this.participants, this.winner);
+    this.lookout.reset(this.participants, true);
     this.ledger.resetRound();
     resetRound(
       this.world,

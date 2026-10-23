@@ -1,3 +1,4 @@
+import { loseLookoutOnDeath } from "../game/lookoutReward";
 import { tacticalShieldModel } from "./tacticalShield";
 import { motionPose } from "./locomotion";
 import {
@@ -363,6 +364,7 @@ export class Player {
     this.shield -= absorbed;
     const damage = Math.min(this.hp, Math.max(0, amount - absorbed));
     this.hp -= damage;
+    loseLookoutOnDeath(this, this.hp);
     return damage;
   }
   resetVitals() {

@@ -61,7 +61,7 @@ function setup() {
 test("online Lookout requires earned nearby key, atomically claims a turret and releases it", () => {
   const s = setup();
   try {
-    s.system.reset(s.actors, "RED");
+    s.system.reset(s.actors, true);
     s.system.command("a", s.actor, { action: "interact" }, false);
     assert.equal(s.actor.player.bossLookoutKey, false);
     for (let i = 0; i < 9; i++) s.system.recordKill("a", s.actor, "BLUE");
@@ -119,7 +119,7 @@ test("personal turret ammo survives bail, other pilots have their own ammo, and 
     for (let i = 0; i < 10; i++) s.system.recordKill("a", s.actor, "BLUE");
     assert.equal(s.actor.player.bossLookoutKey, true);
     assert.equal(s.actor.player.bossLookoutAmmo, 100);
-    s.system.reset(s.actors, "RED");
+    s.system.reset(s.actors, true);
     assert.equal(
       s.actor.player.bossLookoutKey,
       true,
@@ -130,6 +130,40 @@ test("personal turret ammo survives bail, other pilots have their own ammo, and 
       s.actor.player.bossLookoutKills,
       0,
       "new match resets progress",
+    );
+  } finally {
+    s.engine.dispose();
+  }
+});
+test("death destroys an earned key both in the tower and while carrying it outside", () => {
+  const s = setup();
+  try {
+    for (let i = 0; i < 10; i++) s.system.recordKill("a", s.actor, "BLUE");
+    s.actor.player.hp = 0;
+    s.system.update(0.01, s.actors);
+    assert.equal(s.actor.player.bossLookoutKey, false);
+    assert.equal(s.actor.player.bossLookoutKills, 0);
+    assert.equal(s.actor.player.bossLookoutAmmo, 0);
+    s.actor.player.hp = 100;
+    for (let i = 0; i < 10; i++) s.system.recordKill("a", s.actor, "BLUE");
+    s.enter();
+    s.system.pilots.get("a")!.ammo = 42;
+    s.actor.player.hp = 0;
+    s.system.update(0.01, s.actors);
+    assert.equal(s.system.snapshot("a"), undefined);
+    assert.equal(s.actor.player.bossLookoutKey, false);
+    assert.equal(
+      s.actor.player.bossLookoutAmmo,
+      0,
+      "exit cannot restore ammunition after death",
+    );
+    assert.equal(s.actor.player.bossLookoutKills, 0);
+    s.actor.player.hp = 100;
+    s.system.command("a", s.actor, { action: "interact" }, false);
+    assert.equal(
+      s.system.snapshot("a"),
+      undefined,
+      "respawn cannot reuse the lost key",
     );
   } finally {
     s.engine.dispose();

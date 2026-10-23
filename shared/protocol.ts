@@ -102,7 +102,6 @@ export interface NetPlayer {
   reload: number;
 }
 export interface Snapshot {
-  lookoutKeys?: string[];
   rcCars?: import("../src/game/rcCar").RCCarState[];
   seq?: number;
   serverTime?: number;
