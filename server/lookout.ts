@@ -1,3 +1,8 @@
+import {
+  earnLookoutKill,
+  exhaustLookout,
+  lookoutTeam,
+} from "../src/game/lookoutReward";
 import { Ray, Vector3 } from "@babylonjs/core";
 import type { World } from "../src/map/builder";
 import type { Player } from "../src/player/player";
@@ -8,7 +13,6 @@ import type { NetLookout, NetEvent } from "../shared/protocol";
 import { LOOKOUT, lookoutPose } from "../src/game/lookoutConfig";
 import { buildLookoutRoom } from "../src/game/bossLookoutRoom";
 import { TURRET_MUZZLE } from "../src/game/bossTurretModel";
-import { office01 } from "../src/maps/office01";
 export interface LookoutActor {
   player: Player;
   weapons: Weapons;
@@ -18,7 +22,6 @@ export interface LookoutActor {
 type Pilot = NetLookout & { fire: boolean; cooldown: number; received: number };
 /** Server owns rewards, occupancy, aim limits, ammunition and all damage. */
 export class ServerLookout {
-  keys = new Set<Team>();
   pilots = new Map<string, Pilot>();
   private rigs;
   private clock = 0;
@@ -42,16 +45,20 @@ export class ServerLookout {
   reset(actors: Map<string, LookoutActor>, reward?: Team) {
     for (const [id, actor] of actors) {
       this.exit(id, actor);
-      actor.player.bossLookoutKey = false;
+      if (!reward) {
+        actor.player.bossLookoutKey = false;
+        actor.player.bossLookoutKills = 0;
+        actor.player.bossLookoutAmmo = 100;
+      }
     }
     this.pilots.clear();
     this.impacts = [];
-    this.keys.clear();
-    if (reward) this.keys.add(reward);
   }
   exit(id: string, actor: LookoutActor) {
     const pilot = this.pilots.get(id);
     if (!pilot) return;
+    actor.player.bossLookoutAmmo = pilot.ammo;
+    if (pilot.ammo <= 0) exhaustLookout(actor.player);
     this.pilots.delete(id);
     actor.player.bossLookoutActive = false;
     actor.player.crouched = false;
@@ -98,30 +105,15 @@ export class ServerLookout {
     }
     if (value.action !== "interact" || pilot) return;
     const player = actor.player;
-    if (!player.bossLookoutKey && this.keys.has(actor.team)) {
-      const zone = office01.weaponEnds.find(
-        (zone) => (zone.x < 0 ? "RED" : "BLUE") === actor.team,
-      );
-      if (
-        zone &&
-        Vector3.Distance(
-          player.root.position,
-          new Vector3(zone.x, 1.6, zone.z - 5),
-        ) < 3
-      ) {
-        this.keys.delete(actor.team);
-        player.bossLookoutKey = true;
-        return;
-      }
-    }
-    if (!player.bossLookoutKey) return;
     for (const side of [-1, 1]) {
-      if (
-        Vector3.Distance(player.root.position, lookoutPose(side).door) >= 3.5 ||
-        [...this.pilots.values()].some((p) => p.side === side)
-      )
+      if (Vector3.Distance(player.root.position, lookoutPose(side).door) >= 3.5)
         continue;
-      player.bossLookoutKey = false;
+      if (lookoutTeam(side) !== actor.team)
+        return "This Boss Lookout belongs to the other team. Use your own team's lift.";
+      if ([...this.pilots.values()].some((p) => p.side === side))
+        return "Boss Lookout is occupied. Wait for your teammate to leave.";
+      if (!player.bossLookoutKey)
+        return "Boss Key required · Get 10 enemy kills to unlock.";
       player.bossLookoutActive = true;
       player.verticalVelocity = 0;
       player.root.position.copyFrom(
@@ -131,7 +123,7 @@ export class ServerLookout {
       );
       this.pilots.set(id, {
         side,
-        ammo: LOOKOUT.shots,
+        ammo: player.bossLookoutAmmo ?? LOOKOUT.shots,
         yaw: lookoutPose(side).yaw,
         pitch: 0.24,
         crouched: false,
@@ -141,6 +133,18 @@ export class ServerLookout {
       });
       return;
     }
+  }
+  recordKill(id: string, actor: LookoutActor, victim: Team) {
+    if (earnLookoutKill(actor.player, actor.team, victim))
+      this.event({
+        kind: "lookoutNotice",
+        player: id,
+        x: 0,
+        y: 0,
+        z: 0,
+        message:
+          "BOSS KEY UNLOCKED! · 10 enemy kills · Use your team's lift · 100 turret rounds",
+      });
   }
   snapshot(id: string): NetLookout | undefined {
     const p = this.pilots.get(id);
@@ -178,6 +182,16 @@ export class ServerLookout {
         continue;
       }
       if (!actor.connected || actor.player.hp <= 0 || p.ammo <= 0) {
+        if (p.ammo <= 0)
+          this.event({
+            kind: "lookoutNotice",
+            player: id,
+            x: 0,
+            y: 0,
+            z: 0,
+            message:
+              "Turret empty · Boss Key expired · Get 10 enemy kills for a new key",
+          });
         this.exit(id, actor);
         continue;
       }

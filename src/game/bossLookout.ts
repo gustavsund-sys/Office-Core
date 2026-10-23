@@ -1,3 +1,5 @@
+import { CONFIG, type Team } from "../config/game";
+import { earnLookoutKill, exhaustLookout, lookoutTeam } from "./lookoutReward";
 import { LookoutRounds } from "./lookoutRounds";
 import { TURRET_MUZZLE } from "./bossTurretModel";
 import {
@@ -43,6 +45,8 @@ export function keyModel(world: World) {
 }
 /** Presentation shared by local playtests and server-authoritative matches. */
 export class BossLookout {
+  onEnter?: () => boolean;
+  onExit?: () => void;
   online?: { send: (action: string, controls?: object) => void };
   private networkClock = 0;
   testFireRemaining = 0;
@@ -51,8 +55,7 @@ export class BossLookout {
   available = false;
   ammo = LOOKOUT.shots;
   private side = 1;
-  private pending = false;
-  private lastWins = 0;
+  private occupied = new Set<number>();
   private lastRound = 1;
   private yaw = 0;
   private pitch = 0.24;
@@ -104,12 +107,6 @@ export class BossLookout {
     for (const side of [-1, 1])
       this.turrets.set(side, buildLookoutRoom(world, side, LOOKOUT.height));
     this.viewGun = this.turrets.get(-1)!.gun;
-    for (const zone of office01.weaponEnds) {
-      const key = keyModel(world);
-      key.position.set(zone.x, 1.6, zone.z - 5);
-      key.setEnabled(false);
-      this.drops.push(key);
-    }
     window.addEventListener("pointermove", (e) => {
       if (!this.active || this.paused()) return;
       const center = lookoutPose(this.side).yaw;
@@ -178,24 +175,30 @@ export class BossLookout {
       ?.catch(() => {});
   }
   reward() {
-    this.available = true;
-    this.drops.forEach((k) => k.setEnabled(true));
-    this.toast("Boss Lookout available · Collect a key in Weapon Drop");
+    this.player.bossLookoutKey = true;
+    this.player.bossLookoutKills = 10;
+    this.player.bossLookoutAmmo = LOOKOUT.shots;
+    this.ammo = LOOKOUT.shots;
+    this.available = false;
+    this.drops.forEach((k) => k.setEnabled(false));
+    this.toast(
+      "BOSS KEY UNLOCKED! · 10 enemy kills · Use your team's lift · 100 turret rounds",
+    );
   }
-  syncRound(round: number, wins: number) {
-    if (wins > this.lastWins) this.pending = true;
-    this.lastWins = wins;
+  recordKill(victim: Team) {
+    if (earnLookoutKill(this.player, CONFIG.player.team as Team, victim))
+      this.reward();
+  }
+  syncRound(round: number, _wins: number) {
     if (round !== this.lastRound) {
       this.rounds?.clear();
       this.exit();
-      this.player.bossLookoutKey = false;
-      this.selected = false;
-      this.available = false;
-      this.drops.forEach((k) => k.setEnabled(false));
-      if (this.pending) {
-        this.reward();
-        this.pending = false;
+      if (round < this.lastRound) {
+        exhaustLookout(this.player);
+        this.player.bossLookoutAmmo = LOOKOUT.shots;
       }
+      this.selected = false;
+      this.drops.forEach((k) => k.setEnabled(false));
       this.lastRound = round;
     }
   }
@@ -255,7 +258,11 @@ export class BossLookout {
     }
     for (const side of [-1, 1])
       if (Vector3.Distance(pos, lookoutPose(side).door) < 3.5) {
-        if (this.player.bossLookoutKey) this.enter(side);
+        if (lookoutTeam(side) !== CONFIG.player.team)
+          this.toast(
+            "This Boss Lookout belongs to the other team. Use your own team’s lift.",
+          );
+        else if (this.player.bossLookoutKey) this.enter(side);
         else this.toast("Boss Lookout requires a key");
         return true;
       }
@@ -264,12 +271,17 @@ export class BossLookout {
   enter(side: number) {
     if (!this.player.bossLookoutKey || this.active || this.player.hp <= 0)
       return;
-    this.player.bossLookoutKey = false;
+    if (!this.online && lookoutTeam(side) !== CONFIG.player.team) {
+      this.toast(
+        "This Boss Lookout belongs to the other team. Use your own team’s lift.",
+      );
+      return;
+    }
     this.selected = false;
     this.side = side;
     this.active = true;
     this.player.bossLookoutActive = true;
-    this.ammo = LOOKOUT.shots;
+    this.ammo = this.player.bossLookoutAmmo ?? LOOKOUT.shots;
     this.cooldown = 0;
     this.fire = false;
     this.scope = false;
@@ -291,10 +303,20 @@ export class BossLookout {
     );
     this.player.verticalVelocity = 0;
     this.input.clear();
+    if (!this.onEnter?.()) this.lockMouse();
+  }
+  resumeAfterEntryFilm() {
+    if (!this.active) return;
+    this.input.clear();
     this.lockMouse();
   }
   exit() {
     if (!this.active) return;
+    this.onExit?.();
+    if (!this.online) {
+      this.player.bossLookoutAmmo = this.ammo;
+      if (this.ammo <= 0) exhaustLookout(this.player);
+    }
     this.active = false;
     this.recoilKick = 0;
     this.recoilBack = 0;
@@ -370,6 +392,11 @@ export class BossLookout {
       this.exit();
       return;
     }
+    this.occupied = new Set(
+      snapshot.players
+        .filter((p) => p.lookout && p.id !== id)
+        .map((p) => p.lookout!.side),
+    );
     const state = self.lookout;
     if (state && !this.active) {
       this.player.bossLookoutKey = true;
@@ -381,13 +408,9 @@ export class BossLookout {
       this.toast("BOSS LOOKOUT KEY · [5] · E at a Lookout door");
     }
     this.player.bossLookoutKey = !!self.lookoutKey;
-    this.drops.forEach((key, i) =>
-      key.setEnabled(
-        (snapshot.lookoutKeys ?? []).includes(
-          office01.weaponEnds[i].x < 0 ? "RED" : "BLUE",
-        ),
-      ),
-    );
+    this.player.bossLookoutKills = self.lookoutKills ?? 0;
+    this.player.bossLookoutAmmo = self.lookoutAmmo ?? LOOKOUT.shots;
+    this.drops.forEach((key) => key.setEnabled(false));
     if (state) this.ammo = state.ammo;
     for (const p of snapshot.players)
       if (p.lookout && p.id !== id) {
@@ -558,7 +581,9 @@ export class BossLookout {
 
         if (this.ammo <= 0) {
           this.exit();
-          this.toast("Boss Lookout empty · returned to door");
+          this.toast(
+            "Turret empty · Boss Key expired · Get 10 enemy kills for a new key",
+          );
         }
       }
       return;
@@ -581,9 +606,19 @@ export class BossLookout {
       )
     ) {
       this.prompt.hidden = false;
-      this.prompt.textContent = this.player.bossLookoutKey
-        ? "E · ENTER BOSS LOOKOUT"
-        : "BOSS LOOKOUT · KEY REQUIRED";
+      const nearby = [-1, 1].find(
+        (side) =>
+          Vector3.Distance(lookoutPose(side).door, this.player.root.position) <
+          3.5,
+      )!;
+      this.prompt.textContent =
+        lookoutTeam(nearby) !== CONFIG.player.team
+          ? "ENEMY BOSS LOOKOUT · USE YOUR TEAM’S LIFT"
+          : this.occupied?.has(nearby)
+            ? "BOSS LOOKOUT OCCUPIED · WAIT FOR YOUR TEAMMATE"
+            : this.player.bossLookoutKey
+              ? "E · ENTER BOSS LOOKOUT"
+              : "BOSS KEY · 10 ENEMY KILLS REQUIRED";
     }
   }
 }

@@ -37,6 +37,8 @@ function setup() {
         gun: new Mesh("gun", scene),
         hp: 100,
         bossLookoutKey: false,
+        bossLookoutKills: 0,
+        bossLookoutAmmo: 100,
         bossLookoutActive: false,
         bodyMeshes: [],
         verticalVelocity: 0,
@@ -62,23 +64,73 @@ test("online Lookout requires earned nearby key, atomically claims a turret and 
     s.system.reset(s.actors, "RED");
     s.system.command("a", s.actor, { action: "interact" }, false);
     assert.equal(s.actor.player.bossLookoutKey, false);
-    const zone = office01.weaponEnds.find((z) => z.x < 0)!;
-    s.actor.player.root.position.set(zone.x, 1.6, zone.z - 5);
-    s.system.command("a", s.actor, { action: "interact" }, false);
+    for (let i = 0; i < 9; i++) s.system.recordKill("a", s.actor, "BLUE");
+    s.system.recordKill("a", s.actor, "RED");
+    assert.equal(s.actor.player.bossLookoutKills, 9);
+    assert.equal(s.actor.player.bossLookoutKey, false);
+    s.system.recordKill("a", s.actor, "BLUE");
     assert.equal(s.actor.player.bossLookoutKey, true);
-    assert.equal(s.system.keys.size, 0);
+    assert.equal(s.events.filter((e) => e.kind === "lookoutNotice").length, 1);
     s.actor.player.root.position.copyFrom(lookoutPose(-1).door);
     s.system.command("a", s.actor, { action: "interact" }, false);
     assert.equal(s.system.snapshot("a")?.ammo, 100);
     s.other.player.bossLookoutKey = true;
     s.other.player.root.position.copyFrom(lookoutPose(-1).door);
-    s.system.command("b", s.other, { action: "interact" }, false);
+    assert.match(
+      s.system.command("b", s.other, { action: "interact" }, false)!,
+      /occupied/,
+    );
     assert.equal(s.system.snapshot("b"), undefined);
     s.system.command("a", s.actor, { action: "exit" }, false);
     assert.equal(s.actor.player.bossLookoutActive, false);
     assert.equal(s.actor.player.root.position.y, 0);
     s.system.command("b", s.other, { action: "interact" }, false);
     assert.ok(s.system.snapshot("b"));
+  } finally {
+    s.engine.dispose();
+  }
+});
+test("personal turret ammo survives bail, other pilots have their own ammo, and depletion requires ten new kills", () => {
+  const s = setup();
+  try {
+    s.enter();
+    s.system.pilots.get("a")!.ammo = 37;
+    s.system.exit("a", s.actor);
+    assert.equal(s.actor.player.bossLookoutKey, true);
+    s.other.player.bossLookoutKey = true;
+    s.other.player.root.position.copyFrom(lookoutPose(-1).door);
+    s.system.command("b", s.other, { action: "interact" }, false);
+    assert.equal(s.system.snapshot("b")?.ammo, 100);
+    s.system.exit("b", s.other);
+    s.actor.player.root.position.copyFrom(lookoutPose(1).door);
+    assert.match(
+      s.system.command("a", s.actor, { action: "interact" }, false)!,
+      /other team/,
+    );
+    assert.equal(s.system.snapshot("a"), undefined);
+    s.actor.player.root.position.copyFrom(lookoutPose(-1).door);
+    s.system.command("a", s.actor, { action: "interact" }, false);
+    assert.equal(s.system.snapshot("a")?.ammo, 37);
+    s.system.pilots.get("a")!.ammo = 0;
+    s.system.update(0.01, s.actors);
+    assert.equal(s.actor.player.bossLookoutKey, false);
+    assert.equal(s.actor.player.bossLookoutKills, 0);
+    assert.equal(s.system.snapshot("a"), undefined);
+    for (let i = 0; i < 10; i++) s.system.recordKill("a", s.actor, "BLUE");
+    assert.equal(s.actor.player.bossLookoutKey, true);
+    assert.equal(s.actor.player.bossLookoutAmmo, 100);
+    s.system.reset(s.actors, "RED");
+    assert.equal(
+      s.actor.player.bossLookoutKey,
+      true,
+      "round transitions preserve personal reward",
+    );
+    s.system.reset(s.actors);
+    assert.equal(
+      s.actor.player.bossLookoutKills,
+      0,
+      "new match resets progress",
+    );
   } finally {
     s.engine.dispose();
   }

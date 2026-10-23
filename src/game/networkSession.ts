@@ -93,6 +93,10 @@ export function installMultiplayer(this: Context) {
     };
     net.onSnapshot = (snapshot) => this.applyOnline(snapshot);
     net.onEvent = (event) => {
+      if (event.kind === "lookoutNotice") {
+        if (event.player === net.room?.sessionId && event.message) this.hud.toast(event.message);
+        return;
+      }
       if (event.kind === "turretTrace") {
         this.boss?.networkShot(event, event.player === net.room?.sessionId);
         if (this.sound && event.player !== net.room?.sessionId)

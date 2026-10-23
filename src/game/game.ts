@@ -1,3 +1,4 @@
+import { LookoutEntryFilm } from "./lookoutEntryFilm";
 import { RifleScope, SniperGlints } from "./rifleScope";
 import { BossLookout, lookoutPose, LOOKOUT } from "./bossLookout";
 import type { DeathSource } from "../ui/combatFeed";
@@ -86,6 +87,7 @@ import { MSG, type Snapshot, type NetInput } from "../../shared/protocol";
 export class Game {
   rc!: RCSession;
   boss?: BossLookout;
+  private lookoutEntryFilm = new LookoutEntryFilm();
   rifleScope?: RifleScope;
   sniperGlints?: SniperGlints;
   loadout!: LoadoutUI;
@@ -668,14 +670,14 @@ export class Game {
     bossTest.addEventListener("click", () => {
       if (!this.boss || this.multiplayer?.room) return;
       this.boss.reward();
-      this.player.root.position.set(
-        office01.weaponEnds[0].x,
-        0,
-        office01.weaponEnds[0].z - 5,
-      );
-      this.cameraTarget.copyFrom(this.player.root.position);
     });
     panel.querySelector("#test-low-hp")!.before(bossTest);
+    const bossKillTest = document.createElement("button");
+    bossKillTest.textContent = "TEST: +1 BOSS KEY KILL";
+    bossKillTest.addEventListener("click", () => {
+      if (!this.multiplayer?.room) this.boss?.recordKill(CONFIG.player.team === "RED" ? "BLUE" : "RED");
+    });
+    bossTest.after(bossKillTest);
     const bossDoorTest = document.createElement("button");
     bossDoorTest.textContent = "TEST: LOOKOUT DOOR";
     bossDoorTest.addEventListener("click", () => {
@@ -811,6 +813,9 @@ export class Game {
     this.rc.system.onHit = (owner, target, damage) =>
       this.recordLocalHit(owner, target, damage, "car");
     this.debug = new Debug(this.world, this.player);
+    this.hud.onBossKeyReceived = () => {
+      if (this.sound) this.weaponAudio?.playBossKey();
+    };
     this.boss = new BossLookout(
       this.world,
       this.player,
@@ -829,6 +834,8 @@ export class Game {
           tail && this.sound,
         ),
     );
+    this.boss.onEnter = () => this.lookoutEntryFilm.play(this.sound, () => this.boss?.resumeAfterEntryFilm());
+    this.boss.onExit = () => this.lookoutEntryFilm.cancel();
     this.rifleScope = new RifleScope(
       this.player,
       this.input,
@@ -1069,7 +1076,7 @@ export class Game {
       if (net.snapshot) this.boss.syncOnline(net.snapshot, net.room!.sessionId);
       this.boss.update(
         dt,
-        this.paused || !net.snapshot?.started || !!net.snapshot?.winner,
+        this.paused || this.lookoutEntryFilm.active || !net.snapshot?.started || !!net.snapshot?.winner,
       );
     } else if (this.boss) {
       this.boss.online = undefined;
@@ -1078,7 +1085,7 @@ export class Game {
         this.currentRound,
         this.teamWins[CONFIG.player.team as Team],
       );
-      this.boss?.update(dt, this.paused);
+      this.boss?.update(dt, this.paused || this.lookoutEntryFilm.active);
     }
     if (!this.paused) this.updateInjuryEffects(dt);
     if (this.multiplayer?.room) {
@@ -1213,6 +1220,10 @@ export class Game {
 
       if (this.testPlayer && this.testPlayer.hp <= 0) {
         if (!this.botRespawn) {
+          this.world.explosions.playerDeath(
+            this.testPlayer.root.position,
+            TEAMS[this.match.members[1]?.team ?? "BLUE"],
+          );
           if (this.sound)
             this.weaponAudio?.playDeath(
               Vector3.Distance(
@@ -1806,6 +1817,7 @@ export class Game {
     if (entry && entry[0] !== id) {
       this.localLedger.hit(id, entry[0], damage, this.time);
       if (target.hp <= 0) {
+        if (id === "local" && entry[0] === "bot") this.boss?.recordKill(this.match.members[1]?.team ?? "BLUE");
         const base = office01.bases.find(
           (b) =>
             b.team ===

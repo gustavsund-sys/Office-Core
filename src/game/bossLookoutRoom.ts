@@ -65,6 +65,128 @@ export function buildLookoutRoom(
     fixed.push(m);
     return m;
   };
+  // A continuous service tower carries the room; the rear spine joins the lift
+  // without covering its south-facing entrance or the upper firing window.
+  box(
+    "Lookout structural tower",
+    x,
+    height / 2 - 0.2,
+    0,
+    8,
+    height - 0.4,
+    10,
+    "#48535a",
+  );
+  box(
+    "Lookout lift connecting spine",
+    x,
+    height / 2 - 0.2,
+    -6.2,
+    5,
+    height - 0.4,
+    3.2,
+    "#3b4952",
+  );
+  // Picking stops bullets; the movement solver separately needs ground bounds.
+  // Include the closed door, while leaving the E interaction/bail point clear.
+  world.obstacles.push(
+    { x, z: 0, w: 8.6, d: 10.6 },
+    { x, z: -6.2, w: 5, d: 3.2 },
+    { x, z: -10.2, w: 5.4, d: 5.8 },
+  );
+  box("Tower concrete footing", x, 0.25, 0, 8.6, 0.5, 10.6, "#626c6f");
+  for (const sx of [-1, 1]) {
+    for (const z of [-4.9, 4.9])
+      box(
+        "Tower corner pilaster",
+        x + sx * 3.9,
+        height / 2,
+        z,
+        0.35,
+        height - 0.4,
+        0.35,
+        "#778185",
+      );
+    for (let level = 1; level < height / 4; level++) {
+      const y = level * 4;
+      if (sx === -1)
+        box("Tower facade floor belt", x, y, 0, 8.2, 0.22, 10.2, "#78858a");
+      for (const z of [-3, 0, 3]) {
+        box(
+          "Tower window recess",
+          x + sx * 4.03,
+          y - 1.7,
+          z,
+          0.12,
+          1.9,
+          1.7,
+          "#172831",
+        );
+        box(
+          "Tower blue glass",
+          x + sx * 4.1,
+          y - 1.7,
+          z,
+          0.035,
+          1.5,
+          1.35,
+          "#344c59",
+        );
+        box(
+          "Tower window sill",
+          x + sx * 4.15,
+          y - 2.65,
+          z,
+          0.35,
+          0.12,
+          1.9,
+          "#8b979b",
+        );
+        box(
+          "Tower window mullion",
+          x + sx * 4.13,
+          y - 1.7,
+          z,
+          0.04,
+          1.55,
+          0.055,
+          "#788b94",
+        );
+      }
+      for (const dx of sx === -1 ? [-2.3, 0, 2.3] : []) {
+        box(
+          "Tower south window frame",
+          x + dx,
+          y - 1.7,
+          -5.04,
+          1.6,
+          1.9,
+          0.12,
+          "#172831",
+        );
+        box(
+          "Tower south glass",
+          x + dx,
+          y - 1.7,
+          -5.12,
+          1.3,
+          1.5,
+          0.035,
+          "#344c59",
+        );
+        box(
+          "Tower south window sill",
+          x + dx,
+          y - 2.65,
+          -5.18,
+          1.8,
+          0.12,
+          0.35,
+          "#8b979b",
+        );
+      }
+    }
+  }
   // Shaft is vertically aligned with the room. Its south-facing doors face the normal game camera.
   box(
     "Lookout lift shaft rear",
@@ -107,6 +229,88 @@ export function buildLookoutRoom(
     height - 3.4,
     0.35,
     "#344650",
+  );
+  for (let y = 4; y < height; y += 4) {
+    box("Lift shaft panel joint", x, y, -12.86, 4.6, 0.075, 0.06, "#182c36");
+    box(
+      "Lift shaft service panel",
+      x,
+      y + 1.65,
+      -12.87,
+      2.8,
+      2.5,
+      0.09,
+      "#425761",
+    );
+    for (let slat = 0; slat < 5; slat++)
+      box(
+        "Lift ventilation louvre",
+        x,
+        y + 1.2 + slat * 0.18,
+        -12.94,
+        1.6,
+        0.065,
+        0.045,
+        "#152a35",
+      );
+    for (const dx of [-1.2, 1.2])
+      for (const dy of [0.55, 2.75])
+        box(
+          "Lift service panel fastener",
+          x + dx,
+          y + dy,
+          -12.95,
+          0.09,
+          0.09,
+          0.04,
+          "#a2afb3",
+        );
+    for (const sx of [-1, 1])
+      box(
+        "Lift side floor rib",
+        x + sx * 2.7,
+        y,
+        -10,
+        0.12,
+        0.15,
+        5.1,
+        "#71858e",
+      );
+  }
+  for (const dx of [-1.9, 1.9]) {
+    box(
+      "Lift external conduit",
+      x + dx,
+      height / 2,
+      -12.94,
+      0.1,
+      height,
+      0.13,
+      "#99a4a4",
+    );
+    for (let y = 2; y < height; y += 3)
+      box("Lift conduit clamp", x + dx, y, -13.02, 0.22, 0.09, 0.09, "#243943");
+  }
+  box(
+    "Lift floor indicator housing",
+    x,
+    3.85,
+    -12.97,
+    0.8,
+    0.4,
+    0.12,
+    "#101f28",
+  );
+  box(
+    "Lift floor indicator lamp",
+    x,
+    3.85,
+    -13.05,
+    0.12,
+    0.24,
+    0.04,
+    "#ffcf58",
+    true,
   );
   box("Lift door left leaf", x - 0.64, 1.6, -12.85, 1.26, 3.2, 0.2, "#71828c");
   box("Lift door right leaf", x + 0.64, 1.6, -12.85, 1.26, 3.2, 0.2, "#60737e");

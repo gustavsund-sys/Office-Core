@@ -225,6 +225,9 @@ export class WeaponAudio {
     const data = this.noise.getChannelData(0);
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
   }
+  playBossKey() {
+    return this.sample("bossKey", 1);
+  }
   playHealthUp() {
     return this.sample("healthUp", 1);
   }
@@ -242,6 +245,7 @@ export class WeaponAudio {
         "breath1",
         "breath2",
         "breath3",
+        "bossKey",
         "healthUp",
         "tacticalShield",
         "gunClick",
@@ -277,6 +281,7 @@ export class WeaponAudio {
             "breath1",
             "breath2",
             "breath3",
+            "bossKey",
             "healthUp",
             "tacticalShield",
             "gunClick",

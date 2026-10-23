@@ -344,12 +344,13 @@ export class OfficeRoom extends Room {
       if (!this.permit(client)) return;
       const p = this.participants.get(client.sessionId);
       if (!p || !this.started || this.winner || p.awaitingLoadout) return;
-      this.lookout.command(
+      const notice = this.lookout.command(
         client.sessionId,
         p,
         payload,
         this.rc.controlling(client.sessionId),
       );
+      if (notice) client.send(MSG.event, { kind: "lookoutNotice", player: client.sessionId, message: notice, x: 0, y: 0, z: 0 });
     });
     this.onMessage(MSG.input, (client, payload) => {
       const p = this.participants.get(client.sessionId);
@@ -688,6 +689,7 @@ export class OfficeRoom extends Room {
           this.ledger.hit(client.sessionId, victimEntry[0], damage, this.time);
           if (target.hp <= 0) {
             participant.kills++;
+            this.lookout.recordKill(client.sessionId, participant, victim.team);
             const base = office01.bases.find(
               (b) => b.team === participant.team,
             )!;
@@ -1205,7 +1207,6 @@ export class OfficeRoom extends Room {
   rc!: RCCars;
   snapshot(): Snapshot {
     return {
-      lookoutKeys: [...this.lookout.keys],
       rcCars: this.rc.snapshot(),
       serverTime: Date.now(),
       placedMedkits: [...this.pickup.pulseTraps.medkits.values()].map((k) => ({
@@ -1220,6 +1221,8 @@ export class OfficeRoom extends Room {
         id,
         lookout: this.lookout.snapshot(id),
         lookoutKey: p.player.bossLookoutKey,
+        lookoutKills: p.player.bossLookoutKills,
+        lookoutAmmo: p.player.bossLookoutAmmo,
         rcRemote: this.rc.controlling(id),
         ack: p.ack,
         verticalVelocity: p.player.verticalVelocity,

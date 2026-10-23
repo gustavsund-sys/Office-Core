@@ -42,6 +42,8 @@ export interface StreamPacket {
 const fastPlayer = new Set([
   "lookout",
   "lookoutKey",
+  "lookoutKills",
+  "lookoutAmmo",
   "ack",
   "verticalVelocity",
   "knockbackX",

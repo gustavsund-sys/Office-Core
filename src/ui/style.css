@@ -3575,3 +3575,35 @@ footer #weapon-reload { position: absolute; left: 20px; bottom: -3px; width: cal
 .boss-lookout-overlay.scoped .boss-vignette { display: none; }
 
 .rifle-scoped #crosshair { display: none; }
+
+.inventory-slot .boss-key-progress-label { font-size: 7px; letter-spacing: 0; white-space: nowrap; }
+
+.inventory-slot.boss-key-received {
+  animation: boss-key-received 3s ease-out both;
+  z-index: 1;
+}
+.inventory-slot.boss-key-received .equipment-icon {
+  animation: boss-key-arrives 1.2s cubic-bezier(.2,.8,.3,1) both;
+  transform-origin: center;
+}
+.inventory-slot.boss-key-received small { color: #ffe398; font-weight: 900; }
+@keyframes boss-key-received {
+  0%, 35%, 65% { border-color: #ffe398; background: #70531ddd; box-shadow: 0 0 24px #ffc955b0, inset 0 0 14px #ffc95560; }
+  18%, 50% { border-color: #fff6d6; background: #a47a28ee; box-shadow: 0 0 32px #ffcf5890, inset 0 0 20px #ffe39880; }
+  100% { border-color: #9c8858; background: #24363ee0; box-shadow: 0 0 0 transparent; }
+}
+@keyframes boss-key-arrives {
+  0% { opacity: 0; transform: translateY(-18px) scale(1.6) rotate(-25deg); }
+  35% { opacity: 1; transform: translateY(0) scale(1.18) rotate(12deg); }
+  60% { transform: scale(1.1) rotate(-8deg); }
+  80% { transform: scale(1.05) rotate(4deg); }
+  100% { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .inventory-slot.boss-key-received, .inventory-slot.boss-key-received .equipment-icon { animation: none; }
+  .inventory-slot.boss-key-received { border-color: #ffe398; box-shadow: 0 0 16px #ffcf5880; }
+}
+
+.lookout-entry-film { position: fixed; inset: 0; z-index: 20000; background: #05090d; display: grid; place-items: center; }
+.lookout-entry-film video { width: 100%; height: 100%; object-fit: contain; }
+.lookout-entry-film button { position: absolute; right: 28px; bottom: 28px; padding: 12px 20px; color: #ffe398; background: #11232ded; border: 1px solid #d1ad5b; font-weight: 800; cursor: pointer; }

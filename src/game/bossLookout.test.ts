@@ -3,31 +3,35 @@ import assert from "node:assert/strict";
 import { Camera, Vector3 } from "@babylonjs/core";
 import { BossLookout, lookoutPose, LOOKOUT } from "./bossLookout";
 
-test("a Core victory unlocks one reward in the following round, never immediately or twice", () => {
-  let rewards = 0;
+test("Core victories no longer grant keys; enemy kills unlock them immediately", () => {
+  let notices = 0;
   const boss = Object.assign(Object.create(BossLookout.prototype), {
-    lastWins: 0,
     lastRound: 1,
-    pending: false,
-    player: { bossLookoutKey: false },
+    player: {
+      bossLookoutKey: false,
+      bossLookoutKills: 0,
+      bossLookoutAmmo: 100,
+    },
     drops: [],
     exit: () => {},
-    reward: () => rewards++,
+    toast: () => notices++,
   }) as BossLookout;
-  boss.syncRound(1, 0);
-  boss.syncRound(1, 1);
-  assert.equal(rewards, 0);
   boss.syncRound(2, 1);
-  boss.syncRound(2, 1);
-  assert.equal(rewards, 1);
-  boss.syncRound(3, 1);
-  assert.equal(rewards, 1);
+  assert.equal(boss.player.bossLookoutKey, false);
+  for (let i = 0; i < 9; i++) boss.recordKill("BLUE");
+  boss.recordKill("RED");
+  assert.equal(boss.player.bossLookoutKills, 9);
+  assert.equal(boss.player.bossLookoutKey, false);
+  boss.recordKill("BLUE");
+  assert.equal(boss.player.bossLookoutKey, true);
+  assert.equal(notices, 1);
+  boss.recordKill("BLUE");
+  assert.equal(notices, 1);
   boss.syncRound(3, 2);
-  boss.syncRound(4, 2);
-  assert.equal(rewards, 2);
+  assert.equal(boss.player.bossLookoutKey, true);
 });
 
-test("entering consumes exactly one key, grants 100 separate shots and bail restores camera and door position", () => {
+test("entering retains the key; bail preserves ammunition and refuses the enemy tower", () => {
   const originalDocument = Object.getOwnPropertyDescriptor(
     globalThis,
     "document",
@@ -50,12 +54,13 @@ test("entering consumes exactly one key, grants 100 separate shots and bail rest
       player,
       view,
       input: { clear: () => {} },
+      toast: () => {},
       lockMouse: () => {},
       viewGun: { setEnabled: () => {} },
       overlay: { hidden: true },
     }) as BossLookout;
     boss.enter(-1);
-    assert.equal(player.bossLookoutKey, false);
+    assert.equal(player.bossLookoutKey, true);
     assert.equal(boss.active, true);
     assert.equal(boss.ammo, 100);
     boss.ammo = 12;
@@ -68,8 +73,13 @@ test("entering consumes exactly one key, grants 100 separate shots and bail rest
     assert.equal(view.minZ, 0.3);
     assert.equal(player.root.position.x, -94);
     assert.equal(player.root.position.z, -15);
-    boss.enter(1);
-    assert.equal(boss.active, false);
+    boss.enter(-1);
+    assert.equal(boss.active, true);
+    assert.equal(boss.ammo, 12);
+    boss.ammo = 0;
+    boss.exit();
+    assert.equal(player.bossLookoutKey, false);
+    assert.equal(boss.player.bossLookoutKills, 0);
   } finally {
     if (originalDocument)
       Object.defineProperty(globalThis, "document", originalDocument);
@@ -143,6 +153,21 @@ test("the turret rotates about a fixed world-space mount and the room shell stop
   const light = new DirectionalLight("light", new Vector3(0, -1, 0), scene);
   const world = new TestWorld(scene, new ShadowGenerator(64, light));
   const rig = buildLookoutRoom(world, -1, 20);
+  const { blocked, move } = await import("./collision");
+  const door = lookoutPose(-1).door;
+  assert.equal(
+    blocked(door.x, door.z - 2, 0.4, world.obstacles),
+    false,
+    "bail and interaction position stays accessible",
+  );
+  const approach = { x: door.x, z: door.z - 2 };
+  move(approach, 0, 10, 0.4, world.obstacles);
+  assert.ok(
+    approach.z < door.z,
+    "closed elevator door blocks walking into shaft",
+  );
+  assert.equal(blocked(door.x, -10, 0.4, world.obstacles), true);
+  assert.equal(blocked(door.x, 0, 0.4, world.obstacles), true);
   rig.yaw.computeWorldMatrix(true);
   rig.pitch.computeWorldMatrix(true);
   const pivot = rig.yaw.getAbsolutePosition().clone();

@@ -4,7 +4,6 @@ import { Client, type Room } from "colyseus.js";
 import { MSG, type Snapshot } from "../shared/protocol";
 import { OfficeRoom } from "../server/room";
 import { lookoutPose } from "../src/game/lookoutConfig";
-import { office01 } from "../src/maps/office01";
 process.env.DEV_ALLOW_GUEST = "true";
 process.env.PORT = "2569";
 process.env.ALLOWED_ORIGINS = "http://127.0.0.1:5173";
@@ -55,10 +54,8 @@ try {
   const server = OfficeRoom.rooms.get(lobby.id)!;
   const actor = server.participants.get(a.sessionId)!;
   // Simulate an earned reward, then use only actual WebSocket commands.
-  server.lookout.reset(server.participants, "RED");
-  const zone = office01.weaponEnds.find((z) => z.x < 0)!;
-  actor.player.root.position.set(zone.x, 1.6, zone.z - 5);
-  a.send(MSG.lookout, { action: "interact" });
+  for (let i = 0; i < 10; i++)
+    server.lookout.recordKill(a.sessionId, actor, "BLUE");
   await wait(
     a,
     (s) => !!s.players.find((p) => p.id === a.sessionId)?.lookoutKey,

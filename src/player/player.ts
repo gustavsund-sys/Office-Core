@@ -336,6 +336,8 @@ export class Player {
     return new Vector3(p.x, this.bossLookoutActive ? 0.7 : p.y + 0.7, p.z);
   }
   bossLookoutKey = false;
+  bossLookoutKills = 0;
+  bossLookoutAmmo = 100;
   bossLookoutSelected = false;
   hp = CONFIG.player.hp;
   shield = 0;

@@ -58,6 +58,8 @@ export interface NetLookout {
 export interface NetPlayer {
   lookout?: NetLookout;
   lookoutKey?: boolean;
+  lookoutKills?: number;
+  lookoutAmmo?: number;
   rcRemote?: boolean;
   beacon?: boolean;
   loadout?: import("../src/game/loadout").Loadout;
@@ -148,12 +150,14 @@ export interface Snapshot {
   winner?: Team;
 }
 export interface NetEvent {
+  message?: string;
   blood?: boolean;
   material?: "player" | "metal" | "glass" | "wood";
   destroyed?: boolean;
   damage?: number;
   inputSeq?: number;
   kind:
+    | "lookoutNotice"
     | "turretTrace"
     | "rcExplosion"
     | "medkit"

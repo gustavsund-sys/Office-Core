@@ -9,6 +9,9 @@ import { office01 } from "../maps/office01";
 export class HUD {
   private combatFeed?: HTMLElement;
   private inventoryKey = "";
+  private hadBossKey = false;
+  private bossKeyReceiptRemaining = 0;
+  onBossKeyReceived: () => void = () => {};
   private winsKey = "";
   private scoresKey = "";
   el = document.querySelector<HTMLDivElement>("#ui")!;
@@ -345,9 +348,31 @@ export class HUD {
         )
         .join("");
     }
+    const receivedBossKey = player.bossLookoutKey && !this.hadBossKey;
+    this.hadBossKey = player.bossLookoutKey;
+    if (receivedBossKey) {
+      this.bossKeyReceiptRemaining = 3;
+      this.onBossKeyReceived();
+    } else this.bossKeyReceiptRemaining = Math.max(0, this.bossKeyReceiptRemaining - dt);
     for (const slot of Array.from(
       inventory.querySelectorAll<HTMLElement>("[data-weapon]"),
     )) {
+      if (slot.dataset.weapon === "bossKey") {
+        slot.classList.toggle("boss-key-received", player.bossLookoutKey && this.bossKeyReceiptRemaining > 0);
+        const bar = slot.querySelector<HTMLProgressElement>("progress")!;
+        bar.hidden = false;
+        bar.max = 10;
+        bar.value = player.bossLookoutKills ?? 0;
+        bar.setAttribute("aria-label", "Enemy kills to obtain Boss Key");
+        const label = slot.querySelector("small")!;
+        label.classList.add("boss-key-progress-label");
+        label.textContent = player.bossLookoutKey && this.bossKeyReceiptRemaining > 0
+          ? "KEY RECEIVED!"
+          : player.bossLookoutKey
+          ? `KEY READY · ${player.bossLookoutActive ? "IN USE" : `${player.bossLookoutAmmo ?? 100} RDS`}`
+          : `${player.bossLookoutKills ?? 0}/10 kills to obtain`;
+        continue;
+      }
       const state = weapons.reloads[slot.dataset.weapon as WeaponId];
       const progress = slot.querySelector<HTMLProgressElement>("progress")!;
       progress.hidden = !state;
