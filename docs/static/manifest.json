@@ -1,0 +1,86 @@
+[
+  {
+    "url": "/audio/music/core-under-attack-v3.mp3",
+    "bytes": 4357109,
+    "hash": "5fd6b0d979cb23f8",
+    "source": "https://gustavsund-sys.github.io/Office-Core/static/5fd6b0d979cb23f8/audio/music/core-under-attack-v3.mp3"
+  },
+  {
+    "url": "/audio/music/tactical-pulse.mp3",
+    "bytes": 3182004,
+    "hash": "b607087fadfb0690",
+    "source": "https://gustavsund-sys.github.io/Office-Core/static/b607087fadfb0690/audio/music/tactical-pulse.mp3"
+  },
+  {
+    "url": "/loadout/bazooka.webp",
+    "bytes": 83794,
+    "hash": "34cea4ba5b7d926a",
+    "source": "https://gustavsund-sys.github.io/Office-Core/static/34cea4ba5b7d926a/loadout/bazooka.webp"
+  },
+  {
+    "url": "/loadout/burstGun.webp",
+    "bytes": 79200,
+    "hash": "2bf17f59ec37e622",
+    "source": "https://gustavsund-sys.github.io/Office-Core/static/2bf17f59ec37e622/loadout/burstGun.webp"
+  },
+  {
+    "url": "/loadout/coreBuster.webp",
+    "bytes": 93976,
+    "hash": "97480c4017962765",
+    "source": "https://gustavsund-sys.github.io/Office-Core/static/97480c4017962765/loadout/coreBuster.webp"
+  },
+  {
+    "url": "/loadout/huntingRifle.svg",
+    "bytes": 891,
+    "hash": "547844a5bf663e4f",
+    "source": "https://gustavsund-sys.github.io/Office-Core/static/547844a5bf663e4f/loadout/huntingRifle.svg"
+  },
+  {
+    "url": "/loadout/huntingRifle.webp",
+    "bytes": 93766,
+    "hash": "c001b0b61edec5e4",
+    "source": "https://gustavsund-sys.github.io/Office-Core/static/c001b0b61edec5e4/loadout/huntingRifle.webp"
+  },
+  {
+    "url": "/loadout/machineGun.webp",
+    "bytes": 84126,
+    "hash": "2032c57e16f28bf4",
+    "source": "https://gustavsund-sys.github.io/Office-Core/static/2032c57e16f28bf4/loadout/machineGun.webp"
+  },
+  {
+    "url": "/loadout/pulseGun.webp",
+    "bytes": 82742,
+    "hash": "40eae1365e4a5830",
+    "source": "https://gustavsund-sys.github.io/Office-Core/static/40eae1365e4a5830/loadout/pulseGun.webp"
+  },
+  {
+    "url": "/loadout/pulseTrap.webp",
+    "bytes": 79256,
+    "hash": "382b60eddf257d96",
+    "source": "https://gustavsund-sys.github.io/Office-Core/static/382b60eddf257d96/loadout/pulseTrap.webp"
+  },
+  {
+    "url": "/loadout/rcCar.png",
+    "bytes": 140671,
+    "hash": "04ae769c877c845f",
+    "source": "https://gustavsund-sys.github.io/Office-Core/static/04ae769c877c845f/loadout/rcCar.png"
+  },
+  {
+    "url": "/loadout/rcCar.webp",
+    "bytes": 95816,
+    "hash": "a31e7f3a9ec3ca98",
+    "source": "https://gustavsund-sys.github.io/Office-Core/static/a31e7f3a9ec3ca98/loadout/rcCar.webp"
+  },
+  {
+    "url": "/loadout/superMedkit.webp",
+    "bytes": 86370,
+    "hash": "7614b0d6beb4e4e5",
+    "source": "https://gustavsund-sys.github.io/Office-Core/static/7614b0d6beb4e4e5/loadout/superMedkit.webp"
+  },
+  {
+    "url": "/updates/boss-lookout.jpg",
+    "bytes": 168689,
+    "hash": "763207fb4b88a066",
+    "source": "https://gustavsund-sys.github.io/Office-Core/static/763207fb4b88a066/updates/boss-lookout.jpg"
+  }
+]
