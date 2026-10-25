@@ -1,0 +1,225 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {
+  Vector3,
+  NullEngine,
+  Scene,
+  DirectionalLight,
+  ShadowGenerator,
+} from "@babylonjs/core";
+import { Player } from "../player/player";
+import { World as GameWorld } from "../map/builder";
+import { CONFIG } from "../config/game";
+import { MobileInput } from "../mobile/input";
+import {
+  stickVector,
+  mobileViewSize,
+  mobileDirection,
+  MOBILE_CAMERA,
+  mobileSpeed,
+} from "../mobile/controlMath";
+import type { World } from "../map/builder";
+import { readGraphics, saveGraphics, GRAPHICS_KEY } from "./graphicsSettings";
+
+test("mobile input installs no desktop listeners or mouse lock", () => {
+  // Constructor works without window/document, making desktop listeners impossible here.
+  const input = new MobileInput({} as HTMLCanvasElement);
+  input.requestLock();
+  assert.equal(input.aimRelativeMovement, false);
+});
+test("mobile stick moves and aims in the same direction, with only the fire button producing a shot", () => {
+  const input = new MobileInput({} as HTMLCanvasElement),
+    world = {} as World,
+    pos = new Vector3(10, 0, 20);
+  input.movement = { x: -0.6, y: -0.8 };
+  input.aim = { x: 1, y: 0 };
+  input.down = true;
+  input.pressed = true;
+  const a = input.command(world, pos),
+    b = input.command(world, pos);
+  const direction = mobileDirection(-0.6, -0.8);
+  assert.equal(a.moveX, direction.x);
+  assert.equal(a.moveZ, direction.z);
+  assert.equal(a.aimX, pos.x + a.moveX * 35);
+  assert.equal(a.aimZ, pos.z + a.moveZ * 35);
+  assert.equal(a.fire, true);
+  assert.equal(a.pressed, true);
+  assert.equal(b.pressed, false);
+  input.remote = true;
+  const remote = input.command(world, pos);
+  assert.equal(remote.moveX, 0);
+  assert.equal(remote.moveZ, 0);
+  assert.equal(remote.fire, false);
+  assert.deepEqual(input.remoteAxes(), { steer: -0.6, throttle: 0.8 });
+});
+test("touch cancellation clears firing, movement, driving and held actions", () => {
+  const input = new MobileInput({} as HTMLCanvasElement);
+  input.movement = { x: 1, y: 1 };
+  input.down = input.pressed = input.remoteDetonate = true;
+  input.keys.add("KeyC");
+  input.clear();
+  assert.deepEqual(input.movement, { x: 0, y: 0 });
+  assert.equal(input.down, false);
+  assert.equal(input.pressed, false);
+  assert.equal(input.remoteDetonate, false);
+  assert.equal(input.keys.size, 0);
+});
+test("stick output clamps at the circular edge and ignores small thumb jitter", () => {
+  assert.deepEqual(stickVector(0.2, 0.1, 40), { x: 0, y: 0, strength: 0 });
+  const a = stickVector(1000, -1000, 40);
+  assert.ok(Math.abs(Math.hypot(a.x, a.y) - 1) < 1e-10);
+  assert.equal(a.strength, 1);
+  const b = stickVector(20, 0, 40);
+  assert.ok(b.x > 0 && b.x < 1);
+  assert.equal(b.y, 0);
+  assert.equal(stickVector(Infinity, 0, 40).strength, 0);
+});
+test("mobile camera keeps its landscape scale without changing shared camera configuration", () => {
+  assert.equal(mobileViewSize(844, 390), 20);
+  assert.equal(mobileViewSize(390, 844), mobileViewSize(844, 390));
+  assert.ok(Number.isFinite(mobileViewSize(0, 0)));
+});
+test("mobile graphics are saved independently from existing desktop preferences", () => {
+  const oldStorage = globalThis.localStorage,
+    oldDocument = globalThis.document;
+  const entries = new Map<string, string>();
+  try {
+    globalThis.localStorage = {
+      getItem: (key: string) => entries.get(key) ?? null,
+      setItem: (key: string, v: string) => entries.set(key, v),
+    } as Storage;
+    globalThis.document = {
+      documentElement: { dataset: { client: "desktop" } },
+    } as unknown as Document;
+    saveGraphics("standard");
+    document.documentElement.dataset.client = "mobile";
+    assert.equal(readGraphics(), undefined);
+    saveGraphics("low");
+    assert.equal(readGraphics(), "low");
+    document.documentElement.dataset.client = "desktop";
+    assert.equal(readGraphics(), "standard");
+    assert.equal(entries.get(GRAPHICS_KEY), "standard");
+  } finally {
+    globalThis.localStorage = oldStorage;
+    globalThis.document = oldDocument;
+  }
+});
+
+test("stick direction never fires and is retained after release", () => {
+  const input = new MobileInput({} as HTMLCanvasElement),
+    pos = Vector3.Zero();
+  input.movement = { x: 1, y: 0 };
+  const a = input.command({} as World, pos);
+  assert.equal(a.fire, false);
+  assert.equal(a.pressed, false);
+  assert.equal(a.aimX, 35);
+  input.movement = { x: 0, y: 0 };
+  const b = input.command({} as World, pos);
+  assert.equal(b.moveX, 0);
+  assert.equal(b.moveZ, 0);
+  assert.equal(b.aimX, 35);
+  assert.equal(b.sprint, false);
+});
+test("diagonal movement projects onto the exact stick bearing in the tilted mobile camera", () => {
+  const sin =
+    MOBILE_CAMERA.height / Math.hypot(MOBILE_CAMERA.height, MOBILE_CAMERA.back);
+  for (const [x, y] of [
+    [1, 1],
+    [-0.6, 0.8],
+    [0.3, -0.7],
+  ]) {
+    const d = mobileDirection(x, y);
+    assert.ok(Math.abs((d.z * sin) / d.x - -y / x) < 1e-10);
+  }
+});
+test("outer stick requests shared sprint, exhausted players keep walking at PC speed", () => {
+  const engine = new NullEngine(),
+    scene = new Scene(engine);
+  try {
+    const world = new GameWorld(
+      scene,
+      new ShadowGenerator(
+        32,
+        new DirectionalLight("sun", Vector3.Down(), scene),
+      ),
+    );
+    const player = new Player(world),
+      input = new MobileInput({} as HTMLCanvasElement);
+    player.root.position.setAll(0);
+    input.movement = { x: 0.4, y: 0 };
+    assert.equal(input.command(world, player.root.position).sprint, false);
+    input.movement = { x: 1, y: 0 };
+    for (let i = 0; i < 120; i++)
+      player.simulate(input.command(world, player.root.position), 1 / 30);
+    assert.equal(player.stamina, 0);
+    assert.equal(player.sprintExhausted, true);
+    const x = player.root.position.x;
+    for (let i = 0; i < 30; i++)
+      player.simulate(input.command(world, player.root.position), 1 / 30);
+    assert.ok(
+      Math.abs(player.root.position.x - x - CONFIG.player.speed) < 1e-7,
+    );
+    assert.equal(player.sprinting, false);
+    input.movement = { x: 0.6, y: 0 };
+    assert.equal(input.command(world, player.root.position).sprint, false);
+  } finally {
+    scene.dispose();
+    engine.dispose();
+  }
+});
+
+test("analog speed stays continuous across the 90 percent sprint boundary", () => {
+  for (const [strength, sprint] of [
+    [0, false],
+    [0.01, false],
+    [0.3, false],
+    [0.6, false],
+    [0.9, false],
+    [0.91, true],
+    [0.8, false],
+    [1, true],
+  ] as const) {
+    const speed = mobileSpeed(strength);
+    assert.equal(speed.sprint, sprint);
+    assert.ok(
+      Math.abs(speed.magnitude * (sprint ? 1.5 : 1) - (strength <= 0.9 ? strength / 0.9 : 1 + (strength - 0.9) * 5)) < 1e-10,
+    );
+  }
+});
+test("shared movement retains fine analog speed and replay produces the same position", () => {
+  const engine = new NullEngine(),
+    scene = new Scene(engine);
+  try {
+    const world = new GameWorld(
+      scene,
+      new ShadowGenerator(
+        32,
+        new DirectionalLight("sun", Vector3.Down(), scene),
+      ),
+    );
+    const player = new Player(world),
+      input = new MobileInput({} as HTMLCanvasElement);
+    for (const strength of [0, 0.01, 0.1, 0.3, 0.6, 0.75, 0.9, 0.91, 0.95, 1]) {
+      player.root.position.setAll(0);
+      player.stamina = 4;
+      player.sprintExhausted = false;
+      input.movement = { x: strength, y: 0 };
+      const command = input.command(world, player.root.position);
+      player.simulate(command, 0.1);
+      const expected = CONFIG.player.speed * (strength <= 0.9 ? strength / 0.9 : 1 + (strength - 0.9) * 5) * 0.1;
+      assert.ok(
+        Math.abs(player.root.position.x - expected) < 1e-8,
+        `strength ${strength}`,
+      );
+      const first = player.root.position.clone();
+      player.root.position.setAll(0);
+      player.stamina = 4;
+      player.sprintExhausted = false;
+      player.simulate(command, 0.1);
+      assert.ok(Vector3.Distance(first, player.root.position) < 1e-10);
+    }
+  } finally {
+    scene.dispose();
+    engine.dispose();
+  }
+});

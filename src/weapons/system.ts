@@ -149,6 +149,12 @@ export class Weapons {
     this.onReload("magazine", this.id);
     return true;
   }
+  private reloadEmptyMagazine() {
+    if (this.ammo > 0 || this.reserve <= 0 || this.id === "coreBuster")
+      return false;
+    this.onEmpty();
+    return this.requestReload();
+  }
   private chamberRifle() {
     this.reloads.huntingRifle = { remaining: 8, duration: 8, kind: "chamber" };
     this.onReload("chamber", "huntingRifle");
@@ -303,7 +309,10 @@ export class Weapons {
     }
     if (this.ammo <= 0) {
       this.burstRemaining = 0;
-      if (c.pressed && this.reserve <= 0 && this.player.hp > 0) this.onEmpty();
+      if (this.player.hp > 0) {
+        if (this.reserve > 0) this.reloadEmptyMagazine();
+        else if (c.pressed) this.onEmpty();
+      }
       return;
     }
     const data = WEAPONS[this.id];
@@ -350,7 +359,8 @@ export class Weapons {
         distance: 0,
       });
       this.onShot();
-      if (--this.ammo === 0 && this.bazookaReserve > 0) this.requestReload();
+      --this.ammo;
+      this.reloadEmptyMagazine();
       return;
     }
     const ray = new Ray(origin, direction, data.range);
@@ -437,10 +447,11 @@ export class Weapons {
     }
     if (this.id !== "burstGun" || this.burstRemaining === 4) this.onShot();
     this.ammo--;
+    const autoReloaded = this.reloadEmptyMagazine();
     if (this.id === "huntingRifle") {
       this.player.kickBack(direction);
       this.cooldown = 0;
-      this.chamberRifle();
+      if (!autoReloaded) this.chamberRifle();
     }
   }
   private blastBlocked(origin: Vector3, position: Vector3, victim: Hittable) {

@@ -89,11 +89,18 @@ export function showVictory(
       : "Ready · Waiting for players…";
     newMatch();
   });
-  overlay.querySelector<HTMLButtonElement>(".round-leave")?.addEventListener("click", () => {
-    overlay.querySelectorAll<HTMLButtonElement>("button").forEach(button => { button.disabled = true; });
-    overlay.querySelector(".round-leave")!.textContent = "RETURNING TO LOBBY…";
-    returnToLobby();
-  });
+  overlay
+    .querySelector<HTMLButtonElement>(".round-leave")
+    ?.addEventListener("click", () => {
+      overlay
+        .querySelectorAll<HTMLButtonElement>("button")
+        .forEach((button) => {
+          button.disabled = true;
+        });
+      overlay.querySelector(".round-leave")!.textContent =
+        "RETURNING TO LOBBY…";
+      returnToLobby();
+    });
   document.body.append(overlay);
   const engine = new Engine(overlay.querySelector("canvas")!, true);
   const scene = new Scene(engine);
@@ -117,7 +124,7 @@ export function showVictory(
   for (const [index] of members.entries()) {
     const player = new Player(world);
     player.root.position.set((index - (members.length - 1) / 2) * 1.8, 0, 0);
-    player.torso.material = world.mat(TEAMS[team]);
+    player.torso.material = world.finish(TEAMS[team], "fabric");
     player.root.rotation.y = 0.15;
     players.push(player);
   }

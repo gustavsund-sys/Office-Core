@@ -1,12 +1,23 @@
 import {
   Color3,
   PointLight,
+  LightConstants,
   StandardMaterial,
+  type Material,
   Vector3,
   type AbstractMesh,
+  type Scene,
 } from "@babylonjs/core";
 import type { World } from "../map/builder";
 import { nearView, viewPlanes } from "../game/viewRegion";
+
+// Leave room for scene, mesh, material and shadow buffers on WebGPU's 12-buffer tier.
+export function materialLightLimit(scene: Scene, material?: Material) {
+  // PBR reserves two additional vertex-stage buffers (including its scene UBO).
+  // The imported palms must fit the same 12-buffer WebGPU device tier.
+  const pbr = material?.getClassName().startsWith("PBR") ?? false;
+  return scene.getEngine().isWebGPU ? (pbr ? 4 : 6) : 8;
+}
 
 export function lightBlocked(
   a: { x: number; z: number },
@@ -52,6 +63,8 @@ export class CombatLighting {
       light.diffuse = Color3.FromHexString("#ffb255");
       light.specular = Color3.Black();
       light.intensity = 0;
+      // Gunshot pulses must fit alongside the two permanently reserved explosion slots.
+      light.renderPriority = i === 3 ? 20 : 0;
       light.range = i === 3 ? 5 : 6;
       light.includedOnlyMeshes = [];
       this.lights.push(light);
@@ -126,7 +139,9 @@ export class CombatLighting {
       const target = { x, z };
       if (walls.some((w) => lightBlocked(p, target, w))) continue;
       // Reserve enough slots for existing sky, sun and the two Core alarms.
-      mesh.material.maxSimultaneousLights = 8;
+      mesh.material.maxSimultaneousLights = materialLightLimit(
+        this.world.scene,
+      );
       included.push(mesh);
     }
     // Babylon treats an empty inclusion list as "all meshes"; exclude everything
@@ -135,6 +150,10 @@ export class CombatLighting {
     light.excludedMeshes = included.length
       ? []
       : this.world.scene.meshes.slice();
+    // Babylon appends a newly included light to each mesh's existing list;
+    // sorting scene.lights alone does not update that per-mesh ordering.
+    for (const mesh of included)
+      mesh.lightSources.sort(LightConstants.CompareLightsPriority);
   }
   update(dt: number) {
     const camera = this.world.scene.activeCamera;

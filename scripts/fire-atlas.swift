@@ -52,8 +52,8 @@ let outputFrames = count-overlap
 let rows = Int(ceil(Double(outputFrames)/Double(columns)))
 guard let atlas = CGContext(data: nil, width: columns*cell, height: rows*cell, bitsPerComponent: 8, bytesPerRow: columns*cell*4, space: space, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { fail("Cannot allocate atlas") }
 atlas.interpolationQuality = .high
-let scale = min(Double(cell-12)/bounds.width, Double(cell-12)/bounds.height)
-let width = bounds.width*scale, height = bounds.height*scale
+let scale = min(Double(cell-12)/Double(bounds.width), Double(cell-12)/Double(bounds.height))
+let width = Double(bounds.width)*scale, height = Double(bounds.height)*scale
 for output in 0..<outputFrames {
     let index = output+overlap
     let x = Double(output%columns*cell)+(Double(cell)-width)/2

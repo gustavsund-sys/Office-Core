@@ -104,6 +104,7 @@ export interface NetPlayer {
   reload: number;
 }
 export interface Snapshot {
+  carts?: import("../src/map/cleaningCarts").CartState[];
   rcCars?: import("../src/game/rcCar").RCCarState[];
   seq?: number;
   serverTime?: number;

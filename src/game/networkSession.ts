@@ -120,12 +120,18 @@ export function installMultiplayer(this: Context) {
         const shooter = this.onlinePlayers.get(event.player);
         if (shooter) shooter.recoil = 1;
       }
-      if (event.kind === "reload" && this.sound)
+      if (event.kind === "reload" && this.sound) {
+        if (
+          event.sound === "emptyMagazineReload" &&
+          event.player === net.room?.sessionId
+        )
+          this.weaponAudio?.playEmpty();
         this.weaponAudio?.playReload(
           event.sound === "huntingReload" ? "chamber" : "magazine",
           event.player === net.room?.sessionId ? 0 : distance,
           (event.x - this.player.root.position.x) / Math.max(10, distance),
         );
+      }
       if (
         event.kind === "ammoPickup" &&
         event.player === net.room?.sessionId &&

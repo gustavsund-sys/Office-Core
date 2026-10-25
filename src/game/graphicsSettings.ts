@@ -17,9 +17,15 @@ export const GRAPHICS = {
   },
 } as const;
 export const GRAPHICS_KEY = "officeCore.graphics.v1";
+function storageKey() {
+  return typeof document !== "undefined" &&
+    document.documentElement.dataset.client === "mobile"
+    ? `${GRAPHICS_KEY}.mobile`
+    : GRAPHICS_KEY;
+}
 export function readGraphics(): GraphicsTier | undefined {
   try {
-    const tier = localStorage.getItem(GRAPHICS_KEY);
+    const tier = localStorage.getItem(storageKey());
     if (tier === "high") {
       saveGraphics("standard");
       return "standard";
@@ -33,7 +39,7 @@ export function readGraphics(): GraphicsTier | undefined {
 }
 export function saveGraphics(tier: GraphicsTier) {
   try {
-    localStorage.setItem(GRAPHICS_KEY, tier);
+    localStorage.setItem(storageKey(), tier);
   } catch {}
 }
 export function renderSize(width: number, height: number, tier: GraphicsTier) {

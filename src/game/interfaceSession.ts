@@ -14,6 +14,7 @@ type Context = Pick<
   | "paused"
   | "pickup"
   | "player"
+  | "startupPreparing"
   | "sound"
   | "weaponAudio"
   | "rc"
@@ -34,7 +35,11 @@ export function updateLobbyMusic(this: Context, unlock = false) {
   if (unlock) this.lobbyMusicBlocked = false;
   this.lobbyMusic.loop = true;
   this.lobbyMusic.volume = this.lobbyMuted ? 0 : 0.7;
-  const inLobby = !this.match.started && !this.match.winner && this.sound;
+  const inLobby =
+    !this.startupPreparing &&
+    !this.match.started &&
+    !this.match.winner &&
+    this.sound;
   if (!inLobby) {
     this.lobbyMusic.pause();
     if (this.match.started) this.lobbyMusic.currentTime = 0;

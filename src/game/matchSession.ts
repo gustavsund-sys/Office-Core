@@ -41,7 +41,7 @@ export function startMatch(this: Context, team: Team) {
   CONFIG.player.team = team;
   const base = office01.bases.find((base) => base.team === team)!;
   this.player.root.position.set(base.spawn.x, 0, base.spawn.z);
-  this.player.torso.material = this.world.mat(TEAMS[team]);
+  this.player.torso.material = this.world.finish(TEAMS[team], "fabric");
   this.world.explosions.playerSpawn(this.player.root.position, TEAMS[team]);
   this.cores.forEach((core) => core.setActive(this.match.isActive(core.team!)));
   if (this.testToolsEnabled) {
@@ -49,12 +49,16 @@ export function startMatch(this: Context, team: Team) {
     const otherBase = office01.bases.find((base) => base.team === other.team)!;
     this.testPlayer = new Player(this.world);
     this.testPlayer.root.position.set(otherBase.spawn.x, 0, otherBase.spawn.z);
-    this.testPlayer.torso.material = this.world.mat(TEAMS[other.team]);
+    this.testPlayer.torso.material = this.world.finish(
+      TEAMS[other.team],
+      "fabric",
+    );
     this.bindLocalTarget(this.player, "local");
     this.bindLocalTarget(this.testPlayer, "bot");
     this.testWeapons = new Weapons(
       this.testPlayer,
-      (target, damage, source) => this.recordLocalHit("bot", target, damage, source),
+      (target, damage, source) =>
+        this.recordLocalHit("bot", target, damage, source),
       () => {
         if (this.testPlayer)
           this.engagement.shotOutsideView(this.testPlayer.root.position, "bot");

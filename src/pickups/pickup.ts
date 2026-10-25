@@ -1,3 +1,4 @@
+import { batchPickupBody } from "./pickupBatch";
 import { tacticalShieldModel } from "../player/tacticalShield";
 import { office01 } from "../maps/office01";
 import { PulseTraps } from "../game/pulseTrap";
@@ -125,6 +126,7 @@ export class Pickup {
         for (const x of [-0.52, 0.52])
           part("super kit gold band", x, 0, 0, 0.08, 0.83, 0.83, accent);
       }
+      batchPickupBody(world, root);
       const halo = MeshBuilder.CreateTorus(
         "medical pickup halo",
         { diameter: superKit ? 2 : 1.7, thickness: 0.07 },
@@ -293,6 +295,7 @@ export class Pickup {
           );
           lid.parent = root;
         }
+        batchPickupBody(world, root);
         const sign = heldWeapon(world, id);
         sign.parent = root;
         sign.scaling.setAll(0.65);

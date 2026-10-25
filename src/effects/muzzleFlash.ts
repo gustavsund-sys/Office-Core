@@ -74,6 +74,17 @@ export class MuzzleFlashes {
     this.materials.set(key, mat);
     return mat;
   }
+  prepare(position: Vector3) {
+    for (const weapon of [
+      "turret",
+      "pistol",
+      "machineGun",
+      "huntingRifle",
+      "burstGun",
+      "pulseGun",
+    ] as const)
+      this.emit(position, Vector3.Forward(), weapon === "pulseGun", 1, weapon);
+  }
   emit(
     position: Vector3,
     direction: Vector3,

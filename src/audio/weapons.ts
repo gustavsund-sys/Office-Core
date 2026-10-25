@@ -1,3 +1,4 @@
+import { preparedAudioData } from "../network/preloadedMedia";
 import { shotAudibility } from "./spatial";
 import { machineGunRegions } from "./machineGun";
 import type { WeaponId } from "../config/weapons";
@@ -309,12 +310,10 @@ export class WeaponAudio {
           ].includes(name)
             ? "effects"
             : "weapons";
-          const response = await fetch(
-            `/audio/${folder}/${name}.${name === "bazooka" || name === "burstGun" || name.startsWith("grunt") || name === "magazineReload" ? "wav" : "mp3"}`,
-          );
-          if (!response.ok) throw new Error(String(response.status));
           const decoded = await this.context.decodeAudioData(
-            await response.arrayBuffer(),
+            await preparedAudioData(
+              `/audio/${folder}/${name}.${name === "bazooka" || name === "burstGun" || name.startsWith("grunt") || name === "magazineReload" ? "wav" : "mp3"}`,
+            ),
           );
           if (name === "turret") this.prepareTurret(decoded);
           else if (name === "machineGun") this.prepareMachineGun(decoded);

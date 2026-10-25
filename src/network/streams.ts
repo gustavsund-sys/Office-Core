@@ -67,7 +67,13 @@ const fastPlayer = new Set([
   "pulseTrapSelected",
   "rcRemote",
 ]);
-const fastState = new Set(["rockets", "beacons", "pulseTraps", "rcCars"]);
+const fastState = new Set([
+  "rockets",
+  "beacons",
+  "pulseTraps",
+  "rcCars",
+  "carts",
+]);
 function split<T extends object>(
   change: Change<T>,
   keys: Set<string>,

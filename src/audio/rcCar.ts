@@ -1,3 +1,4 @@
+import { preparedAudioData } from "../network/preloadedMedia";
 export class RCAudio {
   private context?: AudioContext;
   private buffers?: Promise<AudioBuffer[]>;
@@ -8,19 +9,24 @@ export class RCAudio {
   private direction = 0;
   private generation = 0;
   private deceleration?: AudioBuffer;
+  prepare(sharedContext?: AudioContext) {
+    const context = (this.context ??= sharedContext ?? new AudioContext());
+    return (this.buffers ??= Promise.all(
+      ["rc-acc.mp3", "rc-static.mp3", "rc-stop.mp3"].map(async (name) => {
+        return context.decodeAudioData(
+          await preparedAudioData(`/audio/rc-car/${name}`),
+        );
+      }),
+    ).then(([acceleration, motor, stop]) => {
+      this.deceleration = stop;
+      return [acceleration, this.seamlessLoop(context, motor), stop];
+    }));
+  }
   private async start(direction: number) {
     const generation = ++this.generation;
     const context = (this.context ??= new AudioContext());
     await context.resume();
-    this.buffers ??= Promise.all(
-      ["rc-acc.mp3", "rc-static.mp3", "rc-stop.mp3"].map(async (name) =>
-        context.decodeAudioData(
-          await (await fetch(`/audio/rc-car/${name}`)).arrayBuffer(),
-        ),
-      ),
-    );
-    const [acceleration, rawMotor, stop] = await this.buffers;
-    const motor = this.seamlessLoop(context, rawMotor);
+    const [acceleration, motor, stop] = await this.prepare();
     if (
       !this.moving ||
       direction !== this.direction ||

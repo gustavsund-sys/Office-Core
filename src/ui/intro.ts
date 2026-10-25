@@ -1,3 +1,8 @@
+export interface TutorialInputGuide {
+  movement: string; movementTips: string[]; plant: string; disarm: string; skill: string; rc: string;
+}
+let inputGuide: TutorialInputGuide | undefined;
+export function setTutorialInputGuide(guide: TutorialInputGuide) { inputGuide = guide; }
 const INTRO_PREFERENCE = "officeCore.hideIntro.v1";
 
 function modal(className: string, label: string) {
@@ -54,6 +59,14 @@ export function showTutorial(): Promise<void> {
       ],
     },
   ];
+  if (inputGuide) {
+    pages[1].text = inputGuide.movement;
+    pages[1].tips = [...inputGuide.movementTips, pages[1].tips[2]];
+    pages[2].tips[0] = inputGuide.plant;
+    pages[2].tips[1] = inputGuide.disarm;
+    pages[3].text = inputGuide.skill;
+    pages[3].tips[2] = inputGuide.rc;
+  }
   const el = modal("onboarding tutorial-screen", "Office Core tutorial");
   let index = 0;
   return new Promise((resolve) => {

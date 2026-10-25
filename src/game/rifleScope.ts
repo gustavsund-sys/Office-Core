@@ -53,18 +53,7 @@ export class RifleScope {
       )
         return;
       e.preventDefault();
-      if (input.scoped) this.exit();
-      else {
-        this.saved = { mode: view.mode, fov: view.fov, minZ: view.minZ };
-        this.yaw = player.root.rotation.y;
-        this.pitch = player.gun.rotation.x;
-        input.scoped = player.scoped = true;
-        document.body.classList.add("rifle-scoped");
-        input.down = input.pressed = false;
-        this.pointer = undefined;
-        this.camera();
-        input.requestLock(true);
-      }
+      this.toggle();
     });
     window.addEventListener("pointermove", (e) => {
       if (!input.scoped) return;
@@ -91,6 +80,30 @@ export class RifleScope {
     });
     window.addEventListener("blur", () => this.exit());
   }
+  toggle() {
+    if (this.input.scoped) {
+      this.exit();
+      return;
+    }
+    if (!this.eligible()) return;
+    this.saved = {
+      mode: this.view.mode,
+      fov: this.view.fov,
+      minZ: this.view.minZ,
+    };
+    this.yaw = this.player.root.rotation.y;
+    this.pitch = this.player.gun.rotation.x;
+    this.input.scoped = this.player.scoped = true;
+    document.body.classList.add("rifle-scoped");
+    this.input.down = this.input.pressed = false;
+    this.pointer = undefined;
+    this.camera();
+    this.input.requestLock(true);
+  }
+  look(dx: number, dy: number) {
+    this.yaw += dx;
+    this.pitch = Math.max(-1.3, Math.min(1.3, this.pitch + dy));
+  }
   aimAt(target: Vector3) {
     if (!this.eligible()) return;
     this.saved ??= {
@@ -99,7 +112,9 @@ export class RifleScope {
       minZ: this.view.minZ,
     };
     const delta = target.subtract(
-      this.player.root.position.add(new Vector3(0, this.player.crouched ? 0.975 : 1.5, 0)),
+      this.player.root.position.add(
+        new Vector3(0, this.player.crouched ? 0.975 : 1.5, 0),
+      ),
     );
     this.yaw = Math.atan2(delta.x, delta.z);
     this.pitch = -Math.atan2(delta.y, Math.hypot(delta.x, delta.z));
@@ -129,7 +144,10 @@ export class RifleScope {
     this.view.mode = Camera.PERSPECTIVE_CAMERA;
     this.view.fov = 0.2;
     this.view.minZ = 0.08;
-    this.view.position.copyFrom(this.player.root.position).y += this.player.crouched ? 0.975 : 1.5;
+    this.view.position.copyFrom(this.player.root.position).y += this.player
+      .crouched
+      ? 0.975
+      : 1.5;
     this.view.rotationQuaternion = null;
     this.view.rotation.set(this.pitch, this.yaw, 0);
     this.player.setViewVisibility(0);

@@ -8,6 +8,8 @@ import {
   DirectionalLight,
   ShadowGenerator,
   Mesh,
+  PointLight,
+  HemisphericLight,
 } from "@babylonjs/core";
 import { World } from "../map/builder";
 import { CombatLighting, lightBlocked } from "../effects/combatLighting";
@@ -146,6 +148,41 @@ test("large explosions do not allocate ground fire, while filmed impacts reuse b
     effects.emit("rc", Vector3.Zero());
     assert.equal(manager.sprites.length, 12);
     assert.equal(manager.sprites.filter((s) => s.isVisible).length, 1);
+  } finally {
+    scene.dispose();
+    engine.dispose();
+  }
+});
+
+test("gunshot illumination remains within six light slots even with dark pooled explosion lights", () => {
+  const engine = new NullEngine(),
+    scene = new Scene(engine);
+  try {
+    const camera = new FreeCamera("view", new Vector3(0, 5, -5), scene);
+    camera.setTarget(Vector3.Zero());
+    const sun = new DirectionalLight("sun", Vector3.Down(), scene);
+    new HemisphericLight("sky", Vector3.Up(), scene);
+    const world = new World(scene, new ShadowGenerator(32, sun));
+    for (let i = 0; i < 2; i++)
+      new PointLight("core alarm", Vector3.Zero(), scene).intensity = 0;
+    world.explosions.prepare(Vector3.Zero());
+    const floor = world.box("floor", 0, -0.1, 0, 6, 0.1, 6, "#aabbcc");
+    const lights = new CombatLighting(world);
+    lights.pulse(new Vector3(0, 1, 0));
+    const pulse = lights.lights[3];
+    assert.ok(pulse.intensity > 0);
+    assert.equal(
+      floor.lightSources.indexOf(sun),
+      0,
+      "sun shadow sampler stays in slot zero after dynamic sorting",
+    );
+    assert.ok(pulse.includedOnlyMeshes.includes(floor));
+    assert.ok(
+      floor.lightSources.slice(0, 6).includes(pulse),
+      "gunshot cannot be displaced by inactive pooled lights",
+    );
+    lights.update(0.2);
+    assert.equal(pulse.intensity, 0);
   } finally {
     scene.dispose();
     engine.dispose();

@@ -9,6 +9,7 @@ export function resetRound(
   pickup: Pickup,
 ) {
   world.blood.reset();
+  world.carts?.reset();
   world.coreBreached = false;
   world.destructibles.forEach((p) => p.reset());
   cores.forEach((c) => {

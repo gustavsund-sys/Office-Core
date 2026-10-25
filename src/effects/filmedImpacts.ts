@@ -38,6 +38,10 @@ export class FilmedImpacts {
     age: number;
   }[] = [];
   constructor(private scene: Scene) {}
+  prepare(position: Vector3) {
+    for (const kind of ["rc", "spark"] as const)
+      for (let i = 0; i < 2; i++) this.emit(kind, position);
+  }
   emit(kind: FilmedImpactKind, position: Vector3) {
     const film = IMPACT_FILMS[kind];
     let manager = this.managers.get(kind);

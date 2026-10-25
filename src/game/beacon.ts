@@ -1,3 +1,4 @@
+import { retireModel } from "./deferredModelDisposal";
 import { nearView, viewPlanes } from "./viewRegion";
 import { Destructible } from "../core/destructible";
 import { BEACON_MOVEMENT_CLIPS } from "../audio/beaconClips";
@@ -18,8 +19,9 @@ import type { Hittable } from "../core/hittable";
 export const BEACON = {
   range: 15,
   hp: 100,
-  charge: 3,
+  charge: 1.5,
   pursuitCharge: 1,
+  trackingSpeed: 1.5,
   memory: 4,
   damage: 25,
   respawn: 180,
@@ -570,7 +572,8 @@ export class Beacons {
             1.2,
             "bazookaExplosion",
           );
-          robot.root.dispose();
+          if (this.world.authoritative) robot.root.dispose();
+          else retireModel(robot.root);
           this.robots.delete(robot.id);
         }
       },
@@ -715,7 +718,7 @@ export class Beacons {
         (Math.abs(this.angle(desired - r.yaw)) > 0.04 ||
           Math.abs(r.pitch ?? 0) > 0.015)
       )
-        this.beginMotion(r, desired, 0);
+        this.beginMotion(r, desired, 0, true);
       this.advanceMotion(r, dt);
       if (!visibleTarget) {
         r.charge = 0;
@@ -807,7 +810,7 @@ export class Beacons {
   private angle(value: number) {
     return Math.atan2(Math.sin(value), Math.cos(value));
   }
-  private beginMotion(r: Robot, yaw: number, pitch: number) {
+  private beginMotion(r: Robot, yaw: number, pitch: number, tracking = false) {
     r.motionId = (r.motionId ?? 0) + 1;
     r.movementClip = (r.motionId * 7 + r.id * 3) % BEACON_MOVEMENT_CLIPS.length;
     r.pose = {
@@ -816,7 +819,9 @@ export class Beacons {
       fromPitch: r.pitch ?? 0,
       toPitch: pitch,
       elapsed: 0,
-      duration: BEACON_MOVEMENT_CLIPS[r.movementClip].duration,
+      duration:
+        BEACON_MOVEMENT_CLIPS[r.movementClip].duration /
+        (tracking ? BEACON.trackingSpeed : 1),
     };
     r.moving = true;
     r.motionElapsed = 0;
@@ -828,7 +833,9 @@ export class Beacons {
     }
     const p = r.pose;
     p.elapsed = Math.min(p.duration, p.elapsed + dt);
-    r.motionElapsed = p.elapsed;
+    r.motionElapsed =
+      p.elapsed *
+      (BEACON_MOVEMENT_CLIPS[r.movementClip ?? 0].duration / p.duration);
     const t = p.elapsed / p.duration,
       eased = t * t * (3 - 2 * t);
     r.yaw = p.from + (p.to - p.from) * eased;
@@ -976,7 +983,8 @@ export class Beacons {
     this.syncedCarriers = key;
     for (const [id, r] of this.robots)
       if (!states.some((s) => s.id === id)) {
-        r.root.dispose();
+        if (this.world.authoritative) r.root.dispose();
+        else retireModel(r.root);
         this.robots.delete(id);
       }
     for (const s of states) {

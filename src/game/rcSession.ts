@@ -53,7 +53,9 @@ export class RCSession {
       this.steering = 0;
       return undefined;
     }
+    const axes = this.input.remoteAxes?.();
     const direction =
+      axes?.steer ??
       Number(this.input.keys.has("KeyD")) - Number(this.input.keys.has("KeyA"));
     this.steering = rampRCSteering(this.steering ?? 0, direction, dt);
     const steer = this.steering;
@@ -62,8 +64,9 @@ export class RCSession {
     this.input.remoteDetonate = false;
     return {
       throttle:
+        axes?.throttle ??
         Number(this.input.keys.has("KeyW")) -
-        Number(this.input.keys.has("KeyS")),
+          Number(this.input.keys.has("KeyS")),
       yaw: Math.atan2(Math.sin(targetYaw), Math.cos(targetYaw)),
       detonate,
     };
@@ -152,7 +155,12 @@ export class RCSession {
       }
     this.audio.update(
       enabled && !!own,
-      this.input.keys.has("KeyW") ? 1 : this.input.keys.has("KeyS") ? -1 : 0,
+      this.input.remoteAxes?.().throttle ??
+        (this.input.keys.has("KeyW")
+          ? 1
+          : this.input.keys.has("KeyS")
+            ? -1
+            : 0),
       own?.speed ?? 0,
     );
     this.el.hidden = !enabled || !own || this.instructionRemaining === 0;

@@ -350,7 +350,15 @@ export class OfficeRoom extends Room {
         payload,
         this.rc.controlling(client.sessionId),
       );
-      if (notice) client.send(MSG.event, { kind: "lookoutNotice", player: client.sessionId, message: notice, x: 0, y: 0, z: 0 });
+      if (notice)
+        client.send(MSG.event, {
+          kind: "lookoutNotice",
+          player: client.sessionId,
+          message: notice,
+          x: 0,
+          y: 0,
+          z: 0,
+        });
     });
     this.onMessage(MSG.input, (client, payload) => {
       const p = this.participants.get(client.sessionId);
@@ -767,7 +775,12 @@ export class OfficeRoom extends Room {
         kind: "reload",
         player: client.sessionId,
         weapon,
-        sound: kind === "chamber" ? "huntingReload" : "magazineReload",
+        sound:
+          kind === "chamber"
+            ? "huntingReload"
+            : participant.weapons.ammo === 0
+              ? "emptyMagazineReload"
+              : "magazineReload",
         x: player.root.position.x,
         y: player.root.position.y,
         z: player.root.position.z,
@@ -1267,6 +1280,7 @@ export class OfficeRoom extends Room {
         hp: core.hp,
         active: core.active,
       })),
+      carts: this.world.carts.snapshot(),
       props: this.world.destructibles.map((prop) => prop.hp),
       pickups: [
         ...this.pickup.healthDrops.map((p) => ({

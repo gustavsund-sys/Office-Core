@@ -99,7 +99,7 @@ test("beacon retains special weapon, takes separate inventory and respawns with 
     s.close();
   }
 });
-test("beacon selects nearest visible enemy, never teammates, charges three seconds and ignores dead targets", () => {
+test("beacon selects nearest visible enemy, never teammates, charges 1.5 seconds and ignores dead targets", () => {
   const s = setup();
   try {
     const owner = s.actor("owner", "RED", 0, -8);
@@ -114,7 +114,7 @@ test("beacon selects nearest visible enemy, never teammates, charges three secon
     s.beacons.onEvent = (e) => {
       if (e.kind === "shot") shots++;
     };
-    s.beacons.update(2.9, actors);
+    s.beacons.update(BEACON.charge - 0.1, actors);
     assert.equal(near.player.hp, 100);
     assert.equal(s.beacons.snapshot()[0].target, "near");
     s.beacons.update(0.1, actors);
@@ -122,8 +122,13 @@ test("beacon selects nearest visible enemy, never teammates, charges three secon
     assert.equal(friend.player.hp, 100);
     assert.equal(far.player.hp, 100);
     assert.equal(shots, 1);
+    s.beacons.update(BEACON.charge - 0.1, actors);
+    assert.equal(shots, 1);
+    s.beacons.update(0.1, actors);
+    assert.equal(shots, 2);
+    assert.equal(near.player.hp, 100 - BEACON.damage * 2);
     near.player.hp = 0;
-    s.beacons.update(2.9, actors);
+    s.beacons.update(BEACON.charge - 0.1, actors);
     assert.equal(s.beacons.snapshot()[0].target, "far");
     assert.equal(far.player.hp, 100);
     s.beacons.update(0.1, actors);

@@ -1,3 +1,4 @@
+import { preparedMediaUrl } from "../network/preloadedMedia";
 /** Optional personal cutscene. The server has already placed the pilot at the
  * turret; finishing or skipping only reveals that view, never grants entry. */
 export class LookoutEntryFilm {
@@ -17,7 +18,7 @@ export class LookoutEntryFilm {
     overlay.setAttribute("role", "dialog");
     overlay.setAttribute("aria-label", "Entering Boss Lookout");
     const video = document.createElement("video");
-    video.src = this.url;
+    video.src = preparedMediaUrl(this.url);
     video.playsInline = true;
     video.preload = "auto";
     video.muted = !sound;

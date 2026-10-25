@@ -17,3 +17,6 @@ server-dist/
 
 # Licensed fire footage: keep converted assets local; do not publish stock files in Git.
 /public/vfx/fire/
+
+# Licensed user-supplied ventilation smoke; keep out of public Git history.
+/public/vfx/vent-smoke/

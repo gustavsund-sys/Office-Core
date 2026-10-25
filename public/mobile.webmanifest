@@ -1,0 +1,17 @@
+{
+  "id": "/office-core-mobile",
+  "name": "Office Core",
+  "short_name": "Office Core",
+  "description": "Kontorsstrid med pekstyrning — spela tillsammans med dator- och mobilspelare.",
+  "lang": "sv",
+  "start_url": "/?client=mobile",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#10232b",
+  "theme_color": "#10232b",
+  "icons": [
+    {"src":"/app-icons/office-core-192.png","sizes":"192x192","type":"image/png","purpose":"any"},
+    {"src":"/app-icons/office-core-512.png","sizes":"512x512","type":"image/png","purpose":"any"}
+  ]
+}

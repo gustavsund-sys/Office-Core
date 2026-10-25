@@ -9,6 +9,8 @@ export class Destructible implements Hittable {
   hp: number;
   maxHp: number;
   flash = 0;
+  private feedbackActive = false;
+  private readonly hitTint = new Color3(0.65, 0.32, 0.1);
   position: Vector3;
   team?: Team;
   originals: {
@@ -80,6 +82,7 @@ export class Destructible implements Hittable {
     if (this.hp <= 0) return;
     this.hp = Math.max(0, this.hp - amount);
     this.flash = 0.12;
+    this.feedbackActive = true;
     if (this.hp === 0) {
       if (this.prop.kind === "coreDoor") this.world.coreBreached = true;
       // Remove both rendered parts and collision references, opening the route.
@@ -124,19 +127,23 @@ export class Destructible implements Hittable {
     for (const obstacle of this.obstacles)
       if (!this.world.obstacles.includes(obstacle))
         this.world.obstacles.push(obstacle);
-    for (const original of this.originals)
+    for (const original of this.originals) {
       original.mesh.position.copyFrom(original.position);
+      original.material.emissiveColor.copyFrom(original.emissive);
+    }
+    this.feedbackActive = false;
   }
   update(dt: number) {
-    if (this.hp <= 0) return;
+    if (this.hp <= 0 || !this.feedbackActive) return;
     this.flash = Math.max(0, this.flash - dt);
     for (const p of this.originals) {
       p.material.emissiveColor.copyFrom(
-        this.flash > 0 ? new Color3(0.65, 0.32, 0.1) : p.emissive,
+        this.flash > 0 ? this.hitTint : p.emissive,
       );
       p.mesh.position.x =
         p.position.x +
         (this.flash > 0 ? Math.sin(this.flash * 100) * 0.045 : 0);
     }
+    this.feedbackActive = this.flash > 0;
   }
 }

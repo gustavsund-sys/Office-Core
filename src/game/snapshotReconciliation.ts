@@ -84,6 +84,9 @@ export function applyOnline(this: Context, snapshot: Snapshot) {
   this.player.bossLookoutActive = !!own.lookout;
   this.player.shield = own.shield ?? 0;
   this.player.medkit = own.medkit ?? false;
+  // Rewind shared pushable props before replaying unacknowledged movement.
+  // Replays advance carts once from authoritative state instead of pushing twice.
+  if (snapshot.carts) this.world.carts?.sync(snapshot.carts);
   this.pendingInputs = replayMovement(
     this.player,
     own,

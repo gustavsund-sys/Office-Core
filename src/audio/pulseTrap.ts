@@ -1,3 +1,4 @@
+import { preparedMediaUrl } from "../network/preloadedMedia";
 import type { PulseTrapState } from "../game/pulseTrap";
 import { PULSE_TRAP_BEEP_DURATION } from "./pulseTrapRhythm";
 export class PulseTrapAudio {
@@ -35,7 +36,7 @@ export class PulseTrapAudio {
       v.retry = Math.max(0, v.retry - dt);
       const distance = Math.hypot(t.x - listener.x, t.z - listener.z);
       if (enabled && distance < 25) {
-        v.audio ??= new Audio("/audio/pulse-trap-beep.mp3");
+        v.audio ??= new Audio(preparedMediaUrl("/audio/pulse-trap-beep.mp3"));
         const audio = v.audio;
         audio.loop = true;
         audio.preload = "auto";

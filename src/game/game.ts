@@ -1,3 +1,8 @@
+import type { GamePresentation } from "../client/presentation";
+import { officeLighting } from "../visuals/artLighting";
+import { warmAudioSilently } from "../audio/warmup";
+import { preparedMediaUrl } from "../network/preloadedMedia";
+import { prepareStartupGraphics } from "./startupGraphics";
 import { CombatLighting } from "../effects/combatLighting";
 import { Warzone } from "../effects/warzone";
 import { LookoutEntryFilm } from "./lookoutEntryFilm";
@@ -87,6 +92,7 @@ import { ShotPrediction } from "../network/shotPrediction";
 import { Multiplayer } from "../network/client";
 import { MSG, type Snapshot, type NetInput } from "../../shared/protocol";
 export class Game {
+  startupPreparing = true;
   rc!: RCSession;
   boss?: BossLookout;
   private lookoutEntryFilm = new LookoutEntryFilm();
@@ -184,13 +190,13 @@ export class Game {
   localKills = 0;
   currentRound = 1;
   teamWins = { RED: 0, BLUE: 0 };
-  disarmAudio = new Audio("/audio/disarm.mp3");
+  disarmAudio = new Audio(preparedMediaUrl("/audio/disarm.mp3"));
   lobbyMuted = localStorage.getItem("officeCore.lobbyMuted") === "true";
   updateDisarm(progress?: number) {
     return updateDisarmImpl.call(this, progress);
   }
   roundMedia = new RoundMedia();
-  lobbyMusic = new Audio("/audio/music/tactical-pulse.mp3");
+  lobbyMusic = new Audio(preparedMediaUrl("/audio/music/tactical-pulse.mp3"));
   lobbyMusicBlocked = false;
   lobbyMusicPending = false;
   updateLobbyMusic(unlock = false) {
@@ -201,7 +207,11 @@ export class Game {
   intrudedTeam?: Team;
   breachTeam?: Team;
   breachUntil = 0;
-  constructor(canvas: HTMLCanvasElement, engine?: AbstractEngine) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    engine?: AbstractEngine,
+    readonly presentation: GamePresentation = {},
+  ) {
     this.engine =
       engine ??
       new Engine(canvas, true, {
@@ -250,6 +260,7 @@ export class Game {
     glow.intensity = quality.glow;
     this.scene.imageProcessingConfiguration.contrast = 1.12;
     this.scene.imageProcessingConfiguration.exposure = 1.02;
+    officeLighting(this.scene, ambient, sun, shadows);
     this.scene.imageProcessingConfiguration.vignetteEnabled =
       quality.effects === 1;
     this.scene.imageProcessingConfiguration.vignetteWeight = 1.1;
@@ -288,7 +299,7 @@ export class Game {
       this.explosionSound(audibleStrength);
     };
     this.player = new Player(this.world);
-    this.input = new Input(canvas);
+    this.input = presentation.createInput?.(canvas) ?? new Input(canvas);
     this.player.root.rotation.y = this.input.yaw;
     this.cores = office01.bases.map(
       (b) => new Damageable(this.world, "core", b.x, b.z, b.team),
@@ -866,11 +877,13 @@ export class Game {
     this.resize();
     window.addEventListener("resize", () => this.resize());
     window.addEventListener("pointerdown", () => {
+      if (this.startupPreparing) return;
       this.updateLobbyMusic(true);
       if (this.sound && this.audio?.state === "suspended")
         void this.audio.resume();
     });
     window.addEventListener("keydown", () => {
+      if (this.startupPreparing) return;
       this.updateLobbyMusic(true);
       if (this.sound && this.audio?.state === "suspended")
         void this.audio.resume();
@@ -905,71 +918,7 @@ export class Game {
     document
       .querySelector("#pause")!
       .addEventListener("click", () => this.setPaused(!this.paused));
-    window.addEventListener("keydown", (e) => {
-      if (!this.paused && this.boss?.key(e)) return;
-      if (e.code === "KeyE" && this.input.remote) return;
-      if (!this.paused && !e.repeat && this.multiplayer?.room) {
-        if (e.code === "Space") {
-          e.preventDefault();
-          this.onlineInput.jump = true;
-        }
-        if (e.code === "KeyQ") this.onlineInput.warcry = true;
-        if (e.code === "KeyE") this.onlineInput.interact = true;
-        if (e.code === "KeyR") {
-          e.preventDefault();
-          this.onlineInput.reload = true;
-        }
-        if (e.code === "Digit1") this.onlineInput.slot = 1;
-        if (e.code === "Digit2") this.onlineInput.slot = 2;
-        if (e.code === "Digit3") this.onlineInput.slot = 3;
-        if (e.code === "Digit4") this.onlineInput.useMedkit = true;
-        return;
-      }
-      if (!this.paused && !e.repeat) {
-        if (
-          e.code === "Space" &&
-          !(e.target instanceof HTMLInputElement) &&
-          !(e.target instanceof HTMLButtonElement)
-        ) {
-          e.preventDefault();
-          if (
-            !this.rc.locked &&
-            this.player.hp > 0 &&
-            this.player.jump() &&
-            this.sound
-          )
-            this.weaponAudio?.playMovement("jump");
-        }
-        if (e.code === "Digit1") this.weapons.switchSlot(1);
-        if (e.code === "Digit2") this.weapons.switchSlot(2);
-        if (e.code === "Digit3") this.weapons.switchSlot(3);
-        if (e.code === "Digit4" && this.player.useMedkit() && this.sound)
-          this.weaponAudio?.playHealthUp();
-        if (e.code === "KeyQ") this.weapons.activateWarcry();
-        if (e.code === "KeyE") this.pickup.chooseRequested = true;
-        if (e.code === "KeyR" && !e.repeat) {
-          e.preventDefault();
-          this.weapons.requestReload();
-        }
-      }
-      if (
-        e.code === "KeyK" &&
-        !e.repeat &&
-        !this.boss?.active &&
-        !this.input.scoped
-      ) {
-        this.setControlScheme(!this.input.aimRelativeMovement);
-        this.hud.toast(
-          this.input.aimRelativeMovement
-            ? "SIKTSTYRD STYRNING"
-            : "KLASSISK STYRNING",
-        );
-      }
-      if (e.code === "Escape" && !e.repeat) {
-        if (this.input.locked) return; // Native Escape releases pointer lock first.
-        this.setPaused(!this.paused);
-      }
-    });
+    window.addEventListener("keydown", (e) => this.handleGameKey(e));
     window.addEventListener("blur", () => this.setPaused(true));
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) this.setPaused(true);
@@ -990,6 +939,92 @@ export class Game {
         this.prepareAudio();
       }
     });
+  }
+  /** Shared game actions called by keyboard or a platform's explicit controls. */
+  handleGameKey(e: KeyboardEvent) {
+    if (!this.paused && this.boss?.key(e)) return;
+    if (e.code === "KeyE" && this.input.remote) return;
+    if (!this.paused && !e.repeat && this.multiplayer?.room) {
+      if (e.code === "Space") {
+        e.preventDefault();
+        this.onlineInput.jump = true;
+      }
+      if (e.code === "KeyQ") this.onlineInput.warcry = true;
+      if (e.code === "KeyE") this.onlineInput.interact = true;
+      if (e.code === "KeyR") {
+        e.preventDefault();
+        this.onlineInput.reload = true;
+      }
+      if (e.code === "Digit1") this.onlineInput.slot = 1;
+      if (e.code === "Digit2") this.onlineInput.slot = 2;
+      if (e.code === "Digit3") this.onlineInput.slot = 3;
+      if (e.code === "Digit4") this.onlineInput.useMedkit = true;
+      return;
+    }
+    if (!this.paused && !e.repeat) {
+      if (
+        e.code === "Space" &&
+        !(e.target instanceof HTMLInputElement) &&
+        !(e.target instanceof HTMLButtonElement)
+      ) {
+        e.preventDefault();
+        if (
+          !this.rc.locked &&
+          this.player.hp > 0 &&
+          this.player.jump() &&
+          this.sound
+        )
+          this.weaponAudio?.playMovement("jump");
+      }
+      if (e.code === "Digit1") this.weapons.switchSlot(1);
+      if (e.code === "Digit2") this.weapons.switchSlot(2);
+      if (e.code === "Digit3") this.weapons.switchSlot(3);
+      if (e.code === "Digit4" && this.player.useMedkit() && this.sound)
+        this.weaponAudio?.playHealthUp();
+      if (e.code === "KeyQ") this.weapons.activateWarcry();
+      if (e.code === "KeyE") this.pickup.chooseRequested = true;
+      if (e.code === "KeyR" && !e.repeat) {
+        e.preventDefault();
+        this.weapons.requestReload();
+      }
+    }
+    if (
+      e.code === "KeyK" &&
+      !e.repeat &&
+      !this.boss?.active &&
+      !this.input.scoped
+    ) {
+      this.setControlScheme(!this.input.aimRelativeMovement);
+      this.hud.toast(
+        this.input.aimRelativeMovement
+          ? "SIKTSTYRD STYRNING"
+          : "KLASSISK STYRNING",
+      );
+    }
+    if (e.code === "Escape" && !e.repeat) {
+      if (this.input.locked) return; // Native Escape releases pointer lock first.
+      this.setPaused(!this.paused);
+    }
+  }
+  action(code: string) {
+    this.handleGameKey(new KeyboardEvent("keydown", { code }));
+  }
+  async prepareStartup(status: (text: string, progress: number) => void) {
+    status("Packar upp ljuden…", 0);
+    const audio = this.prepareAudio(false);
+    const [, rcBuffers] = await Promise.all([
+      audio.load(),
+      this.rc.audio.prepare(this.audio),
+    ]);
+    status("Provkör ljuden utan att väcka kollegorna…", 0.12);
+    await warmAudioSilently([...audio.buffers.values(), ...rcBuffers]);
+    await prepareStartupGraphics(this, (text, progress) =>
+      status(text, 0.2 + progress * 0.8),
+    );
+  }
+  startRendering() {
+    this.presentation.attach?.(this);
+    this.startupPreparing = false;
     this.engine.runRenderLoop(() => this.tick());
   }
   installMultiplayer() {
@@ -1023,11 +1058,13 @@ export class Game {
     return setPausedImpl.call(this, value);
   }
   resize() {
-    return resizeImpl.call(this);
+    resizeImpl.call(this);
+    this.presentation.resize?.(this);
   }
   updateCamera(dt: number) {
     if (this.boss?.camera()) return;
     if (this.rifleScope?.camera()) return;
+    if (this.presentation.camera?.(this, dt)) return;
     return updateCameraImpl.call(this, dt);
   }
   tick() {
@@ -1051,6 +1088,7 @@ export class Game {
       );
     }
     const dt = Math.min(this.engine.getDeltaTime() / 1000, 0.05);
+    this.presentation.update?.(this, dt);
     if (
       this.input.scoped &&
       (this.paused ||
@@ -1883,7 +1921,7 @@ export class Game {
     bass.start();
     bass.stop(t + 0.4);
   }
-  prepareAudio() {
+  prepareAudio(activate = true) {
     this.audio ??= new AudioContext();
     this.weaponAudio ??= new WeaponAudio(this.audio);
     this.engagementAudio ??= new EngagementAudio(this.audio);
@@ -1895,7 +1933,7 @@ export class Game {
           Number(slider.value) / 100,
         ),
       );
-    void this.audio.resume();
+    if (activate) void this.audio.resume();
     void this.weaponAudio.load();
     return this.weaponAudio;
   }

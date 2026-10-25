@@ -47,6 +47,74 @@ export class Explosions {
   private sprites?: SpriteExplosions;
   private muzzleFlashes?: MuzzleFlashes;
   private filmedImpacts?: FilmedImpacts;
+  private lightPool: {
+    light: PointLight;
+    life: number;
+    duration: number;
+    power: number;
+  }[] = [];
+  private prepareLights() {
+    if (this.lightPool.length) return;
+    for (let i = 0; i < 2; i++) {
+      const light = new PointLight(
+        `pooled explosion light ${i}`,
+        Vector3.Zero(),
+        this.world.scene,
+      );
+      light.intensity = 0;
+      light.range = 6;
+      light.specular = Color3.Black();
+      // Reserve stable slots even while dark. Never toggle enabled state or receiver lists.
+      light.renderPriority = 10;
+      this.lightPool.push({ light, life: 0, duration: 0.12, power: 3 });
+    }
+  }
+  private light(
+    position: Vector3,
+    plasma: boolean,
+    duration: number,
+    power: number,
+    range: number,
+  ) {
+    this.prepareLights();
+    const slot = this.lightPool.reduce((a, b) => (a.life <= b.life ? a : b));
+    slot.light.position.copyFrom(position);
+    slot.light.diffuse.copyFromFloats(
+      plasma ? 0.875 : 1,
+      plasma ? 0.44 : 0.77,
+      plasma ? 1 : 0.49,
+    );
+    slot.light.range = range;
+    slot.life = slot.duration = duration;
+    slot.power = power;
+    slot.light.intensity = power;
+    if (!this.lights.includes(slot)) this.lights.push(slot);
+  }
+  prepare(position: Vector3) {
+    if (!this.visuals) return;
+    this.prepareLights();
+    this.muzzleFlashes ??= new MuzzleFlashes(this.world.scene);
+    this.muzzleFlashes.prepare(position);
+    this.filmedImpacts ??= new FilmedImpacts(this.world.scene);
+    this.filmedImpacts.prepare(position);
+  }
+  /** Rehearse the real effect path while keeping sound, shake and damage callbacks silent. */
+  rehearse(position: Vector3, style: ExplosionStyle) {
+    const notify = this.onBurst;
+    this.onBurst = () => {};
+    try {
+      this.burst(
+        position,
+        "#ffcf56",
+        style === "normal" ? 1 : 2.2,
+        style === "plasma" ? "plasmaMine" : "bazookaExplosion",
+        style,
+      );
+    } finally {
+      this.onBurst = notify;
+    }
+  }
+
   filmedImpact(kind: FilmedImpactKind, position: Vector3) {
     if (!this.visuals) return;
     this.filmedImpacts ??= new FilmedImpacts(this.world.scene);
@@ -122,17 +190,7 @@ export class Explosions {
         this.amount,
         this.random,
       );
-      if (detail.light && this.lights.length < 2) {
-        const light = new PointLight(
-          "LOD explosion light",
-          position.clone(),
-          this.world.scene,
-        );
-        light.diffuse = Color3.FromHexString(plasma ? "#df70ff" : "#ffc57d");
-        light.range = 6;
-        light.intensity = 3;
-        this.lights.push({ light, life: 0.12 });
-      }
+      if (detail.light) this.light(position, plasma, 0.12, 3, 6);
       this.onBurst(position, power, sound, style);
       return;
     }
@@ -247,13 +305,7 @@ export class Explosions {
         ),
       );
     }
-    if (this.lights.length < 4) {
-      const light = new PointLight("explosion light", position.clone(), scene);
-      light.diffuse = Color3.FromHexString(plasma ? "#df70ff" : "#ffc57d");
-      light.range = 8;
-      light.intensity = 5;
-      this.lights.push({ light, life: 0.18 });
-    }
+    this.light(position, plasma, 0.18, 5, 8);
     this.onBurst(position, power, sound, style);
   }
   playerDeath(position: Vector3, teamColor: string) {
@@ -390,8 +442,8 @@ export class Explosions {
     this.particles = this.particles.filter((p) => p.life > 0);
     for (const l of this.lights) {
       l.life -= dt;
-      l.light.intensity = Math.max(0, l.life / 0.18) * 5;
-      if (l.life <= 0) l.light.dispose();
+      const slot = l as (typeof this.lightPool)[number];
+      l.light.intensity = Math.max(0, l.life / slot.duration) * slot.power;
     }
     this.lights = this.lights.filter((l) => l.life > 0);
   }

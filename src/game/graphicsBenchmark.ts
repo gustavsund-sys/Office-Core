@@ -1,3 +1,4 @@
+import { officeLighting } from "../visuals/artLighting";
 import { BenchmarkTimeline, benchmarkRandom } from "./benchmarkTimeline";
 import {
   Scene,
@@ -77,6 +78,7 @@ export async function testGraphics(
   sun.diffuse = Color3.FromHexString("#ffdfb0");
   const shadows = new ShadowGenerator(1024, sun);
   shadows.usePercentageCloserFiltering = true;
+  officeLighting(scene, ambient, sun, shadows);
   const glow = new GlowLayer("benchmark glow", scene, {
     mainTextureFixedSize: 512,
   });
@@ -103,7 +105,7 @@ export async function testGraphics(
   const players = Array.from({ length: 3 }, (_, i) => {
     const p = new Player(world);
     p.root.position.set((i % 4) * 3 - 4.5, 0, -4 + Math.floor(i / 4) * 4);
-    p.torso.material = world.mat(i < 2 ? "#ef6259" : "#4abde4");
+    p.torso.material = world.finish(i < 2 ? "#ef6259" : "#4abde4", "fabric");
     p.setWeaponModel(i % 2 ? "machineGun" : "pulseGun");
     return p;
   });
@@ -230,11 +232,7 @@ export async function testGraphics(
       await new Promise<void>((r) => requestAnimationFrame(() => r()));
     }
     await scene.whenReadyAsync();
-    for (const tier of [
-      "standard",
-      "medium",
-      "low",
-    ] as GraphicsTier[]) {
+    for (const tier of ["standard", "medium", "low"] as GraphicsTier[]) {
       time = 0;
       applyGraphics(engine, tier);
       const quality = GRAPHICS[tier];
@@ -246,8 +244,7 @@ export async function testGraphics(
           : ShadowGenerator.QUALITY_HIGH;
       world.explosions.amount = quality.effects;
       glow.intensity = quality.glow;
-      scene.imageProcessingConfiguration.vignetteEnabled =
-        tier === "standard";
+      scene.imageProcessingConfiguration.vignetteEnabled = tier === "standard";
       const phaseStats: Stats[] = [];
       for (const phase of ["normal", "intense"] as const) {
         intense = phase === "intense";

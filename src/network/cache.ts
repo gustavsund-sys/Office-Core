@@ -89,6 +89,10 @@ export async function installGameCache() {
         5 * 60 * 1000,
       );
       window.addEventListener(
+        "online",
+        () => void registration.update().catch(() => {}),
+      );
+      window.addEventListener(
         "pageshow",
         () => void registration.update().catch(() => {}),
       );

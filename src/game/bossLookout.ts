@@ -105,7 +105,9 @@ export class BossLookout {
     this.held.position.set(0.3, 1.2, 0.55);
     this.held.scaling.setAll(0.55);
     this.held.setEnabled(false);
-    this.rounds = new LookoutRounds(world.scene, true, position => world.explosions.filmedImpact("spark", position));
+    this.rounds = new LookoutRounds(world.scene, true, (position) =>
+      world.explosions.filmedImpact("spark", position),
+    );
     this.atmosphere = new LookoutAtmosphere(world.scene);
     for (const side of [-1, 1])
       this.turrets.set(side, buildLookoutRoom(world, side, LOOKOUT.height));
@@ -202,6 +204,14 @@ export class BossLookout {
       this.lastRound = round;
     }
   }
+  touchAim(dx: number, dy: number) {
+    if (!this.active || this.paused()) return;
+    const center = lookoutPose(this.side).yaw;
+    this.yaw = Math.max(center-1.2, Math.min(center+1.2, this.yaw+dx));
+    this.pitch = Math.max(.12, Math.min(1.53, this.pitch+dy));
+  }
+  touchFire(active: boolean) { this.fire = active && this.active && !this.paused(); }
+  toggleScope() { if (this.active && !this.paused()) this.scope = !this.scope; }
   key(e: KeyboardEvent) {
     if (e.repeat) return this.active;
     if (this.online) {
@@ -408,12 +418,25 @@ export class BossLookout {
       1.587,
       "turret",
     );
-    this.rounds?.launch(start, end, true, () => {}, event.groundHit === false ? Vector3.Zero() : Vector3.Up(), event.player ?? "remote");
+    this.rounds?.launch(
+      start,
+      end,
+      true,
+      () => {},
+      event.groundHit === false ? Vector3.Zero() : Vector3.Up(),
+      event.player ?? "remote",
+    );
     if (own) {
       this.recoilKick = Math.min(0.035, this.recoilKick + 0.012);
       this.recoilBack = Math.min(0.065, this.recoilBack + 0.045);
       this.shot();
     }
+  }
+  prepareGraphics(position: Vector3) {
+    this.rounds?.prepare(position);
+  }
+  finishGraphicsPreparation() {
+    this.rounds?.clear();
   }
   decorateHud() {
     if (!this.active && !this.player.bossLookoutSelected) return;

@@ -436,7 +436,7 @@ export function tickOnline(this: Context, dt: number) {
     net.connected
   ) {
     if (!predictionBlocked(this.pendingInputs) && !this.rc.locked)
-      this.player.simulate(command, this.networkElapsed);
+      this.player.simulate(command, this.networkElapsed, false);
     this.player.animate(
       !this.rc.locked &&
         !predictionBlocked(this.pendingInputs) &&
@@ -534,7 +534,7 @@ export function tickOnline(this: Context, dt: number) {
         player.animate(moving, dt);
       }
       if (newSnapshot)
-        player.torso.material = this.world.mat(TEAMS[state.team]);
+        player.torso.material = this.world.finish(TEAMS[state.team], "fabric");
       if (this.onlineModels.get(state.id) !== state.weapon) {
         player.setWeaponModel(state.weapon);
         this.onlineModels.set(state.id, state.weapon);

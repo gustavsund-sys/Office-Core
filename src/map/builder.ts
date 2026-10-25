@@ -1,3 +1,17 @@
+import { CleaningCarts } from "./cleaningCarts";
+import { buildOfficeLife, dressOfficeProp } from "./officeLife";
+import { batchBuildingTrim, batchWallVisuals } from "./buildingBatch";
+import { installOfficeDetailLOD } from "./detailLOD";
+import { buildOfficeServiceDecor } from "./officeServiceDecor";
+import { deskAssembly } from "./deskAssembly";
+import { buildLowerOffices, OFFICE_WINDOWS } from "./lowerOffice";
+import {
+  partitionFloors,
+  cutFloorOpenings,
+  type FloorSurface,
+} from "./floorSurfaces";
+import { officeCarpet } from "../visuals/carpet";
+import { edgeRadius, softenBox } from "../visuals/softBox";
 import { BloodStains } from "../effects/blood";
 import { mergeStaticParts } from "../weapons/staticModel";
 import { nearView, viewPlanes } from "../game/viewRegion";
@@ -19,7 +33,10 @@ import {
   TransformNode,
 } from "@babylonjs/core";
 import { OBJECTS } from "../maps/layout";
-import type { CombatLighting } from "../effects/combatLighting";
+import {
+  materialLightLimit,
+  type CombatLighting,
+} from "../effects/combatLighting";
 import { BURNING_BINS, office01 } from "../maps/office01";
 import { Explosions } from "../effects/explosions";
 import { Destructible } from "../core/destructible";
@@ -27,8 +44,10 @@ import { TEAMS, type Team } from "../config/game";
 import type { Obstacle } from "../game/collision";
 export class World {
   authoritative = false;
+  carts: CleaningCarts;
   coreBreached = false;
   private palmAsset?: Promise<AssetContainer>;
+  private palmReplacements: Promise<void>[] = [];
   obstacles: Obstacle[] = [];
   solids: Mesh[] = [];
   materials = new Map<string, StandardMaterial>();
@@ -45,8 +64,17 @@ export class World {
     public scene: Scene,
     public shadows: ShadowGenerator,
   ) {
+    // Stable leading slots: dynamic effect priorities must never move the sun's
+    // shadow sampler while WebGPU is still using a previously compiled shader.
+    const sun = shadows?.getLight();
+    if (sun) sun.renderPriority = 100;
+    for (const light of scene.lights)
+      if (light.getClassName() === "HemisphericLight")
+        light.renderPriority = 90;
+    this.carts = new CleaningCarts(this);
     this.explosions = new Explosions(this);
     this.blood = new BloodStains(this);
+    installOfficeDetailLOD(scene);
     const map = shadows?.getShadowMap();
     if (map)
       map.getCustomRenderList = (_face, list, length) => {
@@ -84,7 +112,7 @@ export class World {
     this.materials.set(key, m);
     return m;
   }
-  finish(color: string, surface: "metal" | "polymer") {
+  finish(color: string, surface: "metal" | "polymer" | "fabric" | "skin") {
     const key = `${color}:${surface}`;
     const cached = this.materials.get(key);
     if (cached) return cached;
@@ -94,7 +122,10 @@ export class World {
         ? ([0.35, 0.38, 0.4] as const)
         : ([0.09, 0.09, 0.09] as const)),
     );
-    material.specularPower = surface === "metal" ? 48 : 14;
+    material.specularPower =
+      surface === "metal" ? 48 : surface === "skin" ? 24 : 10;
+    if (surface === "fabric") material.specularColor.set(0.035, 0.035, 0.035);
+    if (surface === "skin") material.specularColor.set(0.14, 0.11, 0.09);
     if (typeof document !== "undefined") {
       let texture = this.surfaceTextures.get(surface);
       if (!texture) {
@@ -108,7 +139,11 @@ export class World {
             const value =
               surface === "metal"
                 ? 224 + grain * 10 + Math.sin(y * 2.1) * 8
-                : 225 + grain * 22;
+                : surface === "fabric"
+                  ? 235 + grain * 9 + ((x + y) % 2) * 5
+                  : surface === "skin"
+                    ? 247 + grain * 6
+                    : 225 + grain * 22;
             data.fill(value, (y * 64 + x) * 4, (y * 64 + x) * 4 + 3);
             data[(y * 64 + x) * 4 + 3] = 255;
           }
@@ -164,8 +199,8 @@ export class World {
           )
         ? "wood"
         : /^(walkable floor|corridor runner|room carpet)$/.test(name)
-          ? "carpet-worn"
-          : /^(base carpet|sofa|sofa back|fabric partition|chair seat|chair back)$/.test(
+          ? "office-carpet"
+          : /^(base carpet|sofa|sofa back|sofa cushion|sofa pillow|arm|fabric partition|chair|chair seat|chair back)$/.test(
                 name,
               )
             ? "carpet"
@@ -177,12 +212,21 @@ export class World {
         material = this.mat(color).clone(key);
         let texture = this.surfaceTextures.get(surface);
         if (!texture) {
-          texture = new Texture(`/textures/${surface}.jpg`, this.scene);
+          texture =
+            surface === "office-carpet"
+              ? officeCarpet(this.scene)
+              : new Texture(`/textures/${surface}.jpg`, this.scene);
           texture.wrapU = texture.wrapV = Texture.WRAP_ADDRESSMODE;
           texture.anisotropicFilteringLevel = 4;
           this.surfaceTextures.set(surface, texture);
         }
         material.diffuseTexture = texture;
+        material.specularColor = surface.includes("carpet")
+          ? new Color3(0.025, 0.025, 0.025)
+          : surface === "wood"
+            ? new Color3(0.2, 0.17, 0.12)
+            : new Color3(0.055, 0.055, 0.05);
+        material.specularPower = surface === "wood" ? 28 : 10;
         this.materials.set(key, material);
       }
       m.material = material;
@@ -196,17 +240,42 @@ export class World {
         [w, d],
         [w, d],
       ];
-      const tile = surface === "wood" ? 2 : 4;
+      const tile = surface === "wood" ? 2 : surface === "office-carpet" ? 8 : 4;
       for (let face = 0; face < 6; face++)
         for (let vertex = 0; vertex < 4; vertex++) {
           uv[face * 8 + vertex * 2] *= dimensions[face][0] / tile;
           uv[face * 8 + vertex * 2 + 1] *= dimensions[face][1] / tile;
         }
+      // Anchor carpet tiles in world space so clipping a floor does not move its weave.
+      if (
+        /^(walkable floor|corridor runner|room carpet|base carpet)$/.test(name)
+      ) {
+        const positions = m.getVerticesData(VertexBuffer.PositionKind)!;
+        const normals = m.getVerticesData(VertexBuffer.NormalKind)!;
+        for (let i = 0; i < positions.length / 3; i++) {
+          if (Math.abs(normals[i * 3 + 1]) > 0.9) {
+            uv[i * 2] = (x + positions[i * 3]) / tile;
+            uv[i * 2 + 1] = (z + positions[i * 3 + 2]) / tile;
+          }
+        }
+      }
       m.setVerticesData(VertexBuffer.UVKind, uv);
     }
+    if (
+      !glow &&
+      /^(jacket|vest|left arm|right arm|trouser thigh|trouser shin|shirt cuff|trouser cuff|shirt collar|tie)$/.test(
+        name,
+      )
+    )
+      m.material = this.finish(color, "fabric");
+    if (!glow && /^(head|ear|nose)$/.test(name))
+      m.material = this.finish(color, "skin");
+    const radius = edgeRadius(name);
+    if (radius && !this.authoritative)
+      softenBox(m, w, h, d, radius, surface ? (surface === "wood" ? 2 : 4) : 0);
     m.receiveShadows = true;
     m.isPickable = solid;
-    if (h > 0.2) this.shadows.addShadowCaster(m);
+    if (h > 0.2 && name !== "foundation") this.shadows.addShadowCaster(m);
     if (solid) {
       this.obstacles.push({ x, z, w, d });
       this.solids.push(m);
@@ -258,29 +327,61 @@ export class World {
     }
   }
   build() {
-    this.box(
-      "foundation",
-      0,
-      -0.3,
-      office01.centerZ,
-      office01.width + 1,
-      0.6,
-      office01.depth + 1,
-      "#13232e",
-    );
-    for (const r of office01.footprint)
-      this.box("walkable floor", r.x, -0.045, r.z, r.w, 0.08, r.d, "#617577");
-    for (const r of office01.corridors) {
-      this.box(
-        "corridor runner",
-        r.x,
-        0.005,
-        r.z,
-        r.w * 0.7,
-        0.01,
-        r.d * 0.7,
-        "#435d66",
-      );
+    const slab = {
+      x: 0,
+      z: office01.centerZ,
+      w: office01.width + 1,
+      d: office01.depth + 1,
+    };
+    for (const r of cutFloorOpenings([slab], OFFICE_WINDOWS))
+      this.box("foundation", r.x, -0.35, r.z, r.w, 0.6, r.d, "#13232e");
+    buildLowerOffices(this);
+    buildOfficeServiceDecor(this);
+    const floors: FloorSurface[] = [
+      ...office01.footprint.map((r) => ({
+        ...r,
+        name: "walkable floor",
+        color: "#617577",
+      })),
+      ...office01.corridors.map((r) => ({
+        ...r,
+        w: r.w * 0.7,
+        d: r.d * 0.7,
+        name: "corridor runner",
+        color: "#435d66",
+      })),
+      ...office01.rooms.map((r) => ({
+        ...r,
+        name: "room carpet",
+        color: r.name.startsWith("RECEPTION") ? "#91a09a" : "#4c626b",
+      })),
+      ...office01.bases.map((b) => ({
+        x: b.x,
+        z: b.z,
+        w: 9,
+        d: 9,
+        name: "base carpet",
+        color: "#384b57",
+      })),
+    ];
+    const floorGroups = new Map<string, Mesh[]>();
+    for (const r of partitionFloors(floors)) {
+      const mesh = this.box(r.name, r.x, 0, r.z, r.w, 0.02, r.d, r.color);
+      const key = `${r.name}:${r.color}`;
+      const group = floorGroups.get(key) ?? [];
+      group.push(mesh);
+      floorGroups.set(key, group);
+    }
+    // Clipping should not add a draw call per strip. Keep floor names for turret picking.
+    for (const group of floorGroups.values()) {
+      if (group.length < 2) continue;
+      const name = group[0].name;
+      const merged = Mesh.MergeMeshes(group, true, true);
+      if (merged) {
+        merged.name = name;
+        merged.isPickable = false;
+        merged.receiveShadows = true;
+      }
     }
     for (const sx of [-1, 1])
       for (const sz of [1]) {
@@ -394,16 +495,6 @@ export class World {
           }
     }
     for (const r of office01.rooms) {
-      this.box(
-        "room carpet",
-        r.x,
-        0.01,
-        r.z,
-        r.w,
-        0.025,
-        r.d,
-        r.name.startsWith("RECEPTION") ? "#91a09a" : "#4c626b",
-      );
       this.label(
         r.name,
         r.x,
@@ -414,7 +505,6 @@ export class World {
     }
     for (const b of office01.bases) {
       const c = TEAMS[b.team];
-      this.box("base carpet", b.x, 0.012, b.z, 9, 0.03, 9, "#384b57");
       const fixture = this.box(
         "alarm fixture",
         b.x,
@@ -566,36 +656,16 @@ export class World {
       const spec = OBJECTS[p.kind as keyof typeof OBJECTS];
       let w = p.w ?? spec?.[1] ?? 2,
         d = p.d ?? spec?.[2] ?? 1;
-      if (
-        p.kind === "desk" ||
-        p.kind === "counter" ||
-        p.kind === "meetingTable"
-      ) {
+      if (p.kind === "desk") {
+        deskAssembly(this, x, z, w, d);
+      } else if (p.kind === "counter" || p.kind === "meetingTable") {
         this.box(p.kind, x, 0.95, z, w, 0.18, d, "#b5a58b", true);
         this.box("pedestal", x, 0.44, z, w * 0.72, 0.85, d * 0.65, "#405561");
-        if (p.kind === "desk") {
-          this.box("screen", x, 1.45, z + 0.2, 0.9, 0.65, 0.12, "#182c39");
-          this.box(
-            "display",
-            x,
-            1.46,
-            z + 0.13,
-            0.76,
-            0.48,
-            0.02,
-            "#68c5cc",
-            false,
-            true,
-          );
-          this.box("keyboard", x, 1.06, z - 0.2, 0.7, 0.035, 0.25, "#263b49");
-          this.box("chair", x, 0.5, z - 1, 0.75, 0.15, 0.7, "#314753");
-          this.box("chair back", x, 0.85, z - 1.3, 0.75, 0.7, 0.14, "#314753");
-        }
       } else if (p.kind === "sofa") {
         this.box("sofa", x, 0.4, z, w, 0.8, d, "#b27a59", true);
-        this.box("sofa back", x, 0.85, z + 0.45, 2.7, 0.65, 0.22, "#c5926b");
-        for (const dx of [-1.25, 1.25])
-          this.box("arm", x + dx, 0.7, z, 0.2, 0.45, 1.1, "#c5926b");
+        this.box("sofa back", x, 0.85, z + d * 0.4, w, 0.65, 0.28, "#c5926b");
+        for (const dx of [-w * 0.45, w * 0.45])
+          this.box("arm", x + dx, 0.7, z, 0.24, 0.45, d, "#c5926b");
       } else if (p.kind === "plant") {
         this.box("planter", x, 0.35, z, w, 0.7, d, "#c2b6a1", true);
         const foliage: Mesh[] = [];
@@ -617,7 +687,7 @@ export class World {
           foliage.push(m);
         }
         if (typeof document !== "undefined")
-          void this.replacePalm(x, z, foliage);
+          this.palmReplacements.push(this.replacePalm(x, z, foliage));
       } else if (p.kind === "glass") {
         const m = this.box("glass", x, 1, z, w, 2, d, "#8bd0d4", true);
         const mat = this.mat("#8bd0d4");
@@ -707,10 +777,15 @@ export class World {
     }
     this.label("COMBAT ATRIUM", 0, 14, "#d3d8c6", 7);
     this.label("BREAKABLE COVER", 0, 10, "#edcb89", 4);
+    buildOfficeLife(this);
+    if (!this.authoritative) {
+      batchBuildingTrim(this);
+      batchWallVisuals(this);
+    }
   }
   async whenAssetsReady() {
     try {
-      await this.palmAsset;
+      await Promise.all(this.palmReplacements);
     } catch {
       /* Original foliage remains available. */
     }
@@ -721,6 +796,21 @@ export class World {
         LoadAssetContainerAsync("/models/nipa-palm-young.glb", this.scene),
       );
       const asset = await this.palmAsset;
+      // Vertex colours are the GLB's entire palette, not a downloaded texture.
+      for (const source of asset.meshes) {
+        if (
+          source instanceof Mesh &&
+          source.isVerticesDataPresent(VertexBuffer.ColorKind)
+        ) {
+          source.useVertexColors = true;
+          if (source.material) {
+            source.material.allowShaderHotSwapping = false;
+            if ("maxSimultaneousLights" in source.material)
+              (source.material as StandardMaterial).maxSimultaneousLights =
+                materialLightLimit(this.scene, source.material);
+          }
+        }
+      }
       if (this.scene.isDisposed) return;
       const instance = asset.instantiateModelsToScene(
         (name) => `nipa palm ${name}`,
@@ -740,6 +830,20 @@ export class World {
       root.scaling.scaleInPlace(scale);
       root.position.set(x, 0.68 - minY * scale, z);
       root.rotation.y = Math.sin(x * 17 + z * 11) * Math.PI;
+      for (const mesh of meshes) {
+        if (
+          mesh instanceof Mesh &&
+          mesh.isVerticesDataPresent(VertexBuffer.ColorKind)
+        )
+          mesh.useVertexColors = true;
+      }
+      // Do not replace the green fallback until the actual coloured shader is ready.
+      await Promise.all(
+        meshes
+          .filter((mesh) => mesh.material && mesh.getTotalVertices())
+          .map((mesh) => mesh.material!.forceCompilationAsync(mesh)),
+      );
+      if (this.scene.isDisposed) return;
       for (const old of fallback) {
         old.visibility = 0;
         this.shadows.removeShadowCaster(old);
@@ -782,7 +886,7 @@ export class World {
         color,
       );
       mesh.isPickable = false;
-      mesh.metadata = { visualOnly: true };
+      mesh.metadata = { visualOnly: true, distanceDetail: true };
       // Tiny decoration needs no individual shadow draw call.
       this.shadows.removeShadowCaster(mesh);
       return mesh;
@@ -859,17 +963,29 @@ export class World {
         detail("screen taskbar", 0, 1.25, 0.113, 0.72, 0.028, 0.01, "#305b70");
       }
     } else if (kind === "sofa") {
-      for (const dx of [-w / 6, w / 6])
+      for (const dx of [-w * 0.205, w * 0.205]) {
         detail(
-          "cushion seam",
+          "sofa cushion",
           dx,
-          0.809,
-          -0.08,
-          0.018,
-          0.01,
-          d * 0.66,
-          "#805d4c",
+          0.81,
+          -d * 0.05,
+          w * 0.39,
+          0.18,
+          d * 0.7,
+          "#c18b66",
         );
+      }
+      const pillow = detail(
+        "sofa pillow",
+        -w * 0.27,
+        1.025,
+        d * 0.21,
+        w * 0.24,
+        0.38,
+        0.22,
+        "#698a87",
+      );
+      pillow.rotation.set(-0.18, 0.08, -0.13);
       detail(
         "sofa piping",
         0,
@@ -953,6 +1069,7 @@ export class World {
           "#3a505b",
         );
     }
+    dressOfficeProp(this, kind, x, z, w, d);
     mergeStaticParts(
       this,
       this.scene.meshes.slice(meshStart) as Mesh[],
@@ -1098,8 +1215,8 @@ export class World {
     }
   }
   wall(x: number, z: number, w: number, d: number) {
-    this.box("wall", x, 0.95, z, w, 1.9, d, "#adbaaf", true);
-    this.box("wall cap", x, 1.94, z, w + 0.04, 0.1, d + 0.04, "#d8d8c4");
+    this.box("wall", x, 0.95, z, w, 1.9, d, "#b8b5a2", true);
+    this.box("wall cap", x, 1.94, z, w + 0.04, 0.1, d + 0.04, "#e3dcc6");
     this.box("skirting", x, 0.13, z, w + 0.04, 0.18, d + 0.04, "#334b55");
   }
   coreDoor(team: Team, x: number, z: number, w: number, d: number) {

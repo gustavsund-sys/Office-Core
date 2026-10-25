@@ -1,0 +1,964 @@
+/* Loaded only for the mobile entry. Every override is scoped to that entry. */
+html[data-client="mobile"] {
+  overscroll-behavior: none;
+}
+html[data-client="mobile"] body {
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+html[data-client="mobile"] #game {
+  touch-action: none;
+}
+html[data-client="mobile"] input {
+  font-size: 16px;
+  user-select: text;
+  -webkit-user-select: text;
+}
+html[data-client="mobile"] button,
+html[data-client="mobile"] a {
+  touch-action: manipulation;
+}
+html[data-client="mobile"] #ui > header {
+  top: env(safe-area-inset-top, 0px);
+  left: 8px;
+  right: 8px;
+  height: auto;
+  align-items: start;
+}
+html[data-client="mobile"] .brand,
+html[data-client="mobile"] .location,
+html[data-client="mobile"] .control-choice,
+html[data-client="mobile"] .control-choice ~ small,
+html[data-client="mobile"] #crosshair {
+  display: none !important;
+}
+html[data-client="mobile"] .cores {
+  width: min(360px, 72vw);
+  padding: 6px 8px;
+  margin: 0 auto;
+  gap: 6px;
+  min-width: 0;
+}
+html[data-client="mobile"] .core {
+  min-width: 0;
+  gap: 5px;
+}
+html[data-client="mobile"] .core-health {
+  min-width: 0;
+  flex: 1;
+}
+html[data-client="mobile"] .core-health span {
+  font-size: 9px;
+  letter-spacing: 0;
+}
+html[data-client="mobile"] .core-health b {
+  font-size: 12px;
+}
+html[data-client="mobile"] .core-result strong {
+  font-size: 20px;
+}
+html[data-client="mobile"] .core-result small {
+  font-size: 7px;
+}
+html[data-client="mobile"] #core-series {
+  font-size: 8px;
+  letter-spacing: 1px;
+}
+html[data-client="mobile"] #pause {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  margin: 3px;
+  pointer-events: auto;
+}
+html[data-client="mobile"] .map {
+  width: 76px;
+  height: 90px;
+  left: calc(8px + env(safe-area-inset-left, 0px));
+  right: auto;
+  bottom: auto;
+  top: calc(58px + env(safe-area-inset-top, 0px));
+  opacity: 0.8;
+  padding: 4px;
+}
+html[data-client="mobile"] .map > div {
+  font-size: 7px;
+}
+html[data-client="mobile"] #minimap {
+  width: 66px;
+  height: 66px;
+}
+html[data-client="mobile"] #ui > footer {
+  position: fixed;
+  left: 50%;
+  right: auto;
+  bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  width: min(340px, 43vw);
+  min-height: 0;
+  display: flex;
+  flex-wrap: wrap;
+  padding: 5px;
+  gap: 4px;
+  border-radius: 8px;
+  pointer-events: auto;
+}
+html[data-client="mobile"] #ui > footer .health {
+  min-width: 0;
+  flex: 1;
+  padding: 0;
+  border: 0;
+}
+html[data-client="mobile"] #ui > footer .health > span {
+  display: none;
+}
+html[data-client="mobile"] #ui > footer .health strong,
+html[data-client="mobile"] #player-hp {
+  font-size: 22px;
+  line-height: 1;
+}
+html[data-client="mobile"] #ui > footer .health small {
+  font-size: 9px;
+}
+html[data-client="mobile"] #ui > footer .shield-vitals {
+  width: 48px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+html[data-client="mobile"] #ui > footer .shield-vitals > span {
+  font-size: 7px;
+}
+html[data-client="mobile"] #ui > footer .shield-vitals strong {
+  font-size: 16px;
+}
+html[data-client="mobile"] #ui > footer .shield-vitals label,
+html[data-client="mobile"] #sprint-energy {
+  display: none;
+}
+html[data-client="mobile"] #ui > footer .weapon {
+  display: none;
+}
+html[data-client="mobile"] #ui > footer .ammo {
+  min-width: 48px;
+  padding: 0;
+  border: 0;
+}
+html[data-client="mobile"] #ui > footer .ammo span {
+  font-size: 7px;
+}
+html[data-client="mobile"] #ui > footer .ammo strong {
+  font-size: 17px;
+}
+html[data-client="mobile"] #inventory-slots {
+  width: 100%;
+  display: flex;
+  gap: 3px;
+  flex: 1 0 100%;
+  margin: 0;
+  max-width: 100%;
+  justify-content: center;
+}
+html[data-client="mobile"] .inventory-slot {
+  width: auto;
+  min-width: 0;
+  max-width: 65px;
+  flex: 1;
+  height: 48px;
+  padding: 3px;
+  border-radius: 5px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+html[data-client="mobile"] .inventory-slot .equipment-icon {
+  height: 23px;
+  width: 32px;
+  object-fit: contain;
+  margin: 0 auto;
+}
+html[data-client="mobile"] .inventory-slot b {
+  font-size: 7px;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+html[data-client="mobile"] .inventory-slot kbd {
+  font-size: 8px;
+  min-width: 12px;
+  height: 12px;
+  padding: 0;
+}
+html[data-client="mobile"] .inventory-slot small,
+html[data-client="mobile"] .boss-key-progress-label {
+  display: none;
+}
+html[data-client="mobile"] #kill-counter {
+  display: none;
+  top: 55px;
+  right: 55px;
+  width: min(240px, 70vw);
+}
+html[data-client="mobile"] body.mobile-show-scores #kill-counter:not([hidden]) {
+  display: block;
+}
+html[data-client="mobile"] #combat-feed {
+  max-height: 100px;
+  overflow: auto;
+}
+html[data-client="mobile"] #debug,
+html[data-client="mobile"] .test-tools,
+html[data-client="mobile"] #ping-controls {
+  display: none !important;
+}
+html[data-client="mobile"] #warning {
+  top: 60px;
+  font-size: clamp(13px, 3vw, 20px);
+  width: 70vw;
+  left: 15vw;
+}
+html[data-client="mobile"] #toast {
+  top: 100px;
+  max-width: 70vw;
+  font-size: 12px;
+}
+html[data-client="mobile"] #beacon-prompt,
+html[data-client="mobile"] .boss-lookout-prompt {
+  bottom: 110px;
+  font-size: 10px;
+  max-width: 50vw;
+  white-space: normal;
+}
+html[data-client="mobile"] .boss-status {
+  bottom: 110px;
+  font-size: 10px;
+}
+html[data-client="mobile"] .boss-lookout-overlay {
+  pointer-events: none;
+}
+html[data-client="mobile"] #overlay {
+  padding: 12px;
+  overflow: auto;
+  align-items: start;
+  overscroll-behavior: contain;
+}
+html[data-client="mobile"] .pause-card {
+  width: min(680px, 100%);
+  max-width: 100%;
+  padding: 18px;
+  margin: auto;
+  max-height: none;
+}
+html[data-client="mobile"] .pause-card h1.game-logo {
+  margin-bottom: 8px;
+}
+html[data-client="mobile"] .pause-card .brief {
+  display: none;
+}
+html[data-client="mobile"] .pause-card > p {
+  font-size: 13px;
+}
+html[data-client="mobile"] .lobby-teams {
+  gap: 8px;
+}
+html[data-client="mobile"] .lobby-team {
+  padding: 10px;
+  min-width: 0;
+}
+html[data-client="mobile"] .lobby-team strong {
+  font-size: 13px;
+}
+html[data-client="mobile"] .lobby-chat input {
+  min-width: 0;
+}
+html[data-client="mobile"] .deployment-screen {
+  inset: 0;
+  padding: 14px;
+  overflow: auto;
+  display: block;
+  max-width: none;
+  max-height: 100dvh;
+}
+html[data-client="mobile"] .deployment-screen[hidden] {
+  display: none;
+}
+html[data-client="mobile"] .loadout-heading h2 {
+  font-size: 22px;
+}
+html[data-client="mobile"] .loadout-art {
+  height: 150px;
+  min-height: 0;
+  margin: 10px 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+html[data-client="mobile"] .loadout-art figure {
+  height: 150px;
+  min-height: 0;
+  margin: 0;
+}
+html[data-client="mobile"] .loadout-art img {
+  height: 115px;
+  max-height: 115px;
+  width: 100%;
+  object-fit: cover;
+}
+html[data-client="mobile"] .loadout-art figcaption {
+  font-size: 11px;
+}
+html[data-client="mobile"] .loadout-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+html[data-client="mobile"] .loadout-options fieldset {
+  min-width: 0;
+}
+html[data-client="mobile"] .loadout-options button {
+  min-height: 48px;
+  font-size: 12px;
+  padding: 8px;
+}
+html[data-client="mobile"] .loadout-confirm {
+  position: sticky;
+  bottom: 0;
+  min-height: 48px;
+  margin-top: 12px;
+}
+html[data-client="mobile"] .intro-launch {
+  padding: 12px;
+}
+html[data-client="mobile"] .intro-start {
+  max-width: 90vw;
+}
+html[data-client="mobile"] .intro-actions {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+html[data-client="mobile"] .graphics-menu {
+  max-width: calc(100vw - 20px);
+  max-height: 85dvh;
+  overflow: auto;
+}
+html[data-client="mobile"] .graphics-display-icon {
+  right: 8px;
+  bottom: 8px;
+}
+html[data-client="mobile"] .open-field-guide {
+  display: none;
+}
+.mobile-lobby-guide {
+  padding: 12px;
+  border: 1px solid #617c82;
+  background: #1c3540;
+  border-radius: 8px;
+  font: 13px/1.5 system-ui;
+  color: #c5dcdb;
+}
+.mobile-change-client {
+  display: block;
+  color: #ffcf7b;
+  text-align: center;
+  padding: 14px;
+}
+.mobile-controls {
+  position: fixed;
+  inset: 0;
+  z-index: 180;
+  pointer-events: none;
+  touch-action: none;
+}
+.mobile-controls[hidden],
+.mobile-aim-marker[hidden],
+.mobile-help[hidden] {
+  display: none;
+}
+.mobile-controls button {
+  pointer-events: auto;
+  touch-action: none;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid #91aeb580;
+  border-radius: 10px;
+  background: #132d3cce;
+  color: #e3eee8;
+  font: 700 10px system-ui;
+  box-shadow: 0 2px 8px #0005;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-controls button:active,
+.mobile-controls button[aria-pressed="true"] {
+  background: #725d32;
+  border-color: #ffcc75;
+  color: #fff2c8;
+}
+.mobile-stick {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  border: 1px solid #8cb0bb88;
+  border-radius: 50%;
+  background: radial-gradient(circle, #36576655, #142f3a55);
+  pointer-events: auto;
+  touch-action: none;
+}
+.mobile-stick i {
+  position: absolute;
+  width: 45px;
+  height: 45px;
+  left: calc(50% - 22.5px);
+  top: calc(50% - 22.5px);
+  border: 1px solid #acc8c8aa;
+  background: #72979d66;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.mobile-stick span {
+  position: absolute;
+  bottom: 9px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font: 700 9px system-ui;
+  color: #cedcdb;
+  pointer-events: none;
+}
+.move-stick {
+  left: calc(20px + env(safe-area-inset-left, 0px));
+}
+.aim-stick {
+  right: calc(20px + env(safe-area-inset-right, 0px));
+}
+.mobile-actions {
+  position: absolute;
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  bottom: calc(151px + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  grid-template-columns: repeat(4, 48px);
+  gap: 5px;
+  max-width: 210px;
+}
+.mobile-actions .mobile-fire {
+  grid-column: span 2;
+  background: #6b4934d9;
+  border-color: #e2ac70;
+}
+.mobile-scores {
+  position: absolute;
+  right: 54px;
+  top: calc(6px + env(safe-area-inset-top, 0px));
+  font-size: 23px !important;
+}
+.mobile-aim-marker {
+  position: fixed;
+  z-index: 120;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #ffd47d;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 5px #000;
+  pointer-events: none;
+}
+.mobile-help {
+  position: fixed;
+  bottom: calc(107px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 37vw;
+  text-align: center;
+  font: 10px/1.3 system-ui;
+  color: #bccdce;
+  pointer-events: none;
+  z-index: 120;
+}
+@media (max-width: 600px) and (orientation: portrait) {
+  html[data-client="mobile"] #ui > footer {
+    width: calc(100vw - 24px);
+    bottom: calc(160px + env(safe-area-inset-bottom, 0px));
+  }
+  html[data-client="mobile"] .map {
+    top: 64px;
+    width: 68px;
+    height: 82px;
+  }
+  html[data-client="mobile"] #minimap {
+    width: 58px;
+    height: 58px;
+  }
+  .mobile-actions {
+    bottom: calc(270px + env(safe-area-inset-bottom, 0px));
+    grid-template-columns: repeat(3, 48px);
+    max-width: 160px;
+  }
+  .mobile-stick {
+    width: 112px;
+    height: 112px;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  }
+  .mobile-help {
+    bottom: 140px;
+    max-width: 90vw;
+    width: 90vw;
+  }
+  html[data-client="mobile"] .loadout-options {
+    grid-template-columns: 1fr;
+  }
+  html[data-client="mobile"] .lobby-teams {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-height: 460px) {
+  .mobile-stick {
+    width: 100px;
+    height: 100px;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+  .mobile-actions {
+    bottom: calc(120px + env(safe-area-inset-bottom, 0px));
+    grid-template-columns: repeat(4, 44px);
+    gap: 4px;
+  }
+  .mobile-help {
+    display: none;
+  }
+  html[data-client="mobile"] .map {
+    display: none;
+  }
+  html[data-client="mobile"] .loadout-art {
+    height: 120px;
+  }
+  html[data-client="mobile"] .loadout-art figure {
+    height: 120px;
+  }
+  html[data-client="mobile"] .loadout-art img {
+    height: 90px;
+    max-height: 90px;
+  }
+}
+
+html[data-client="mobile"] .rc-overlay {
+  display: none !important;
+}
+html[data-client="mobile"] .build-panel {
+  display: none !important;
+}
+html[data-client="mobile"] .graphics-benchmark {
+  max-height: 100dvh;
+  overflow: auto;
+}
+/* Landscape is the only playable mobile orientation. Portrait is a rotation gate. */
+.mobile-rotate {
+  position: fixed;
+  inset: 0;
+  z-index: 30000;
+  display: grid;
+  place-items: center;
+  background: #10232b;
+  color: #dcebe9;
+  text-align: center;
+  padding: 28px;
+  font: 16px/1.5 system-ui;
+}
+.mobile-rotate[hidden] {
+  display: none;
+}
+.mobile-rotate span {
+  font-size: 80px;
+  color: #ffce7e;
+  display: block;
+}
+.mobile-rotate h1 {
+  font-size: 30px;
+  margin: 4px;
+}
+.mobile-rotate small {
+  font-size: 13px;
+  color: #91aab3;
+}
+.mobile-menu-nav {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0;
+}
+html[data-client="mobile"] .mobile-menu-nav button {
+  flex: 1;
+  min-height: 44px;
+  width: auto;
+  margin: 0;
+  padding: 7px;
+  font-size: 11px;
+  border: 1px solid #698089;
+  border-radius: 6px;
+  background: #203d49;
+  color: #cfdfdf;
+}
+html[data-client="mobile"] .mobile-menu-nav button[aria-pressed="true"] {
+  color: #ffcf79;
+  border-color: #ffcf79;
+  background: #36505a;
+}
+.mobile-settings {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+html[data-client="mobile"] .mobile-settings button {
+  flex: 1 0 40%;
+  min-height: 44px;
+  font-size: 12px;
+  padding: 10px;
+  margin: 0;
+}
+html[data-client="mobile"]
+  .pause-card:not([data-mobile-tab="settings"])
+  .mobile-settings {
+  display: none;
+}
+html[data-client="mobile"]
+  .pause-card:not([data-mobile-tab="chat"])
+  .lobby-chat {
+  display: none;
+}
+html[data-client="mobile"] .pause-card[data-mobile-tab="chat"] .lobby-status,
+html[data-client="mobile"] .pause-card[data-mobile-tab="chat"] .lobby-teams,
+html[data-client="mobile"] .pause-card[data-mobile-tab="chat"] .lobby > small,
+html[data-client="mobile"] .pause-card[data-mobile-tab="chat"] .player-name,
+html[data-client="mobile"] .pause-card[data-mobile-tab="chat"] #play {
+  display: none;
+}
+html[data-client="mobile"] .pause-card[data-mobile-tab="settings"] .lobby,
+html[data-client="mobile"] .pause-card[data-mobile-tab="settings"] #play {
+  display: none !important;
+}
+html[data-client="mobile"] .pause-card {
+  width: min(720px, 100%);
+  padding: 12px 18px;
+  border-radius: 12px;
+}
+html[data-client="mobile"] .pause-card h1.game-logo {
+  height: 85px;
+  min-height: 0;
+  max-height: 85px;
+  margin: 0;
+}
+html[data-client="mobile"] .pause-card h1.game-logo img {
+  height: 85px;
+  max-height: 85px;
+  width: 100%;
+  object-fit: contain;
+}
+html[data-client="mobile"] .pause-card > p:not(.mobile-lobby-guide),
+html[data-client="mobile"] .pause-card > span,
+html[data-client="mobile"] .pause-card > small,
+html[data-client="mobile"] .pause-card > a:not(.mobile-change-client) {
+  display: none;
+}
+html[data-client="mobile"] .mobile-lobby-guide {
+  font-size: 11px;
+  padding: 7px;
+  margin: 6px 0;
+}
+html[data-client="mobile"] .lobby {
+  padding: 10px;
+  margin: 8px 0;
+}
+html[data-client="mobile"] .lobby legend {
+  font-size: 10px;
+}
+html[data-client="mobile"] .player-name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+html[data-client="mobile"] .player-name input {
+  min-height: 42px;
+  flex: 1;
+  margin: 0;
+}
+html[data-client="mobile"] .lobby-status {
+  font-size: 11px;
+  margin: 6px 0;
+}
+html[data-client="mobile"] .lobby-team {
+  min-height: 90px;
+  padding: 8px;
+}
+html[data-client="mobile"] .lobby-members {
+  min-height: 20px;
+  margin: 6px 0;
+}
+html[data-client="mobile"] .lobby-core-status,
+html[data-client="mobile"] .lobby-join {
+  font-size: 10px;
+}
+html[data-client="mobile"] .lobby > small {
+  font-size: 10px;
+  line-height: 1.3;
+}
+html[data-client="mobile"] .lobby-chat .chat-messages {
+  height: 100px;
+  max-height: 130px;
+}
+html[data-client="mobile"] .pause-card #play {
+  min-height: 48px;
+  margin: 8px 0;
+  font-size: 16px;
+}
+html[data-client="mobile"] #ui > footer {
+  height: auto;
+  align-items: center;
+}
+html[data-client="mobile"] #inventory-slots {
+  height: 46px;
+}
+html[data-client="mobile"] .inventory-slot {
+  display: grid;
+  grid-template-rows: 24px 10px;
+  min-height: 0;
+  height: 46px;
+  align-content: center;
+}
+html[data-client="mobile"] .inventory-slot b {
+  min-height: 0;
+}
+html[data-client="mobile"] .mobile-actions button {
+  padding: 2px;
+  overflow: hidden;
+  font-size: 9px;
+}
+html[data-client="mobile"]
+  #inventory-slots
+  .inventory-slot[data-weapon="beacon"] {
+  width: 64px;
+  height: 46px;
+  right: 0;
+  bottom: calc(100% + 6px);
+}
+html[data-client="mobile"] .game-update {
+  bottom: auto;
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  width: min(460px, 85vw);
+  font-size: 13px;
+  min-height: 44px;
+  z-index: 22000;
+}
+.mobile-install-help {
+  max-width: min(480px, 85vw);
+  max-height: 80dvh;
+  overflow: auto;
+  border: 1px solid #91adb3;
+  border-radius: 12px;
+  background: #173240;
+  color: #d9e9e4;
+  padding: 24px;
+  font: 14px/1.5 system-ui;
+}
+.mobile-install-help::backdrop {
+  background: #000b;
+}
+.mobile-install-help button {
+  width: 100%;
+  min-height: 44px;
+  background: #ffcf7c;
+  border: 0;
+  border-radius: 5px;
+  font-weight: bold;
+}
+@media (orientation: portrait) {
+  html[data-client="mobile"] .mobile-controls {
+    display: none !important;
+  }
+}
+html[data-client="mobile"] .pause-card {max-height:calc(100dvh - 24px);overflow:auto;overscroll-behavior:contain;}
+html[data-client="mobile"] .pause-card h1.game-logo,
+html[data-client="mobile"] .pause-card h1.game-logo img {height:44px;max-height:44px;}
+html[data-client="mobile"] .pause-card:not([data-mobile-tab="settings"]) #sound,
+html[data-client="mobile"] .lobby>small {display:none;}
+html[data-client="mobile"] .pause-card #play {position:sticky;bottom:0;z-index:2;box-shadow:0 -4px 12px #10232b;}
+html[data-client="mobile"] .network-lobby {padding:8px;margin:6px 0;}
+html[data-client="mobile"] .network-lobby h3 {font-size:13px;margin:4px 0;}
+html[data-client="mobile"] .network-lobby>p {font-size:11px;line-height:1.3;}
+html[data-client="mobile"] .available-room {gap:8px;padding:8px;flex-wrap:wrap;}
+html[data-client="mobile"] .available-room button {min-height:44px;min-width:110px;font-size:12px;}
+html[data-client="mobile"] .pause-card[data-mobile-tab="chat"] .network-lobby,
+html[data-client="mobile"] .pause-card[data-mobile-tab="settings"] .network-lobby {display:none;}
+@media(orientation:portrait){
+ html[data-client="mobile"] dialog {visibility:hidden;}
+ html[data-client="mobile"] dialog::backdrop {background:transparent;}
+}
+html[data-client="mobile"] .deployment-screen {position:fixed;inset:0;transform:none;width:100%;height:100dvh;max-width:100vw;max-height:100dvh;margin:0;border-radius:0;box-sizing:border-box;}
+html[data-client="mobile"] .loadout-heading {text-align:left;}
+html[data-client="mobile"] .loadout-heading h2 {margin:3px 0;font-size:20px;}
+html[data-client="mobile"] .loadout-heading p {font-size:11px;margin:3px 0;}
+html[data-client="mobile"] .loadout-heading>small {font-size:9px;}
+html[data-client="mobile"] .loadout-options button {white-space:normal;line-height:1.2;}
+html[data-client="mobile"] .loadout-options button small {font-size:9px;line-height:1.25;}
+html[data-client="mobile"] .loadout-status {font-size:11px;}
+html[data-client="mobile"] #beacon-prompt {display:none!important;}
+html[data-client="mobile"] .mobile-remote .aim-stick,
+html[data-client="mobile"] .mobile-remote [data-action="interact"],
+html[data-client="mobile"] .mobile-remote [data-action="reload"],
+html[data-client="mobile"] .mobile-remote [data-action="crouch"],
+html[data-client="mobile"] .mobile-remote [data-action="warcry"] {display:none;}
+html[data-client="mobile"] .mobile-remote .mobile-fire {grid-column:span 4;}
+html[data-client="mobile"] .tutorial-screen {padding:10px;}
+html[data-client="mobile"] .tutorial-card {grid-template-columns:30% 70%;max-height:calc(100dvh - 20px);}
+html[data-client="mobile"] .tutorial-art {min-height:0;height:100%;}
+html[data-client="mobile"] .tutorial-copy {padding:16px;overflow:auto;max-height:calc(100dvh - 20px);}
+html[data-client="mobile"] .tutorial-copy h1 {font-size:24px;margin:8px 0;}
+html[data-client="mobile"] .tutorial-copy p,html[data-client="mobile"] .tutorial-copy li {font-size:12px;line-height:1.4;}
+html[data-client="mobile"] .tutorial-copy nav {margin-top:10px;position:sticky;bottom:0;background:#143340;}
+html[data-client="mobile"] .tutorial-copy nav button {min-height:44px;}
+html[data-client="mobile"] .intro-actions button {min-height:44px;font-size:11px;padding:8px;}
+html[data-client="mobile"] .intro-launch {padding-bottom:24px;}
+html[data-client="mobile"] .intro-start {padding:12px 20px;}
+html[data-client="mobile"] .open-whats-new {position:fixed;top:8px;right:8px;bottom:auto;left:auto;padding:6px 10px;font-size:10px;min-height:36px;}
+html[data-client="mobile"] .cores {padding-bottom:17px;}
+html[data-client="mobile"] #core-series {bottom:3px;}
+/* Single directional stick, independent right fire button. Sprint uses shared vitals. */
+html[data-client="mobile"] .mobile-controls .mobile-fire {
+ position:fixed;right:calc(20px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));
+ width:120px;height:120px;border-radius:50%;font-size:16px;padding:8px;background:#81502ed9;border:2px solid #efbc79;
+}
+html[data-client="mobile"] #ui>footer .shield-vitals {width:62px;}
+html[data-client="mobile"] #ui>footer .shield-vitals label {display:flex;font-size:7px;justify-content:space-between;margin-top:3px;}
+html[data-client="mobile"] #sprint-energy {display:block;width:100%;height:5px;margin-top:2px;accent-color:#80cfb4;}
+@media(max-height:460px){
+ html[data-client="mobile"] .mobile-controls .mobile-fire {width:100px;height:100px;bottom:calc(10px + env(safe-area-inset-bottom,0px));}
+}
+/* Travel radius is 34% of the control width; sprint begins at 90% of that radius. */
+html[data-client="mobile"] .move-stick {
+ background:radial-gradient(circle closest-side at center,
+   #1f9f6666 0%,#1f9f6666 60%,
+   #a7efbdbb 60.4%,#a7efbdbb 61.2%,
+   #b3443d88 61.6%,#b3443d88 68%,
+   #813a3955 68.4%,#813a3955 98%,#e5978377 100%);
+ border-color:#dca294aa;
+}
+html[data-client="mobile"] .move-stick::before {
+ content:"SPRINT";position:absolute;top:9px;left:0;right:0;
+ text-align:center;font:800 8px system-ui;letter-spacing:1px;color:#ffd3c8;
+ pointer-events:none;
+}
+html[data-client="mobile"] .move-stick::after {
+ content:"GÅ";position:absolute;top:calc(50% - 5px);left:0;right:0;
+ text-align:center;font:800 9px system-ui;letter-spacing:1px;color:#c7ffda;
+ pointer-events:none;
+}
+html[data-client="mobile"] .move-stick span {bottom:7px;color:#fff3df;text-shadow:0 1px 3px #000;}
+html[data-client="mobile"] .move-stick i {z-index:1;background:#c6e7dc55;border-color:#e0fff0cc;}
+html[data-client="mobile"] .mobile-remote .move-stick,
+html[data-client="mobile"] .mobile-precision .move-stick {background:radial-gradient(circle,#36576655,#142f3a55);border-color:#8cb0bb88;}
+html[data-client="mobile"] .mobile-remote .move-stick::before,
+html[data-client="mobile"] .mobile-remote .move-stick::after,
+html[data-client="mobile"] .mobile-precision .move-stick::before,
+html[data-client="mobile"] .mobile-precision .move-stick::after {display:none;}
+
+/* Compact mobile combat strip; desktop layout is untouched. */
+html[data-client="mobile"] #ui > footer {
+ left:150px;right:calc(184px + env(safe-area-inset-right,0px));
+ bottom:calc(8px + env(safe-area-inset-bottom,0px));
+ width:auto;transform:none;flex-wrap:nowrap;gap:6px;padding:5px 7px;
+}
+html[data-client="mobile"] #ui > footer .health {order:0;flex:0 0 40px;}
+html[data-client="mobile"] #ui > footer .shield-vitals {order:1;flex:0 0 32px;width:32px;}
+html[data-client="mobile"] #ui > footer #inventory-slots {order:2;flex:1 1 0;width:auto;min-width:0;height:44px;}
+html[data-client="mobile"] #ui > footer .ammo {order:3;flex:0 0 56px;min-width:0;}
+html[data-client="mobile"] #ui > footer .ammo strong {font-size:14px;white-space:nowrap;}
+html[data-client="mobile"] #ui > footer .inventory-slot {height:44px;max-width:58px;width:auto;}
+html[data-client="mobile"] #ui > footer .health-track,
+html[data-client="mobile"] #ui > footer .shield-track {height:3px;margin-top:3px;}
+html[data-client="mobile"] .mobile-sprint-hud {
+ position:fixed;left:calc(20px + env(safe-area-inset-left,0px));
+ bottom:calc(9px + env(safe-area-inset-bottom,0px));width:100px;pointer-events:none;
+}
+html[data-client="mobile"] .mobile-sprint-hud[hidden] {display:none;}
+html[data-client="mobile"] .mobile-sprint-hud label {display:flex;justify-content:space-between;font:700 8px system-ui;color:#b6dece;}
+html[data-client="mobile"] .mobile-sprint-hud #sprint-energy {display:block;width:100%;height:5px;margin:3px 0 0;}
+html[data-client="mobile"] .move-stick {width:100px;height:100px;bottom:calc(36px + env(safe-area-inset-bottom,0px));}
+html[data-client="mobile"] .mobile-actions {position:static;display:block;}
+html[data-client="mobile"] .mobile-actions button {
+ position:fixed;width:48px;height:44px;right:calc(40px + env(safe-area-inset-right,0px));
+ border-radius:12px;
+}
+html[data-client="mobile"] .mobile-controls .mobile-fire {
+ width:88px;height:88px;right:calc(20px + env(safe-area-inset-right,0px));
+ bottom:calc(66px + env(safe-area-inset-bottom,0px));font-size:14px;
+}
+html[data-client="mobile"] .mobile-actions [data-action="jump"] {bottom:calc(162px + env(safe-area-inset-bottom,0px));}
+html[data-client="mobile"] .mobile-actions [data-action="crouch"] {bottom:calc(14px + env(safe-area-inset-bottom,0px));}
+html[data-client="mobile"] .mobile-actions [data-action="interact"] {right:calc(118px + env(safe-area-inset-right,0px));bottom:calc(58px + env(safe-area-inset-bottom,0px));}
+html[data-client="mobile"] .mobile-actions [data-action="reload"] {right:calc(118px + env(safe-area-inset-right,0px));bottom:calc(110px + env(safe-area-inset-bottom,0px));}
+html[data-client="mobile"] .mobile-actions [data-action="scope"] {right:calc(118px + env(safe-area-inset-right,0px));bottom:calc(162px + env(safe-area-inset-bottom,0px));}
+html[data-client="mobile"] .mobile-actions [data-action="warcry"] {right:calc(118px + env(safe-area-inset-right,0px));bottom:calc(214px + env(safe-area-inset-bottom,0px));}
+html[data-client="mobile"] .mobile-actions [data-action="exit"] {right:calc(20px + env(safe-area-inset-right,0px));bottom:calc(214px + env(safe-area-inset-bottom,0px));width:88px;}
+@media(max-width:740px) {
+ html[data-client="mobile"] #ui > footer {left:130px;right:174px;gap:3px;padding:4px;}
+ html[data-client="mobile"] #ui > footer .health {flex-basis:32px;}
+ html[data-client="mobile"] #ui > footer .shield-vitals {flex-basis:26px;}
+ html[data-client="mobile"] #ui > footer .ammo {flex-basis:42px;}
+ html[data-client="mobile"] #ui > footer .inventory-slot b {font-size:6px;}
+ html[data-client="mobile"] #ui > footer .inventory-slot .equipment-icon {width:26px;}
+}
+html[data-client="mobile"] #ui > footer .health {flex-basis:48px;background:none;}
+html[data-client="mobile"] #ui > footer .health strong {gap:2px;margin:2px 0 4px;}
+html[data-client="mobile"] #ui > footer #player-hp {font-size:20px;letter-spacing:0;}
+html[data-client="mobile"] #ui > footer .health small {font-size:7px;}
+html[data-client="mobile"] #ui > footer .health-track {width:100%;}
+html[data-client="mobile"] #ui > footer .shield-vitals strong {line-height:20px;}
+html[data-client="mobile"] #ui > footer .shield-track {margin:2px 0 0;}
+
+/* Full-screen, touch-first mobile menus. */
+html[data-client="mobile"] #overlay {padding:0;align-items:stretch;}
+html[data-client="mobile"] .pause-card {
+ width:100%;max-width:none;height:100dvh;max-height:100dvh;margin:0;
+ border:0;border-radius:0;padding:calc(10px + env(safe-area-inset-top,0px)) calc(16px + env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) calc(16px + env(safe-area-inset-left,0px));
+ display:grid;grid-template-columns:150px minmax(0,1fr);gap:8px 16px;
+ align-content:start;text-align:left;overflow-y:auto;
+ background:linear-gradient(135deg,#193a46,#0b202c);
+}
+html[data-client="mobile"] .pause-card h1.game-logo {grid-column:1;height:52px;max-height:52px;align-self:center;}
+html[data-client="mobile"] .pause-card h1.game-logo img {height:52px;max-height:52px;}
+html[data-client="mobile"] .mobile-menu-nav {grid-column:2;margin:0;align-self:center;gap:8px;}
+html[data-client="mobile"] .mobile-menu-nav button {min-height:46px;border-radius:10px;font-size:12px;}
+html[data-client="mobile"] .pause-card > :not(.game-logo):not(.mobile-menu-nav) {grid-column:1 / -1;}
+html[data-client="mobile"] .mobile-lobby-guide {margin:0;padding:6px 0;color:#b2c8ce;}
+html[data-client="mobile"] .lobby {margin:0;padding:10px 12px;border-radius:12px;}
+html[data-client="mobile"] .lobby-teams {gap:12px;margin:8px 0;}
+html[data-client="mobile"] .lobby-team {padding:10px 14px;border-radius:10px;}
+html[data-client="mobile"] .pause-card #play {min-height:48px;margin:0;border-radius:12px;font-size:16px;}
+html[data-client="mobile"] .mobile-settings {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:14px 0;}
+html[data-client="mobile"] .mobile-settings button {min-height:64px;border-radius:12px;margin:0;font-size:12px;}
+html[data-client="mobile"] .mobile-change-client {grid-column:1 / -1;padding:12px;text-align:center;}
+html[data-client="mobile"] .graphics-display-icon,
+html[data-client="mobile"] .graphics-menu,
+html[data-client="mobile"] .open-whats-new,
+html[data-client="mobile"] .open-field-guide {display:none!important;}
+html[data-client="mobile"] .deployment-screen {padding:12px max(16px,env(safe-area-inset-right,0px)) 12px max(16px,env(safe-area-inset-left,0px));border-radius:0;}
+html[data-client="mobile"] .loadout-options button {border-radius:9px;min-height:44px;}
+html[data-client="mobile"] .loadout-confirm {border-radius:12px;min-height:48px;}
+
+/* Match score stays centered independently of the pause button. */
+html[data-client="mobile"] #ui > header {top:0;}
+html[data-client="mobile"] #ui > header .cores {
+ position:fixed;top:0;left:50%;right:auto;transform:translateX(-50%);
+ margin:0;width:min(360px,72vw);border-top:0;border-radius:0 0 8px 8px;
+}
+
+/* Always-visible compact player scores alongside the match score. */
+html[data-client="mobile"] #kill-counter:not([hidden]) {
+ display:block;position:fixed;top:0;
+ left:calc(50% + min(180px,36vw) + 8px);right:auto;
+ width:calc(50vw - min(180px,36vw) - 68px);max-width:150px;min-width:0;
+ padding:5px;border-radius:0 0 6px 6px;max-height:144px;overflow-y:auto;
+}
+html[data-client="mobile"] #kill-counter .score-heading {font-size:7px;letter-spacing:.3px;margin:0 0 3px;white-space:nowrap;}
+html[data-client="mobile"] #kill-counter .kill-row {padding:2px 3px;margin:2px 0 0;gap:4px;}
+html[data-client="mobile"] #kill-counter .kill-row i {font-size:8px;width:9px;}
+html[data-client="mobile"] #kill-counter .kill-row span {font-size:9px;min-width:0;}
+html[data-client="mobile"] #kill-counter .kill-row strong {font-size:11px;min-width:14px;}

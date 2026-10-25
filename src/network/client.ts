@@ -97,7 +97,7 @@ export class Multiplayer {
     url.pathname = "/rooms";
     const response = await fetchServer(url, {
       signal: this.serverRequests.signal,
-      onWaiting: () => this.onStatus("Väntar på spelservern… Försöker igen automatiskt."),
+      onWaiting: () => this.onStatus("Startar upp servrar..."),
     });
     if (!response.ok) throw new Error("Serverns lobby kunde inte hämtas.");
     return (await response.json()).rooms;
@@ -153,7 +153,10 @@ export class Multiplayer {
     const ready = new URL(this.endpoint);
     ready.protocol = ready.protocol === "wss:" ? "https:" : "http:";
     ready.pathname = "/map";
-    await fetchServer(ready, {signal:this.serverRequests.signal,onWaiting:()=>this.onStatus("Spelservern startar… Väntar på svar.")});
+    await fetchServer(ready, {
+      signal: this.serverRequests.signal,
+      onWaiting: () => this.onStatus("Startar upp servrar..."),
+    });
     this.serverRequests.signal.throwIfAborted();
     const room = await this.client.joinById(id, options);
     this.bind(room);

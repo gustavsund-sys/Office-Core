@@ -82,6 +82,10 @@ export class LookoutRounds {
     private visualImpacts = true,
     private groundImpact: (position: Vector3) => void = () => {},
   ) {}
+  prepare(position: Vector3) {
+    if (this.visualImpacts) this.impact(position, Vector3.Up());
+    this.launch(position, position.add(new Vector3(0, 0, 4)), false, () => {});
+  }
   get pending() {
     return this.rounds.length;
   }

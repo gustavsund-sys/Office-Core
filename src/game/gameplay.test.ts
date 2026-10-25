@@ -1056,22 +1056,33 @@ test("close aim converges ahead of the muzzle and never reverses behind it", () 
             origin,
           );
           if (offset > 0) {
-            assert.ok(Vector3.Distance(
-              origin.add(direction.scale(Vector3.Distance(origin, target))), target,
-            ) < 0.0001);
+            assert.ok(
+              Vector3.Distance(
+                origin.add(direction.scale(Vector3.Distance(origin, target))),
+                target,
+              ) < 0.0001,
+            );
           } else {
-            const barrel = Vector3.TransformNormal(Vector3.Forward(), s.player.gun.computeWorldMatrix(true)).normalize();
-            assert.ok(Vector3.Dot(direction, barrel) > .99999);
+            const barrel = Vector3.TransformNormal(
+              Vector3.Forward(),
+              s.player.gun.computeWorldMatrix(true),
+            ).normalize();
+            assert.ok(Vector3.Dot(direction, barrel) > 0.99999);
             assert.ok(Vector3.Dot(direction, s.player.direction) > 0);
           }
         }
         // Sweep the actual cursor into the body, including exactly its centre.
-        for (const range of [1, .5, .2, .01, 0]) {
-          const target = s.player.root.position.add(new Vector3(Math.sin(yaw)*range, 1.1, Math.cos(yaw)*range));
-          const command = {...idle, aimX: target.x, aimZ: target.z};
+        for (const range of [1, 0.5, 0.2, 0.01, 0]) {
+          const target = s.player.root.position.add(
+            new Vector3(Math.sin(yaw) * range, 1.1, Math.cos(yaw) * range),
+          );
+          const command = { ...idle, aimX: target.x, aimZ: target.z };
           s.player.faceAim(command);
           const direction = s.player.shotDirection(command);
-          assert.ok(Vector3.Dot(direction, s.player.direction) >= 0, `${id}: reversed at ${range}`);
+          assert.ok(
+            Vector3.Dot(direction, s.player.direction) >= 0,
+            `${id}: reversed at ${range}`,
+          );
         }
       }
     }
@@ -1179,7 +1190,7 @@ test("rifle recoil travels one metre with gradual braking and respects walls", (
   }
 });
 
-test("full equipped magazines ignore R and empty clicks require no reserve", () => {
+test("full equipped magazines ignore R and empty magazines click before automatic reload", () => {
   const s = setup();
   try {
     s.weapon.equip("huntingRifle");
@@ -1197,12 +1208,37 @@ test("full equipped magazines ignore R and empty clicks require no reserve", () 
     s.weapon.onEmpty = () => clicks++;
     s.weapon.ammo = 0;
     s.weapon.update({ ...idle, pressed: true }, 0);
-    assert.equal(clicks, 0);
+    assert.equal(clicks, 1);
+    assert.equal(s.weapon.reloadRemaining, 1);
+    s.weapon.reloadRemaining = 0;
     s.weapon.reserve = 0;
     s.weapon.update({ ...idle, pressed: true }, 0);
-    assert.equal(clicks, 1);
+    assert.equal(clicks, 2);
     s.weapon.update({ ...idle, fire: true }, 1);
-    assert.equal(clicks, 1);
+    assert.equal(clicks, 2);
+  } finally {
+    s.engine.dispose();
+  }
+});
+
+test("last round clicks once then reloads immediately from reserve without another trigger press", () => {
+  const s = setup();
+  try {
+    s.weapon.equip("machineGun");
+    s.weapon.ammo = 1;
+    s.weapon.reserve = 15;
+    const events: string[] = [];
+    s.weapon.onEmpty = () => events.push("empty");
+    s.weapon.onReload = () => events.push("reload");
+    s.weapon.update({ ...idle, pressed: true }, 0.01);
+    assert.deepEqual(events, ["empty", "reload"]);
+    assert.equal(s.weapon.ammo, 0);
+    assert.equal(s.weapon.reserve, 15);
+    assert.equal(s.weapon.reloadRemaining, 1);
+    s.weapon.update(idle, 1);
+    assert.equal(s.weapon.ammo, 15);
+    assert.equal(s.weapon.reserve, 0);
+    assert.deepEqual(events, ["empty", "reload"]);
   } finally {
     s.engine.dispose();
   }

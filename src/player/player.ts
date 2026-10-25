@@ -46,6 +46,7 @@ export class Input {
   down = false;
   pressed = false;
   pointer = { x: 0, y: 0 };
+  remoteAxes?: () => { steer: number; throttle: number };
   remote = false;
   remoteReady = false;
   remoteDetonate = false;
@@ -103,7 +104,8 @@ export class Input {
     window.dispatchEvent(new CustomEvent("look-lock-failed"));
   }
 
-  constructor(public canvas: HTMLCanvasElement) {
+  constructor(public canvas: HTMLCanvasElement, desktopListeners = true) {
+    if (!desktopListeners) return;
     window.addEventListener("keydown", (e) => {
       if (
         e.target instanceof HTMLInputElement ||
@@ -290,7 +292,7 @@ export class Input {
       aimX: aim.x,
       aimZ: aim.z,
       sprint: this.keys.has("ShiftLeft") || this.keys.has("ShiftRight"),
-        crouched: this.keys.has("KeyC"),
+      crouched: this.keys.has("KeyC"),
       fire: this.down,
       pressed: this.pressed,
     };
@@ -900,7 +902,7 @@ export class Player {
     this.simulate(c, dt);
     this.animate(!!(c.moveX || c.moveZ), dt);
   }
-  simulate(c: PlayerCommand, dt: number) {
+  simulate(c: PlayerCommand, dt: number, pushObjects = true) {
     this.landed = false;
     if (this.bossLookoutActive) {
       this.verticalVelocity = 0;
@@ -934,7 +936,11 @@ export class Player {
     }
     const moving = !!(c.moveX || c.moveZ);
     const sprintTime =
-      c.sprint && !this.crouched && moving && this.hp > 20 && !this.sprintExhausted
+      c.sprint &&
+      !this.crouched &&
+      moving &&
+      this.hp > 20 &&
+      !this.sprintExhausted
         ? Math.min(dt, this.stamina)
         : 0;
     this.sprinting = sprintTime > 0;
@@ -951,8 +957,21 @@ export class Player {
         this.sprintExhausted = false;
       }
     }
-    const travelTime = this.crouched ? dt * 0.55 : this.injured ? dt * 0.6 : dt + sprintTime * 0.5;
-    const l = Math.hypot(c.moveX, c.moveZ) || 1;
+    const travelTime = this.crouched
+      ? dt * 0.55
+      : this.injured
+        ? dt * 0.6
+        : dt + sprintTime * 0.5;
+    // Preserve sub-unit analog input; clamp diagonals and oversized inputs to normal speed.
+    // Keyboard commands remain unchanged (unit cardinals / normalized diagonals).
+    const l = Math.max(1, Math.hypot(c.moveX, c.moveZ));
+    if (this.grounded && pushObjects)
+      this.world.carts.push(
+        this.root.position,
+        (c.moveX / l) * CONFIG.player.speed * travelTime,
+        (c.moveZ / l) * CONFIG.player.speed * travelTime,
+        CONFIG.player.radius,
+      );
     move(
       this.root.position,
       (c.moveX / l) * CONFIG.player.speed * travelTime,
@@ -1006,7 +1025,9 @@ export class Player {
     this.gun.rotation.x =
       distance > 0.001
         ? Math.atan2(
-            this.root.position.y + this.gun.position.y * this.root.scaling.y - this.aimTarget.y,
+            this.root.position.y +
+              this.gun.position.y * this.root.scaling.y -
+              this.aimTarget.y,
             distance * this.root.scaling.y,
           )
         : 0;

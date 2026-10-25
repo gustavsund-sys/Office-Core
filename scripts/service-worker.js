@@ -19,6 +19,30 @@ async function resource(request, path) {
     pending.delete(path);
   }
 }
+// Pages is preferred only for explicitly published media. Firebase remains the fallback.
+async function downloadResource(request, path) {
+  const headers = new Headers(request.headers);
+  headers.delete("range");
+  const source = typeof SOURCE_URLS !== "undefined" && SOURCE_URLS[path];
+  if (source) {
+    try {
+      const response = await fetch(new Request(source, {
+        mode: "cors", credentials: "omit", signal: AbortSignal.timeout(8000),
+      }), {cache: "force-cache"});
+      if (!response.ok || response.type === "opaque" ||
+          response.headers.get("content-type")?.includes("text/html"))
+        throw new Error("Invalid media response");
+      // Finish the body within the timeout before accepting the preferred source.
+      const body = await response.arrayBuffer();
+      if (!body.byteLength) throw new Error("Empty media response");
+      const mediaHeaders = new Headers(response.headers);
+      mediaHeaders.delete("content-encoding");
+      mediaHeaders.set("content-length", String(body.byteLength));
+      return new Response(body, {status: 200, headers: mediaHeaders});
+    } catch { /* A failed media host must not prevent the game from starting. */ }
+  }
+  return fetch(new Request(request, {headers}), {cache: "no-cache"});
+}
 async function cachedResource(request, path) {
   let cache;
   let cached;
@@ -26,7 +50,7 @@ async function cachedResource(request, path) {
     cache = await caches.open(CACHE);
     cached = await caches.match(key(path));
   } catch {
-    return fetch(request);
+    return downloadResource(request, path);
   }
   if (cached) {
     try {
@@ -37,12 +61,7 @@ async function cachedResource(request, path) {
     }
     return cached;
   }
-  // Store complete audio files even when HTMLAudioElement requests a byte range.
-  const headers = new Headers(request.headers);
-  headers.delete("range");
-  const response = await fetch(new Request(request, { headers }), {
-    cache: "no-cache",
-  });
+  const response = await downloadResource(request, path);
   if (
     response.ok &&
     response.type !== "opaque" &&
