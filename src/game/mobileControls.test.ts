@@ -17,6 +17,7 @@ import {
   mobileDirection,
   MOBILE_CAMERA,
   mobileSpeed,
+  aimStickFires,
 } from "../mobile/controlMath";
 import type { World } from "../map/builder";
 import { readGraphics, saveGraphics, GRAPHICS_KEY } from "./graphicsSettings";
@@ -27,7 +28,7 @@ test("mobile input installs no desktop listeners or mouse lock", () => {
   input.requestLock();
   assert.equal(input.aimRelativeMovement, false);
 });
-test("mobile stick moves and aims in the same direction, with only the fire button producing a shot", () => {
+test("movement and aiming sticks remain independent while moving and firing", () => {
   const input = new MobileInput({} as HTMLCanvasElement),
     world = {} as World,
     pos = new Vector3(10, 0, 20);
@@ -40,8 +41,8 @@ test("mobile stick moves and aims in the same direction, with only the fire butt
   const direction = mobileDirection(-0.6, -0.8);
   assert.equal(a.moveX, direction.x);
   assert.equal(a.moveZ, direction.z);
-  assert.equal(a.aimX, pos.x + a.moveX * 35);
-  assert.equal(a.aimZ, pos.z + a.moveZ * 35);
+  assert.equal(a.aimX, pos.x + 35);
+  assert.equal(a.aimZ, pos.z);
   assert.equal(a.fire, true);
   assert.equal(a.pressed, true);
   assert.equal(b.pressed, false);
@@ -108,6 +109,7 @@ test("mobile graphics are saved independently from existing desktop preferences"
 test("stick direction never fires and is retained after release", () => {
   const input = new MobileInput({} as HTMLCanvasElement),
     pos = Vector3.Zero();
+  input.setAimStick(0.6, 0, 0.6);
   input.movement = { x: 1, y: 0 };
   const a = input.command({} as World, pos);
   assert.equal(a.fire, false);
@@ -182,7 +184,10 @@ test("analog speed stays continuous across the 90 percent sprint boundary", () =
     const speed = mobileSpeed(strength);
     assert.equal(speed.sprint, sprint);
     assert.ok(
-      Math.abs(speed.magnitude * (sprint ? 1.5 : 1) - (strength <= 0.9 ? strength / 0.9 : 1 + (strength - 0.9) * 5)) < 1e-10,
+      Math.abs(
+        speed.magnitude * (sprint ? 1.5 : 1) -
+          (strength <= 0.9 ? strength / 0.9 : 1 + (strength - 0.9) * 5),
+      ) < 1e-10,
     );
   }
 });
@@ -206,7 +211,10 @@ test("shared movement retains fine analog speed and replay produces the same pos
       input.movement = { x: strength, y: 0 };
       const command = input.command(world, player.root.position);
       player.simulate(command, 0.1);
-      const expected = CONFIG.player.speed * (strength <= 0.9 ? strength / 0.9 : 1 + (strength - 0.9) * 5) * 0.1;
+      const expected =
+        CONFIG.player.speed *
+        (strength <= 0.9 ? strength / 0.9 : 1 + (strength - 0.9) * 5) *
+        0.1;
       assert.ok(
         Math.abs(player.root.position.x - expected) < 1e-8,
         `strength ${strength}`,
@@ -222,4 +230,39 @@ test("shared movement retains fine analog speed and replay produces the same pos
     scene.dispose();
     engine.dispose();
   }
+});
+
+test("aim ring fires only in its outer tenth and keeps aiming while firing", () => {
+  const input = new MobileInput({} as HTMLCanvasElement);
+  const world = {} as World;
+  for (const value of [0, 0.3, 0.89, NaN])
+    assert.equal(aimStickFires(value), false);
+  for (const value of [0.9, 0.95, 1]) assert.equal(aimStickFires(value), true);
+  input.setAimStick(0.89, 0, 0.89);
+  assert.equal(input.command(world, Vector3.Zero()).fire, false);
+  input.setAimStick(0.9, 0, 0.9);
+  const first = input.command(world, Vector3.Zero());
+  assert.equal(first.fire, true);
+  assert.equal(first.pressed, true);
+  assert.equal(first.moveX, 0);
+  input.setAimStick(0, -1, 1);
+  const rotated = input.command(world, Vector3.Zero());
+  assert.equal(rotated.fire, true);
+  assert.equal(rotated.pressed, false);
+  assert.equal(rotated.aimX, 0);
+  assert.equal(rotated.aimZ, 35);
+  input.setAimStick(0, -0.5, 0.5);
+  assert.equal(input.command(world, Vector3.Zero()).fire, false);
+  input.setAimStick(0, -1, 1);
+  assert.equal(input.command(world, Vector3.Zero()).pressed, true);
+  input.setAimStick(0, 0, 0);
+  const released = input.command(world, Vector3.Zero());
+  assert.equal(released.fire, false);
+  assert.equal(released.aimZ, 35);
+  assert.deepEqual(input.aimMovement, { x: 0, y: 0 });
+  input.setAimStick(1, 0, 1);
+  input.clear();
+  assert.equal(input.fireHeld, false);
+  assert.equal(input.down, false);
+  assert.deepEqual(input.aimMovement, { x: 0, y: 0 });
 });

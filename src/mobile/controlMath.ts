@@ -47,3 +47,8 @@ export function mobileSpeed(strength: number) {
     magnitude: sprint ? (1 + ((value - 0.9) / 0.1) * 0.5) / 1.5 : value / 0.9,
   };
 }
+
+/** The outer tenth of the aiming travel fires while direction remains continuous. */
+export function aimStickFires(strength: number) {
+  return Number.isFinite(strength) && strength >= 0.9;
+}

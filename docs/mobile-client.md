@@ -20,9 +20,9 @@ methods expose existing behavior for both keyboard and touch.
 Mobile files:
 
 - `input.ts`: independent touch state, no desktop event listeners or pointer lock;
-  left stick controls movement and weapon direction together; its outer edge requests
-  the shared desktop sprint. The right control is a dedicated fire button.
-- `controls.ts`: single directional stick and independent fire button, per-pointer capture/release, held action cancellation on pause,
+  left stick controls movement independently of aim; its outer edge requests
+  the shared desktop sprint. The larger right stick controls aim and fires in the outer 10% of its travel ring.
+- `controls.ts`: independent movement and aiming sticks, per-pointer capture/release, held action cancellation on pause,
   blur, death and hidden tab; inventory delegates to shared game actions. Turret
   and rifle use the existing scope implementation, driven by explicit touch APIs.
 - `presentation.ts`: separate closer overhead camera; mobile resize projection,
@@ -81,14 +81,14 @@ Multiplayer still requires an internet connection; installation is not offline p
 Physical iOS/Android installation, orientation-lock and two-thumb testing remain
 necessary before calling the mobile release device-verified.
 
-Single-stick revision: mobile input compensates the tilted camera's ground-plane
-foreshortening so on-screen diagonal movement matches the joystick. Direction is
-retained when released. Movement never fires. Sprint requests begin above 90% stick strength. Walking scales continuously
+Dual-stick revision (26 October): mobile input compensates the tilted camera's ground-plane
+foreshortening so on-screen diagonal movement matches the joystick. Aim direction is
+retained when the right stick is released. Movement neither changes aim nor fires. Sprint requests begin above 90% stick strength. Walking scales continuously
 from zero to normal walk speed over the first 90% of travel; the final 10%
 scales smoothly up to full sprint speed. The unchanged
 four-second stamina / exhaustion / recovery rules remain on client and server.
 The shared sprint meter is visible in the mobile HUD. In scope/turret mode the
-same left stick adjusts aim without moving the operator; the right button fires.
+right stick adjusts aim without moving the operator; its outer ring fires. The left stick remains movement-only and does not move a scoped operator.
 
 Analog magnitude is preserved by shared `Player.simulate` with a normalization
 floor of one. Desktop cardinals and diagonals retain their previous speed; small

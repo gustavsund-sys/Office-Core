@@ -962,3 +962,44 @@ html[data-client="mobile"] #kill-counter .kill-row {padding:2px 3px;margin:2px 0
 html[data-client="mobile"] #kill-counter .kill-row i {font-size:8px;width:9px;}
 html[data-client="mobile"] #kill-counter .kill-row span {font-size:9px;min-width:0;}
 html[data-client="mobile"] #kill-counter .kill-row strong {font-size:11px;min-width:14px;}
+
+/* Independent movement and aim sticks. Aim hit area extends past the visible travel ring. */
+html[data-client="mobile"] .move-stick {
+  background:radial-gradient(circle,#34665d80,#17384066);
+  border-color:#a0d6c3a6;
+}
+html[data-client="mobile"] .move-stick::before,
+html[data-client="mobile"] .move-stick::after {display:none;}
+html[data-client="mobile"] .move-arrows {position:absolute;inset:0;pointer-events:none;}
+html[data-client="mobile"] .move-arrows em {position:absolute;font:700 20px system-ui;color:#e1fff1;font-style:normal;line-height:1;}
+html[data-client="mobile"] .move-arrows em:nth-child(1) {top:5px;left:calc(50% - 8px);}
+html[data-client="mobile"] .move-arrows em:nth-child(2) {right:5px;top:calc(50% - 10px);}
+html[data-client="mobile"] .move-arrows em:nth-child(3) {bottom:5px;left:calc(50% - 8px);}
+html[data-client="mobile"] .move-arrows em:nth-child(4) {left:5px;top:calc(50% - 10px);}
+html[data-client="mobile"] .move-stick .stick-label {bottom:-17px;font-size:8px;}
+html[data-client="mobile"] .aim-stick {
+  position:fixed;width:148px;height:148px;
+  right:calc(4px + env(safe-area-inset-right,0px));
+  bottom:calc(12px + env(safe-area-inset-bottom,0px));
+  background:#102c3540;border:1px dashed #c7dfe03d;
+}
+html[data-client="mobile"] .aim-travel {
+  position:absolute;inset:16%;border-radius:50%;pointer-events:none;
+  background:radial-gradient(circle,transparent 0 89%,#f3ad6480 90% 100%);
+  border:1px solid #efbd78bb;
+}
+html[data-client="mobile"] .aim-stick i {background:#d9b67b66;border-color:#ffe0a5;}
+html[data-client="mobile"] .aim-stick .stick-label {bottom:3px;color:#ffe4b6;font-size:9px;}
+html[data-client="mobile"] .mobile-firing .aim-travel {background:radial-gradient(circle,#ad613322 0 89%,#ff774bce 90% 100%);border-color:#ffb27d;box-shadow:0 0 12px #e978473d;}
+html[data-client="mobile"] .mobile-firing .aim-stick i {background:#f9945ca0;}
+html[data-client="mobile"] .mobile-controls .mobile-fire[hidden] {display:none;}
+html[data-client="mobile"] .mobile-remote .aim-stick {display:none;}
+html[data-client="mobile"] .mobile-actions [data-action="interact"],
+html[data-client="mobile"] .mobile-actions [data-action="reload"],
+html[data-client="mobile"] .mobile-actions [data-action="scope"],
+html[data-client="mobile"] .mobile-actions [data-action="warcry"] {right:calc(158px + env(safe-area-inset-right,0px));}
+html[data-client="mobile"] .mobile-actions [data-action="exit"] {bottom:calc(174px + env(safe-area-inset-bottom,0px));}
+/* Keep action buttons outside the larger aim touch area. */
+html[data-client="mobile"] .mobile-actions [data-action="crouch"] {bottom:calc(170px + env(safe-area-inset-bottom,0px));}
+html[data-client="mobile"] .mobile-actions [data-action="jump"] {bottom:calc(220px + env(safe-area-inset-bottom,0px));}
+html[data-client="mobile"] .mobile-actions [data-action="exit"] {bottom:calc(270px + env(safe-area-inset-bottom,0px));}

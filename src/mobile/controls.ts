@@ -44,7 +44,6 @@ function stick(el: HTMLElement, change: (v: StickValue) => void) {
 }
 export class MobileControls {
   readonly el = document.createElement("section");
-  private fireHeld = false;
   private sprintHud = document.createElement("div");
   private resetSticks: (() => void)[] = [];
   private wasPlayable = false;
@@ -61,20 +60,23 @@ export class MobileControls {
     this.el.className = "mobile-controls";
     this.el.hidden = true;
     this.el.setAttribute("aria-label", "Pekstyrning");
-    this.el.innerHTML = `<div class="mobile-stick move-stick" aria-label="Förflyttning"><i></i><span>GÅ / SPRINT</span></div><div class="mobile-actions"><button data-action="fire" class="mobile-fire">SKJUT</button><button data-action="interact">ANVÄND</button><button data-action="scope">SIKTE</button><button data-action="reload">LADDA</button><button data-action="jump">HOPPA</button><button data-action="crouch">DUCKA</button><button data-action="exit" hidden>LÄMNA TURRET</button></div>`;
+    this.el.innerHTML = `<div class="mobile-stick move-stick" aria-label="Förflyttning"><i></i><b class="move-arrows" aria-hidden="true"><em>↑</em><em>→</em><em>↓</em><em>←</em></b><span class="stick-label">GÅ / SPRINT</span></div><div class="mobile-stick aim-stick" aria-label="Sikta, dra till ytterkanten för att skjuta"><b class="aim-travel"></b><i></i><span class="stick-label">SIKTA</span></div><div class="mobile-actions"><button data-action="fire" class="mobile-fire">SKJUT</button><button data-action="interact">ANVÄND</button><button data-action="scope">SIKTE</button><button data-action="reload">LADDA</button><button data-action="jump">HOPPA</button><button data-action="crouch">DUCKA</button><button data-action="exit" hidden>LÄMNA TURRET</button></div>`;
     document.body.append(this.el);
     // Keep the existing HUD nodes and IDs so shared vitals updates still reach them.
     this.sprintHud.className = "mobile-sprint-hud";
     this.sprintHud.hidden = true;
     const vitals = document.querySelector("#ui .shield-vitals")!;
-    this.sprintHud.append(vitals.querySelector("label")!, vitals.querySelector("#sprint-energy")!);
+    this.sprintHud.append(
+      vitals.querySelector("label")!,
+      vitals.querySelector("#sprint-energy")!,
+    );
     document.querySelector("#ui")!.append(this.sprintHud);
     this.marker.className = "mobile-aim-marker";
     this.marker.hidden = true;
     document.body.append(this.marker);
     this.help.className = "mobile-help";
     this.help.textContent =
-      "Spaken styr rörelse och vapen. Dra till kanten för sprint. Höger knapp skjuter.";
+      "Vänster spak flyttar. Höger spak siktar; yttersta ringen skjuter.";
     document.body.append(this.help);
     this.fireButton = this.button("fire");
     this.scopeButton = this.button("scope");
@@ -87,13 +89,17 @@ export class MobileControls {
           this.input.remoteDrivingStarted = true;
       }),
     );
+    this.resetSticks.push(
+      stick(this.el.querySelector(".aim-stick")!, (v) => {
+        this.input.setAimStick(v.x, v.y, v.strength);
+        this.el.classList.toggle("mobile-firing", this.input.fireHeld);
+      }),
+    );
     this.hold(this.fireButton, (active) => {
       if (this.input.remote) {
         if (active) this.input.remoteDetonate = true;
         return;
       }
-      this.fireHeld = active;
-      if (active) this.input.pressed = true;
     });
     this.hold(this.button("crouch"), (active) => {
       active ? input.keys.add("KeyC") : input.keys.delete("KeyC");
@@ -133,7 +139,9 @@ export class MobileControls {
     const card = document.querySelector<HTMLElement>(".pause-card")!;
     card.dataset.mobileTab = "play";
     const logo = card.querySelector<HTMLImageElement>(".game-logo img")!;
-    card.querySelectorAll(".game-logo source").forEach((source) => source.remove());
+    card
+      .querySelectorAll(".game-logo source")
+      .forEach((source) => source.remove());
     logo.src = "/branding/office-core-primary.webp";
     logo.width = 1774;
     logo.height = 887;
@@ -182,7 +190,7 @@ export class MobileControls {
     const guide = document.createElement("p");
     guide.className = "mobile-lobby-guide";
     guide.textContent =
-      "Spaken styr rörelse och vapen · 0–90%: gång · Över 90%: sprint · Höger knapp skjuter.";
+      "Vänster: flytta / sprint · Höger: sikta · Yttersta 10% av siktringen: skjut.";
     nav.after(guide);
     for (const el of Array.from(
       document.querySelectorAll<HTMLElement>(
@@ -229,7 +237,7 @@ export class MobileControls {
   }
   private reset() {
     this.resetSticks.forEach((fn) => fn());
-    this.fireHeld = false;
+    this.el.classList.remove("mobile-firing");
     this.input.clear();
     this.game.boss?.touchFire(false);
     this.game.player.crouched = false;
@@ -252,26 +260,31 @@ export class MobileControls {
     );
     const label = this.input.remote
       ? "KÖR"
-      : precision
-        ? "SIKTA"
-        : strength === 0
-          ? "GÅ / SPRINT"
-          : `${strength > 0.9 ? "SPRINT" : "GÅ"} ${Math.round(strength * 100)}%`;
-    const stickLabel = this.el.querySelector<HTMLElement>(".move-stick span")!;
+      : strength === 0
+        ? "GÅ / SPRINT"
+        : `${strength > 0.9 ? "SPRINT" : "GÅ"} ${Math.round(strength * 100)}%`;
+    const stickLabel = this.el.querySelector<HTMLElement>(
+      ".move-stick .stick-label",
+    )!;
     if (stickLabel.textContent !== label) stickLabel.textContent = label;
     this.help.textContent = this.input.remote
       ? "Vänster spak: kör och sväng · DETONERA: spräng bilen"
       : precision
-        ? "Vänster spak: sikta · SKJUT: avfyra · SIKTE: zooma"
-        : "Spaken: steglös fart · 0–90%: gång · Över 90%: sprint · Höger knapp: skjut";
+        ? "Höger spak: sikta · Yttersta ringen: skjut · SIKTE: zooma"
+        : "Vänster: flytta / sprint · Höger: sikta · Yttersta ringen: skjut";
     if (precision) {
-      const dx = this.input.movement.x * dt * 0.85,
-        dy = this.input.movement.y * dt * 0.65;
+      const dx = this.input.aimMovement.x * dt * 0.85,
+        dy = this.input.aimMovement.y * dt * 0.65;
       if (this.game.boss?.active) this.game.boss.touchAim(dx, dy);
       else this.game.rifleScope?.look(dx, dy);
     }
-    this.input.down = this.fireHeld;
+    this.input.down = this.input.fireHeld;
     this.game.boss?.touchFire(this.input.down);
+    this.fireButton.hidden = !this.input.remote;
+    const aimLabel = this.el.querySelector<HTMLElement>(
+      ".aim-stick .stick-label",
+    )!;
+    aimLabel.textContent = this.input.fireHeld ? "SKJUTER" : "SIKTA";
     this.fireButton.textContent = this.input.remote
       ? "DETONERA"
       : this.game.weapons.pulseTrapSelected ||
