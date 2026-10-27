@@ -46,3 +46,21 @@ html[data-client="mobile"] .loadout-status {color:#b1c5ce;}
 @media(prefers-reduced-motion:reduce) {
   html[data-client="mobile"] :is(.pause-card,.deployment-screen) button {transition:none;}
 }
+/* Align the wordmark with the navigation and blend away its dark image canvas. */
+html[data-client="mobile"] .pause-card h1.game-logo {
+  display:flex;align-items:center;justify-content:center;
+  justify-self:stretch;align-self:center;margin:0;padding:0;
+  overflow:hidden;background:transparent;border:0;box-shadow:none;
+  mix-blend-mode:screen;
+}
+html[data-client="mobile"] .pause-card h1.game-logo img {
+  display:block;flex:none;width:124px;height:62px;max-height:none;
+  object-fit:contain;mix-blend-mode:screen;
+  mask-image:radial-gradient(ellipse 65% 65% at center,#000 45%,transparent 100%);
+}
+html[data-client="mobile"] .pause-card h1.game-logo {
+  justify-content:flex-start;
+}
+html[data-client="mobile"] .pause-card h1.game-logo img {
+  margin-left:-2px;
+}
