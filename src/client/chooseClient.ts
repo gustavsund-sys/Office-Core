@@ -15,7 +15,7 @@ export async function chooseClient(): Promise<ClientMode> {
   const screen = document.createElement("section");
   screen.className = "client-choice";
   screen.setAttribute("aria-label", "Välj spelversion");
-  screen.innerHTML = `<article><img src="/branding/office-core-primary.webp" alt="Office Core"><h1>STARTA OFFICE CORE</h1><p>Samma kontor. Samma strid. Välj din styrning.</p><div class="client-options"><button data-client="desktop"><svg viewBox="0 0 48 48" aria-hidden="true"><rect x="4" y="5" width="40" height="28" rx="3"/><path d="M24 33v9M15 42h18"/></svg><strong>Dator</strong><small>Tangentbord och mus</small></button><button data-client="mobile"><svg viewBox="0 0 48 48" aria-hidden="true"><rect x="4" y="11" width="40" height="26" rx="5"/><circle cx="12" cy="24" r="3"/><path d="M34 20v8M30 24h8"/></svg><strong>Mobil</strong><small>Pekstyrning och anpassad spelvy</small></button></div></article>`;
+  screen.innerHTML = `<article><h1>STARTA OFFICE CORE</h1><p>Samma kontor. Samma strid. Välj din styrning.</p><div class="client-options"><button data-client="desktop"><svg viewBox="0 0 48 48" aria-hidden="true"><rect x="4" y="5" width="40" height="28" rx="3"/><path d="M24 33v9M15 42h18"/></svg><strong>Dator</strong><small>Tangentbord och mus</small></button><button data-client="mobile"><svg viewBox="0 0 48 48" aria-hidden="true"><rect x="4" y="11" width="40" height="26" rx="5"/><circle cx="12" cy="24" r="3"/><path d="M34 20v8M30 24h8"/></svg><strong>Mobil</strong><small>Pekstyrning och anpassad spelvy</small></button></div></article>`;
   document.body.append(screen);
   const choice = await new Promise<ClientMode>((resolve) => {
     screen
