@@ -1,7 +1,11 @@
+import { bindMobilePress } from "./press";
+import { mountMobileStatus } from "./statusHud";
+import { mobileInteraction, type MobileInteraction } from "./interaction";
+import { rendererLabel } from "../game/rendererSelection";
 import { installMobileApp, openMobileFullscreen } from "./platform";
 import { Matrix, Vector3 } from "@babylonjs/core";
 import type { Game } from "../game/game";
-import type { MobileInput } from "./input";
+import { mobileRepeatFire, type MobileInput } from "./input";
 import { stickVector } from "./controlMath";
 
 type StickValue = { x: number; y: number; strength: number };
@@ -53,6 +57,9 @@ export class MobileControls {
   private scopeButton: HTMLButtonElement;
   private interactButton: HTMLButtonElement;
   private exitButton: HTMLButtonElement;
+  private interaction?: MobileInteraction;
+  private interactionElapsed = 0.1;
+  private statusHud: ReturnType<typeof mountMobileStatus>;
   constructor(
     private game: Game,
     private input: MobileInput,
@@ -60,8 +67,9 @@ export class MobileControls {
     this.el.className = "mobile-controls";
     this.el.hidden = true;
     this.el.setAttribute("aria-label", "Pekstyrning");
-    this.el.innerHTML = `<div class="mobile-stick move-stick" aria-label="Förflyttning"><i></i><b class="move-arrows" aria-hidden="true"><em>↑</em><em>→</em><em>↓</em><em>←</em></b><span class="stick-label">GÅ / SPRINT</span></div><div class="mobile-stick aim-stick" aria-label="Sikta, dra till ytterkanten för att skjuta"><b class="aim-travel"></b><i></i><span class="stick-label">SIKTA</span></div><div class="mobile-actions"><button data-action="fire" class="mobile-fire">SKJUT</button><button data-action="interact">ANVÄND</button><button data-action="scope">SIKTE</button><button data-action="reload">LADDA</button><button data-action="jump">HOPPA</button><button data-action="crouch">DUCKA</button><button data-action="exit" hidden>LÄMNA TURRET</button></div>`;
+    this.el.innerHTML = `<div class="mobile-stick move-stick" aria-label="Förflyttning"><i></i><b class="move-arrows" aria-hidden="true"><em>↑</em><em>→</em><em>↓</em><em>←</em></b><span class="stick-label">GÅ / SPRINT</span></div><div class="mobile-stick aim-stick" aria-label="Sikta, dra till ytterkanten för att skjuta"><b class="aim-travel"></b><i></i><span class="stick-label">SIKTA</span></div><div class="mobile-actions"><button data-action="fire" class="mobile-fire">SKJUT</button><button data-action="interact">ANVÄND</button><button data-action="scope">SIKTE</button><button data-action="reload">LADDA</button><button data-action="jump">HOPPA</button><button data-action="crouch">DUCKA</button><button data-action="warcry" hidden aria-label="Core buster warcry">WARCRY</button><button data-action="exit" hidden>LÄMNA TURRET</button></div>`;
     document.body.append(this.el);
+    this.statusHud = mountMobileStatus(game.hud.el);
     // Keep the existing HUD nodes and IDs so shared vitals updates still reach them.
     this.sprintHud.className = "mobile-sprint-hud";
     this.sprintHud.hidden = true;
@@ -82,6 +90,7 @@ export class MobileControls {
     this.scopeButton = this.button("scope");
     this.interactButton = this.button("interact");
     this.exitButton = this.button("exit");
+    this.setInteraction();
     this.resetSticks.push(
       stick(this.el.querySelector(".move-stick")!, (v) => {
         this.input.movement = { x: v.x, y: v.y };
@@ -105,29 +114,39 @@ export class MobileControls {
       active ? input.keys.add("KeyC") : input.keys.delete("KeyC");
       if (game.boss?.active) game.player.crouched = active;
     });
-    this.interactButton.onclick = () => {
-      if (input.remote) input.remoteDetonate = true;
+    bindMobilePress(this.interactButton, () => {
+      if (!this.playable() || this.interactButton.disabled) return false;
+      const action = mobileInteraction(game);
+      this.setInteraction(action);
+      if (!action) return;
+      if (action === "PLACERA" && game.weapons.pulseTrapSelected && game.weapons.utilityKind === "rcCar") input.pressed = true;
       else game.action("KeyE");
-    };
-    this.scopeButton.onclick = () => {
+    });
+    bindMobilePress(this.scopeButton, () => {
+      if (!this.playable()) return false;
       if (game.boss?.active) game.boss.toggleScope();
       else game.rifleScope?.toggle();
-    };
+    });
     for (const [name, code] of [
       ["reload", "KeyR"],
       ["jump", "Space"],
       ["exit", "KeyB"],
+      ["warcry", "KeyQ"],
     ])
-      this.button(name).onclick = () => game.action(code);
+      bindMobilePress(this.button(name), () => {
+        if (!this.playable() || this.button(name).disabled) return false;
+        game.action(code);
+      });
     // Delegation survives HUD inventory replacement, with no mutation observer or per-frame rebuild.
-    document.querySelector("#ui")!.addEventListener("click", (e) => {
-      if (!this.playable()) return;
+    bindMobilePress(document.querySelector<HTMLElement>("#ui")!, (e) => {
+      if (!this.playable()) return false;
       const slot = (e.target as Element).closest<HTMLElement>(
         ".inventory-slot",
       );
       const key = slot?.querySelector("kbd")?.textContent?.trim();
       if (key && /^[1-4]$/.test(key)) game.action(`Digit${key}`);
       else if (slot?.dataset.weapon === "bossKey") game.action("KeyE");
+      else return false;
     });
     window.addEventListener("blur", () => this.reset());
     document.addEventListener("visibilitychange", () => {
@@ -167,6 +186,10 @@ export class MobileControls {
     card.querySelector(".game-logo")!.after(nav);
     const settings = document.createElement("section");
     settings.className = "mobile-settings";
+    const renderer = document.createElement("p");
+    renderer.className = "mobile-renderer-info";
+    renderer.textContent = `Grafikmotor: ${rendererLabel(this.game.engine)}`;
+    settings.append(renderer);
     const make = (label: string, action: () => void) => {
       const button = document.createElement("button");
       button.textContent = label;
@@ -190,7 +213,7 @@ export class MobileControls {
     const guide = document.createElement("p");
     guide.className = "mobile-lobby-guide";
     guide.textContent =
-      "Vänster: flytta / sprint · Höger: sikta · Yttersta 10% av siktringen: skjut.";
+      "Vänster: flytta / sprint · Höger: sikta · Yttersta 5% av siktringen: skjut.";
     nav.after(guide);
     for (const el of Array.from(
       document.querySelectorAll<HTMLElement>(
@@ -235,8 +258,18 @@ export class MobileControls {
     for (const name of ["pointerup", "pointercancel", "lostpointercapture"])
       el.addEventListener(name, end as EventListener);
   }
+  private setInteraction(action?: MobileInteraction) {
+    this.interaction = action;
+    this.interactButton.textContent = action ?? "ANVÄND";
+    this.interactButton.disabled = !action;
+    this.interactButton.tabIndex = action ? 0 : -1;
+    this.interactButton.setAttribute("aria-hidden", String(!action));
+    this.interactButton.classList.toggle("is-available", !!action);
+  }
   private reset() {
     this.resetSticks.forEach((fn) => fn());
+    this.setInteraction();
+    this.interactionElapsed = 0.1;
     this.el.classList.remove("mobile-firing");
     this.input.clear();
     this.game.boss?.touchFire(false);
@@ -244,10 +277,12 @@ export class MobileControls {
   }
   update(dt: number) {
     const playable = this.playable();
+    this.input.repeatFire = playable && !this.input.remote && !this.game.boss?.active && mobileRepeatFire(this.game.weapons);
     if (this.wasPlayable && !playable) this.reset();
     this.wasPlayable = playable;
     this.el.hidden = !playable;
     this.sprintHud.hidden = !playable;
+    this.statusHud.el.hidden = this.game.paused || this.game.startupPreparing || !this.game.loadout.el.hidden || !!this.game.match.winner;
     this.marker.hidden = !playable || this.precision() || this.input.remote;
     this.help.hidden = !playable;
     if (!playable) return;
@@ -292,10 +327,20 @@ export class MobileControls {
           this.game.weapons.id === "coreBuster"
         ? "PLACERA"
         : "SKJUT";
-    this.interactButton.textContent = this.input.remote ? "DETONERA" : "ANVÄND";
+    this.interactionElapsed += dt;
+    if (this.interactionElapsed >= 0.1) {
+      const action = this.input.remote ? undefined : mobileInteraction(this.game);
+      if (action !== this.interaction) this.setInteraction(action);
+      this.interactionElapsed = 0;
+    }
     this.scopeButton.hidden =
       !this.game.boss?.active && this.game.weapons.id !== "huntingRifle";
     this.exitButton.hidden = !this.game.boss?.active;
+    const warcry = this.button("warcry");
+    const shield = this.game.player.invulnerable;
+    warcry.hidden = !this.game.weapons.carryingCoreBuster || this.input.remote || !!this.game.boss?.active || (!this.game.weapons.warcryAvailable && shield <= 0);
+    warcry.disabled = !this.game.weapons.warcryAvailable || this.game.player.hp <= 0;
+    warcry.textContent = shield > 0 ? `SKYDD ${shield.toFixed(1)}s` : "WARCRY";
     this.button("jump").hidden = precision || this.input.remote;
     if (this.input.remote) this.game.rc.el.hidden = true;
     if (!this.marker.hidden) {

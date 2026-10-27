@@ -21,7 +21,7 @@ export function stickVector(
 }
 export function mobileViewSize(width: number, height: number) {
   // Fixed landscape presentation: keep target scale stable across wide phone screens.
-  return 20;
+  return 20 / 1.1;
 }
 
 export const MOBILE_CAMERA = { height: 34, back: 18 } as const;
@@ -48,7 +48,7 @@ export function mobileSpeed(strength: number) {
   };
 }
 
-/** The outer tenth of the aiming travel fires while direction remains continuous. */
+/** Reserve 95% of aim travel for aiming; only the outer 5% fires. */
 export function aimStickFires(strength: number) {
-  return Number.isFinite(strength) && strength >= 0.9;
+  return Number.isFinite(strength) && strength >= 0.95;
 }

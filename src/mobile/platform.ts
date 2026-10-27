@@ -12,7 +12,7 @@ let installPrompt:
 export function installMobilePlatform() {
   setTutorialInputGuide({
     movement:
-      "Spaken flyttar spelaren och riktar vapnet åt samma håll. Ju längre ut du drar, desto snabbare går du. Upp till 90 % är gång; över 90 % börjar du springa. När sprintmätaren tar slut fortsätter du gå. Höger SKJUT-knapp avfyrar vapnet. Håll DUCKA för att ta skydd.",
+      "Vänster spak flyttar spelaren oberoende av siktet. Ju längre ut du drar, desto snabbare går du. Över 90 % börjar du springa. Höger spak siktar; dess yttersta 5 % skjuter. Håll DUCKA för att ta skydd.",
     movementTips: [
       "HOPPA: hoppa · ANVÄND: plocka upp / desarmera · Ⅱ: paus",
       "Tryck på inventarieraden för att välja pistol, specialvapen eller skill. SIKTE öppnar Hunting Rifles kikarsikte.",

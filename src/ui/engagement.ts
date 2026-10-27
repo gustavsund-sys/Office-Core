@@ -199,7 +199,10 @@ export class EngagementUI {
     const teamName = bomb
       ? bomb.team.charAt(0) + bomb.team.slice(1).toLowerCase()
       : "";
-    crisis.textContent = bomb
+    const mobile = document.documentElement?.dataset?.client === "mobile";
+    crisis.textContent = bomb && mobile
+      ? `${teamName.toUpperCase()} CORE · BOMB ${Math.ceil(bomb.timer)}s · DESARMERA`
+      : bomb
       ? `A Core Buster has been planted at ${teamName} Core! ${teamName} Team! Disarm IT! · ${Math.ceil(bomb.timer)}s`
       : `DIN CORE ÄR KRITISK · ${Math.round(coreHp * 100)}% · FÖRSVARA!`;
     for (const p of this.pings) {

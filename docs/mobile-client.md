@@ -21,7 +21,7 @@ Mobile files:
 
 - `input.ts`: independent touch state, no desktop event listeners or pointer lock;
   left stick controls movement independently of aim; its outer edge requests
-  the shared desktop sprint. The larger right stick controls aim and fires in the outer 10% of its travel ring.
+  the shared desktop sprint. The larger right stick controls aim and fires in the outer 5% of its travel ring.
 - `controls.ts`: independent movement and aiming sticks, per-pointer capture/release, held action cancellation on pause,
   blur, death and hidden tab; inventory delegates to shared game actions. Turret
   and rifle use the existing scope implementation, driven by explicit touch APIs.
@@ -96,3 +96,82 @@ mobile inputs no longer normalize to full walk speed. The network already sends
 fractional axes. Deploy both client and server together: an older server that
 normalizes all inputs to unit length cannot provide these analog speeds.
 The stick uses a 2% central dead zone with unquantized values outside it.
+
+## WebGPU investigation (26 October)
+
+Desktop prefers WebGPU. Mobile now defaults to Babylon Engine with WebGL 2 enabled (falling back to WebGL 1 only if context creation requires it). Explicit `renderer=webgpu` retains the diagnostic path. A physical iPhone reported `GPUCommandEncoder.beginRenderPass: Unable to begin render pass` after initialization. This message alone does not identify a specific effect or prove that WebGPU cannot run the game.
+
+Mobile WebGPU sessions collect a bounded, local-only diagnostic report: device limits, validation errors, lost-device events, recent render-pass descriptors and attachment sizes/formats/sample counts. The error screen exposes the report for copying. Desktop can opt in using `gpuinspect=1`. No diagnostic data is automatically sent to the server. The mobile settings page and startup report show the actual WebGL context version.
+
+
+## WebGL 2 comparison test
+
+At the user's request, mobile now selects WebGL by default, using
+`disableWebGL2Support: false`. Babylon attempts `webgl2` before its WebGL 1
+fallback. `renderer=webgl2` and `renderer=webgl` both select this path; the
+settings label reports `engine.webGLVersion`, not a claimed version based on
+the URL. Normal-mode glow, shadow maps and other Standard effects are enabled
+on this path. Mobile WebGPU compatibility restrictions only apply when WebGPU
+is explicitly selected. Test with `client=mobile&renderer=webgl2&gpucheck=normal`.
+
+## Touch fire assist and zoom
+
+Mobile overhead view spans `20 / 1.1` world units vertically, making players and
+props 10% larger than the previous 20-unit view. Desktop camera settings are
+unchanged. On mobile, a held outer aim ring repeats trigger requests for pistol,
+pulse, burst, bazooka and hunting rifle. Shared weapon cooldowns and reloads
+remain authoritative locally and on the server; machine gun already supports
+held fire. The assist works while scoped, stops on release/cancel, and does not
+repeat equipment actions, Core buster placement or empty/reloading weapon
+clicks. No protocol or server weapon rules changed.
+
+## Mobile weapon balance
+
+Mobile pistol: 0.5 seconds between shots (desktop: 0.25) and 17 damage
+(desktop: 20). Mobile bazooka: 2 seconds between launches (desktop: 1).
+`weaponStats` supplies the same profile to local weapon simulation, server weapon
+simulation and cosmetic shot prediction. Magazine/reload rules and other
+weapons retain their existing values. Join options declare the selected client
+mode; a validated `clientMode` message refreshes it after reconnection. Balance
+is held per player's Weapons instance, never by mutating shared WEAPONS data.
+`scripts/mobile-balance-smoke.ts` checks independent profiles with two local
+SDK clients and validates the reconnect-profile message.
+
+
+## Aim ring refinement
+
+The right control and its thumb knob are 10% larger (162.8px control diameter).
+Aiming occupies the first 95% of travel; firing starts at 95% instead of 90%.
+The visible fire band matches the threshold, and nearby action buttons are
+shifted outward to avoid overlap. Movement/sprint thresholds are unchanged.
+
+## Lower-corner controls and contextual interaction
+
+Both sticks sit near the lower safe-area edges. Reload is left of the aim
+stick, crouch below-left and jump below-right. The combat strip reserves space
+for those buttons. The explicit interaction button unfolds from the aim stick's
+upper-right corner only when usable, with PLOCKA/PLACERA labels (plus ÖPPNA for
+an available own lift and AVVÄPNA for a reachable bomb). It retracts and disables
+hit testing/focus when unavailable. State is checked at 10 Hz and revalidated on
+tap, without rebuilding DOM or doing placement ray tests every render frame.
+
+Placement previews reuse the same read-only `placement` queries called by
+Beacon/PulseTrap `place`. Core busters require grounding; RC deployment checks
+its collision radius and uses the existing press action. Automatic ammo/health
+collection does not show an unnecessary button. World pickup state comes from
+snapshots online, so consumed/inactive drops do not leave a usable button behind.
+
+## Compact combat notices
+
+The in-game leave-lobby button is hidden on mobile; leaving remains available
+inside the pause menu. Desktop Warcry and duplicate Core-buster carrier banners
+are hidden. A touch Warcry action is shown near the aim controls only while
+carrying a Core buster with a cry available or its protection active.
+
+Existing warning, toast, bomb, disarm and lift-prompt nodes are grouped in a
+bounded status dock below the Core bars. The whole engagement wrapper moves
+intact to preserve its scoped queries; hit confirmation stays viewport-fixed.
+Lazily-created panels are moved with a direct-child MutationObserver, avoiding
+per-frame DOM rebuilding. Inactive notices take no space. Bomb rows use two
+compact columns, and round countdown is a small badge instead of a full-screen
+dim layer. The dock hides in menus but remains available during respawn.

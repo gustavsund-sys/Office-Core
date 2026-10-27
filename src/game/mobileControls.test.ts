@@ -76,7 +76,7 @@ test("stick output clamps at the circular edge and ignores small thumb jitter", 
   assert.equal(stickVector(Infinity, 0, 40).strength, 0);
 });
 test("mobile camera keeps its landscape scale without changing shared camera configuration", () => {
-  assert.equal(mobileViewSize(844, 390), 20);
+  assert.ok(Math.abs(20 / mobileViewSize(844, 390) - 1.1) < 1e-10);
   assert.equal(mobileViewSize(390, 844), mobileViewSize(844, 390));
   assert.ok(Number.isFinite(mobileViewSize(0, 0)));
 });
@@ -232,15 +232,15 @@ test("shared movement retains fine analog speed and replay produces the same pos
   }
 });
 
-test("aim ring fires only in its outer tenth and keeps aiming while firing", () => {
+test("aim ring fires only in its outer five percent and keeps aiming while firing", () => {
   const input = new MobileInput({} as HTMLCanvasElement);
   const world = {} as World;
-  for (const value of [0, 0.3, 0.89, NaN])
+  for (const value of [0, 0.3, 0.9, 0.94, 0.949999, NaN])
     assert.equal(aimStickFires(value), false);
-  for (const value of [0.9, 0.95, 1]) assert.equal(aimStickFires(value), true);
+  for (const value of [0.95, 0.99, 1]) assert.equal(aimStickFires(value), true);
   input.setAimStick(0.89, 0, 0.89);
   assert.equal(input.command(world, Vector3.Zero()).fire, false);
-  input.setAimStick(0.9, 0, 0.9);
+  input.setAimStick(0.95, 0, 0.95);
   const first = input.command(world, Vector3.Zero());
   assert.equal(first.fire, true);
   assert.equal(first.pressed, true);
@@ -265,4 +265,79 @@ test("aim ring fires only in its outer tenth and keeps aiming while firing", () 
   assert.equal(input.fireHeld, false);
   assert.equal(input.down, false);
   assert.deepEqual(input.aimMovement, { x: 0, y: 0 });
+});
+
+import { mobileRepeatFire } from "../mobile/input";
+import { WEAPONS, type WeaponId } from "../config/weapons";
+import { Weapons } from "../weapons/system";
+test("mobile hold repeats firearm presses, stops on release and does not repeat equipment or empty clicks", () => {
+  const input = new MobileInput({} as HTMLCanvasElement);
+  const world = {} as World;
+  const state = {
+    id: "pistol" as WeaponId, ammo: 10, reloadRemaining: 0,
+    carryingCoreBuster: false, carryingBeacon: false, pulseTrapSelected: false, remoteControlled: false,
+  };
+  for (const id of Object.keys(WEAPONS) as WeaponId[]) {
+    state.id = id;
+    state.carryingCoreBuster = id === "coreBuster";
+    assert.equal(mobileRepeatFire(state), id !== "coreBuster" && id !== "machineGun");
+  }
+  state.id = "pistol"; state.carryingCoreBuster = false;
+  input.repeatFire = mobileRepeatFire(state);
+  input.setAimStick(1, 0, 1);
+  for (let i = 0; i < 5; i++) assert.equal(input.command(world, Vector3.Zero()).pressed, true);
+  input.setAimStick(0.5, 0, 0.5);
+  assert.equal(input.command(world, Vector3.Zero()).pressed, false);
+  for (const blocked of [
+    { ammo: 0 }, { reloadRemaining: 1 }, { carryingBeacon: true },
+    { pulseTrapSelected: true }, { remoteControlled: true },
+  ]) assert.equal(mobileRepeatFire({ ...state, ...blocked }), false);
+  input.clear();
+  assert.equal(input.repeatFire, false);
+});
+
+test("held mobile fire respects each firearm's shared shot and reload limits", () => {
+  const engine = new NullEngine(), scene = new Scene(engine);
+  try {
+    const world = new GameWorld(scene, new ShadowGenerator(32, new DirectionalLight("sun", Vector3.Down(), scene)));
+    for (const id of ["pistol", "pulseGun", "burstGun", "bazooka", "huntingRifle"] as const) {
+      const player = new Player(world), input = new MobileInput({} as HTMLCanvasElement);
+      const weapons = new Weapons(player, () => {}, () => {});
+      weapons.visuals = false;
+      weapons.equip(id);
+      const startAmmo = weapons.ammo;
+      input.setAimStick(1, 0, 1);
+      for (let frame = 0; frame < 120; frame++) {
+        input.repeatFire = mobileRepeatFire(weapons);
+        weapons.update(input.command(world, player.root.position), 1 / 60);
+      }
+      const shots = startAmmo - weapons.ammo;
+      if (id === "huntingRifle") assert.equal(shots, 1, "rifle cannot bypass its eight second cycle");
+      else if (id === "bazooka") assert.equal(shots, 2, "rocket firing rate remains one per second");
+      else if (id === "burstGun") assert.ok(shots >= 10 && shots <= 15, "hold repeats salvos with the existing pause");
+      else assert.ok(shots >= 7 && shots <= 8, `${id} repeats at four shots per second`);
+      input.setAimStick(0, 0, 0);
+      if (id !== "burstGun") {
+        const ammo = weapons.ammo;
+        weapons.update(input.command(world, player.root.position), 1 / 60);
+        assert.equal(weapons.ammo, ammo);
+      }
+      player.root.dispose();
+    }
+  } finally { scene.dispose(); engine.dispose(); }
+});
+
+test("scoped mobile hold also repeats fire and stops when leaving the firing ring", () => {
+  const input = new MobileInput({} as HTMLCanvasElement);
+  input.scoped = true;
+  input.repeatFire = true;
+  const world = { scene: {
+    activeCamera: { getForwardRay: () => ({ origin: Vector3.Zero(), direction: Vector3.Forward() }) },
+    pickWithRay: () => null,
+  } } as unknown as World;
+  input.setAimStick(1, 0, 1);
+  assert.equal(input.command(world, Vector3.Zero()).pressed, true);
+  assert.equal(input.command(world, Vector3.Zero()).pressed, true);
+  input.setAimStick(0, 0, 0);
+  assert.equal(input.command(world, Vector3.Zero()).pressed, false);
 });

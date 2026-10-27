@@ -46,6 +46,7 @@ export async function prepareMapTour(
   game: Game,
   frame: () => Promise<void>,
   progress: (fraction: number) => void,
+  options: { budgetMs?: number; now?: () => number } = {},
 ) {
   const { scene, camera, engine, world } = game;
   const position = camera.position.clone(),
@@ -63,12 +64,16 @@ export async function prepareMapTour(
   const observer = engine.onBeforeShaderCompilationObservable.add(
     () => shaderCount++,
   );
-  const started = performance.now();
+  const now = options.now ?? (() => performance.now());
+  const budgetMs = options.budgetMs ?? 15000;
+  const started = now();
   try {
     // At most three passes and a soft time budget. Never hold startup indefinitely.
-    for (let pass = 0; pass < 3; pass++) {
+    tour: for (let pass = 0; pass < 3; pass++) {
       const before = shaderCount;
       for (let i = 0; i < points.length; i++) {
+        // A slow mobile pass must not consume minutes before checking its budget.
+        if (now() - started >= budgetMs) break tour;
         if (typeof document !== "undefined" && document.hidden) {
           // Background rAF is throttled: retain the current view and resume on return.
           while (typeof document !== "undefined" && document.hidden)
@@ -84,7 +89,11 @@ export async function prepareMapTour(
         await frame();
         await frame();
         // Include shadow/glow render targets, rather than only surface materials.
-        for (let wait = 0; wait < 12 && !scene.isReady(true); wait++)
+        for (
+          let wait = 0;
+          wait < 12 && now() - started < budgetMs && !scene.isReady(true);
+          wait++
+        )
           await frame();
         progress(Math.min(0.98, (pass + i / Math.max(1, points.length)) / 3));
       }
@@ -94,7 +103,7 @@ export async function prepareMapTour(
         stable = true;
         break;
       }
-      if (pass > 0 && performance.now() - started > 15000) break;
+      if (pass > 0 && now() - started > 15000) break;
     }
     console.info(
       "Office Core map warmup " +
@@ -103,7 +112,7 @@ export async function prepareMapTour(
           passes,
           shaderStarts: shaderCount,
           stable,
-          durationMs: Math.round(performance.now() - started),
+          durationMs: Math.round(now() - started),
         }),
     );
   } finally {

@@ -402,7 +402,7 @@ export class PulseTraps {
         m.isEnabled() && !ignore.includes(m as Mesh) && !!m.metadata?.solid,
     )?.hit;
   }
-  place(a: TrapActor) {
+  placement(a: TrapActor) {
     if (
       a.weapons.utilityCount <= 0 ||
       !a.weapons.pulseTrapSelected ||
@@ -410,7 +410,7 @@ export class PulseTraps {
       !a.player.grounded ||
       this.traps.size >= PULSE_TRAP.maxPlaced
     )
-      return false;
+      return undefined;
     const p = a.player.root.position,
       yaw = a.player.root.rotation.y;
     const x = p.x + Math.sin(yaw) * 1.1,
@@ -422,9 +422,9 @@ export class PulseTraps {
           Math.abs(z - r.z) < r.d / 2 - 0.4,
       )
     )
-      return false;
+      return undefined;
     if (this.blocked(p.add(new Vector3(0, 0.45, 0)), new Vector3(x, 0.45, z)))
-      return false;
+      return undefined;
     if (
       this.world.solids.some((m) => {
         if (!m.isEnabled()) return false;
@@ -438,11 +438,11 @@ export class PulseTraps {
         );
       })
     )
-      return false;
+      return undefined;
     if (
       [...this.traps.values()].some((t) => Math.hypot(x - t.x, z - t.z) < 0.7)
     )
-      return false;
+      return undefined;
     if (a.weapons.utilityKind === "superMedkit") {
       if (
         this.medkits.size >= 16 ||
@@ -450,7 +450,15 @@ export class PulseTraps {
           (k) => Math.hypot(k.x - x, k.z - z) < 0.7,
         )
       )
-        return false;
+        return undefined;
+    }
+    return { x, z, yaw };
+  }
+  place(a: TrapActor) {
+    const position = this.placement(a);
+    if (!position) return false;
+    const { x, z, yaw } = position;
+    if (a.weapons.utilityKind === "superMedkit") {
       const kit = { id: this.nextId++, x, z, yaw, arm: 0.5 };
       this.medkits.set(kit.id, kit);
       this.createMedkit(kit);

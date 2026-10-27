@@ -1,11 +1,17 @@
+import { markGPUStartup } from "./webgpuDiagnostics";
 import { materialLightLimit } from "../effects/combatLighting";
 import { prepareMapTour } from "./startupMapTour";
-import { waitForTextureAssets } from "./startupReadiness";
+import {
+  waitForTextureAssets,
+  waitForGraphicsWarmup,
+  finishStartupRendering,
+} from "./startupReadiness";
 import {
   Mesh,
   Vector3,
   type AbstractMesh,
   type Material,
+  type WebGPUEngine,
 } from "@babylonjs/core";
 import type { Game } from "./game";
 import { WEAPONS, type WeaponId } from "../config/weapons";
@@ -23,6 +29,7 @@ export async function prepareStartupGraphics(
   game: Game,
   status: (text: string, progress: number) => void,
 ) {
+  markGPUStartup("graphics preparation started");
   status("Möblerar kontoret…", 0);
   const { world, scene, camera } = game;
   const center = game.player.root.position.clone();
@@ -51,15 +58,30 @@ export async function prepareStartupGraphics(
   world.blood.drop(center);
   world.explosions.prepare(center);
   game.boss?.prepareGraphics(center);
-  const warmRender = () => scene.render();
+  let renderError: unknown;
+  const nextFrame = async () => {
+    await frame();
+    if (renderError !== undefined) throw renderError;
+  };
+  const warmRender = () => {
+    try {
+      scene.render();
+    } catch (error) {
+      renderError = error;
+      game.engine.stopRenderLoop(warmRender);
+    }
+  };
   game.engine.runRenderLoop(warmRender);
   try {
     status("Ställer fram palmerna…", 0.12);
     await world.whenAssetsReady();
     status("Laddar eld, rök och gnistor…", 0.24);
-    await waitForTextureAssets(() => scene.textures, frame);
+    await waitForTextureAssets(() => scene.textures, nextFrame);
     status("Tänder kontorsbelysningen…", 0.35);
-    await scene.whenReadyAsync();
+    if (!(await waitForGraphicsWarmup(() => scene.isReady(false), nextFrame)))
+      console.warn(
+        "Office Core: optional scene warmup budget reached; continuing with prepared assets.",
+      );
     status("Provkör explosionerna bakom kulisserna…", 0.4);
     // Keep the same two light slots/material capacity for startup and live gameplay.
     for (const material of scene.materials)
@@ -93,7 +115,7 @@ export async function prepareStartupGraphics(
         "Polerar skuggor och ljuseffekter…",
         0.4 + 0.25 * Math.min(1, (i + 8) / jobs.length),
       );
-      await frame();
+      await nextFrame();
     }
     for (const style of ["normal", "large", "plasma"] as const) {
       world.explosions.update(20);
@@ -101,7 +123,7 @@ export async function prepareStartupGraphics(
       // Advance actual sprites and light fades across several covered render passes.
       for (let step = 0; step < 4; step++) {
         world.explosions.update(1 / 60);
-        await frame();
+        await nextFrame();
       }
     }
     const original = camera.position.clone();
@@ -109,22 +131,37 @@ export async function prepareStartupGraphics(
       // Shadow maps and sprite/glow variants are compiled while the loading screen covers the canvas.
       for (let i = 0; i < 3; i++) {
         world.lighting?.pulse(center, true, i === 1);
-        await frame();
+        await nextFrame();
       }
     } finally {
       camera.position.copyFrom(original);
     }
-    await prepareMapTour(game, frame, (fraction) =>
+    await prepareMapTour(game, nextFrame, (fraction) =>
       status("Inspekterar kontorets alla hörn…", 0.7 + fraction * 0.28),
     );
-    await scene.whenReadyAsync();
+    if (!(await waitForGraphicsWarmup(() => scene.isReady(false), nextFrame)))
+      console.warn(
+        "Office Core: optional scene warmup budget reached; continuing with prepared assets.",
+      );
     status("Grafiken är redo för första skottet.", 1);
   } finally {
-    game.engine.stopRenderLoop(warmRender);
-    world.blood.reset();
-    world.explosions.update(20);
-    game.boss?.finishGraphicsPreparation();
-    models.forEach((m) => m.dispose(false, false));
-    pooled.forEach(releaseEffect);
+    await finishStartupRendering(
+      () => game.engine.stopRenderLoop(warmRender),
+      async () => {
+        if (!game.engine.isWebGPU) return;
+        markGPUStartup("warmup GPU queue draining");
+        await (game.engine as WebGPUEngine)._device.queue.onSubmittedWorkDone();
+        markGPUStartup("warmup GPU queue completed");
+      },
+      () => {
+        markGPUStartup("graphics cleanup started");
+        world.blood.reset();
+        world.explosions.update(20);
+        game.boss?.finishGraphicsPreparation();
+        models.forEach((m) => m.dispose(false, false));
+        pooled.forEach(releaseEffect);
+        markGPUStartup("graphics cleanup completed");
+      },
+    );
   }
 }

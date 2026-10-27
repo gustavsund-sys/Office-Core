@@ -78,3 +78,40 @@ test("covered camera tour restores pose after normal completion and a failed ren
     }
   }
 });
+
+test("slow scene preparation stops within the per-view budget and restores the camera", async () => {
+  const engine = new NullEngine(),
+    scene = new Scene(engine);
+  try {
+    const camera = new FreeCamera("mobile", new Vector3(-40, 34, -18), scene);
+    camera.setTarget(new Vector3(-40, 0, 0));
+    const original = camera.position.clone(),
+      target = camera.getTarget().clone();
+    let time = 0,
+      frames = 0;
+    const progress: number[] = [];
+    const game = {
+      scene,
+      engine,
+      camera,
+      world: {},
+      warzone: { update: () => {} },
+    } as unknown as Game;
+    await prepareMapTour(
+      game,
+      async () => {
+        time += 1000;
+        frames++;
+      },
+      (p) => progress.push(p),
+      { budgetMs: 3000, now: () => time },
+    );
+    assert.ok(frames <= 6, `excessive frames ${frames}`);
+    assert.ok(camera.position.equalsWithEpsilon(original));
+    assert.ok(camera.getTarget().equalsWithEpsilon(target));
+    assert.equal(progress.at(-1), 1);
+  } finally {
+    scene.dispose();
+    engine.dispose();
+  }
+});

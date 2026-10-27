@@ -219,10 +219,12 @@ export class HUD {
     updateBombCountdowns(bombs, weapons.charges);
     this.toastTime -= dt;
     this.warningTime -= dt;
-    (this.el.querySelector("#toast") as HTMLElement).style.opacity =
-      this.toastTime > 0 ? "1" : "0";
-    (this.el.querySelector("#warning") as HTMLElement).style.opacity =
-      this.warningTime > 0 ? "1" : "0";
+    const toast = this.el.querySelector<HTMLElement>("#toast")!;
+    const warning = this.el.querySelector<HTMLElement>("#warning")!;
+    toast.style.opacity = this.toastTime > 0 ? "1" : "0";
+    warning.style.opacity = this.warningTime > 0 ? "1" : "0";
+    toast.classList.toggle("is-active", this.toastTime > 0);
+    warning.classList.toggle("is-active", this.warningTime > 0);
     for (const c of cores) {
       this.el.querySelector("#hp-" + c.team)!.textContent = c.active
         ? String(c.hp)

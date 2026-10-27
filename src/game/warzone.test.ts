@@ -188,3 +188,37 @@ test("gunshot illumination remains within six light slots even with dark pooled 
     engine.dispose();
   }
 });
+
+test("shared frame effects animate visible bin fire and expire shot lighting without network packets", async () => {
+  const { updateEnvironmentEffects } = await import("./environmentEffects");
+  const engine = new NullEngine(), scene = new Scene(engine);
+  try {
+    const bin = BURNING_BINS[0];
+    const camera = new FreeCamera("view", new Vector3(bin.x, 12, bin.z - 8), scene);
+    camera.setTarget(new Vector3(bin.x, 1, bin.z));
+    const world = new TestWorld(scene, new ShadowGenerator(32, new DirectionalLight("sun", Vector3.Down(), scene)));
+    world.lighting = new CombatLighting(world);
+    const game = { world, warzone: new Warzone(world, 1), paused: false };
+    const sprite = scene.spriteManagers.find((m) => m.name === "filmed bin fire pool")!.sprites[0];
+    updateEnvironmentEffects(game, 0.016);
+    assert.equal(sprite.isVisible, true);
+    const frame = sprite.cellIndex;
+    world.lighting.pulse(new Vector3(bin.x, 1.5, bin.z));
+    assert.ok(world.lighting.lights[3].intensity > 0);
+    updateEnvironmentEffects(game, 0.2);
+    assert.notEqual(sprite.cellIndex, frame);
+    assert.equal(world.lighting.lights[3].intensity, 0);
+    camera.position.set(1000, 12, 1000);
+    camera.setTarget(new Vector3(1000, 1, 1008));
+    updateEnvironmentEffects(game, 0.016);
+    assert.equal(sprite.isVisible, false);
+    camera.position.set(bin.x, 12, bin.z - 8);
+    camera.setTarget(new Vector3(bin.x, 1, bin.z));
+    updateEnvironmentEffects(game, 0.016);
+    assert.equal(sprite.isVisible, true);
+    world.lighting.pulse(new Vector3(bin.x, 1.5, bin.z));
+    game.paused = true;
+    updateEnvironmentEffects(game, 0.2);
+    assert.equal(world.lighting.lights[3].intensity, 0);
+  } finally { scene.dispose(); engine.dispose(); }
+});

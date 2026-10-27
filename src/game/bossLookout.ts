@@ -256,6 +256,9 @@ export class BossLookout {
       }
     return false;
   }
+  isOccupied(side: number) {
+    return this.occupied?.has(side) ?? false;
+  }
   enter(side: number) {
     if (!this.player.bossLookoutKey || this.active || this.player.hp <= 0)
       return;

@@ -17,6 +17,7 @@ export const MSG = {
   restart: "restart",
   team: "team",
   profile: "profile",
+  clientMode: "clientMode",
   snapshot: "snapshot",
   event: "event",
 } as const;

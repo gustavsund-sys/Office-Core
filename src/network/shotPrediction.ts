@@ -1,6 +1,8 @@
+import { weaponStats } from "../config/weaponBalance";
 import { WEAPONS, type WeaponId } from "../config/weapons";
 /** Cosmetic only: this scheduler never changes health or authoritative ammo. */
 export class ShotPrediction {
+  mobileBalance = false;
   cooldown = 0;
   burst = 0;
   weapon?: WeaponId;
@@ -33,7 +35,7 @@ export class ShotPrediction {
     )
       return undefined;
     const audio = id !== "burstGun" || this.burst === 5;
-    this.cooldown = 1 / WEAPONS[id].fireRate;
+    this.cooldown = 1 / weaponStats(id, this.mobileBalance).fireRate;
     if (id === "burstGun" && --this.burst === 0) this.cooldown = 1;
     return { audio };
   }

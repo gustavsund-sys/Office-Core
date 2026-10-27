@@ -1,3 +1,4 @@
+import { weaponStats } from "../config/weaponBalance";
 import type { DeathSource } from "../ui/combatFeed";
 import {
   shard,
@@ -49,6 +50,7 @@ export class Weapons {
     this.onWarcry();
     return true;
   }
+  mobileBalance = false;
   id: WeaponId = "pistol";
   specialWeapon?: WeaponId;
   onEmpty: () => void = () => {};
@@ -315,7 +317,7 @@ export class Weapons {
       }
       return;
     }
-    const data = WEAPONS[this.id];
+    const data = weaponStats(this.id, this.mobileBalance);
     if (
       this.id === "burstGun" &&
       this.cooldown === 0 &&

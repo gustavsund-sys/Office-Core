@@ -1,4 +1,5 @@
 import { setGameUpdateAllowed } from "../network/cache";
+import { markGPUStartup } from "./webgpuDiagnostics";
 
 import { applyLoadout } from "./loadout";
 
@@ -34,6 +35,7 @@ type Context = Pick<
   | "world"
 >;
 export function startMatch(this: Context, team: Team) {
+  markGPUStartup(`local match starting: ${team}`);
   setGameUpdateAllowed(false);
   applyLoadout(this.weapons, this.loadout.choice);
   this.loadout.el.hidden = true;

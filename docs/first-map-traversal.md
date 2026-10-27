@@ -50,3 +50,9 @@ Lokal kontroll efter ändringen (samma två kameravändor i utvecklingsbygget):
 Uppvärmningen besökte 81 vyer per varv. WebGPU: 18 shaderstarter under laddningen, två varv, stabilt kontrollvarv, 9 662 ms. WebGL: 25 shaderstarter, två varv, stabilt kontrollvarv, 10 141 ms. Tider från denna dator; långsammare hårdvara kan ta längre tid. Det är en lokal före/efter-observation och inte ett löfte om att andra orsaker till hack försvinner.
 
 Automatiserade tester täcker anpassade kartors kanter, deterministisk rutt, tom/liten footprint och återställning av kameran även vid renderingsfel.
+
+## Mobile startup bound (26 October)
+
+The 15-second soft budget is now checked between individual views and during per-view readiness waits, rather than only after a full pass. Slow devices may finish fewer than two passes. Camera restoration still runs in `finally`.
+
+Global scene shader-readiness polling is bounded to five seconds per barrier. Required texture downloads retain their separate failure check; optional warmup can continue during normal rendering. Errors thrown by the covered render loop propagate to the visible startup error rather than leaving an unresolved readiness promise at 98%. These bounds do not establish the cause of a particular physical device failure; device retesting remains necessary.

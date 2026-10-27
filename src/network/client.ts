@@ -149,7 +149,7 @@ export class Multiplayer {
     }
     this.clearResume();
     const user = auth.currentUser ?? (await signInAnonymously(auth)).user;
-    const options = { token: await user.getIdToken(), name, team };
+    const options = { token: await user.getIdToken(), name, team, clientMode: document.documentElement.dataset.client === "mobile" ? "mobile" : "desktop" };
     const ready = new URL(this.endpoint);
     ready.protocol = ready.protocol === "wss:" ? "https:" : "http:";
     ready.pathname = "/map";
@@ -178,6 +178,8 @@ export class Multiplayer {
     this.timing = new NetworkTiming();
     this.room = room;
     this.connected = true;
+    // Also refresh the balance profile after session reconnection/client switching.
+    room.send(MSG.clientMode, document.documentElement.dataset.client === "mobile" ? "mobile" : "desktop");
     this.saveResume();
     this.onStatus("ANSLUTEN TILL OFFICE01");
     const receiver = new SnapshotReceiver();

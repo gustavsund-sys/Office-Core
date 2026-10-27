@@ -1,3 +1,8 @@
+import { updateEnvironmentEffects } from "./environmentEffects";
+import { createGameGlow } from "./compatibleGlow";
+import { gpuInvestigation, effectiveGPUConfig } from "./gpuInvestigation";
+import { markGPUStartup, recordEffectiveGPURendering } from "./webgpuDiagnostics";
+import { startGameRenderLoop } from "./renderLoop";
 import type { GamePresentation } from "../client/presentation";
 import { officeLighting } from "../visuals/artLighting";
 import { warmAudioSilently } from "../audio/warmup";
@@ -60,7 +65,6 @@ import {
   Engine,
   type AbstractEngine,
   FreeCamera,
-  GlowLayer,
   HemisphericLight,
   Scene,
   ShadowGenerator,
@@ -225,6 +229,13 @@ export class Game {
     );
     this.engine.setHardwareScalingLevel(1 / render.scale);
     this.scene = new Scene(this.engine);
+    const gpuCheck = effectiveGPUConfig(
+      gpuInvestigation(),
+      document.documentElement.dataset.client === "mobile",
+      this.engine.isWebGPU,
+    );
+    recordEffectiveGPURendering(gpuCheck);
+    this.scene.metadata = { gpuInvestigation: gpuCheck };
     this.scene.clearColor = Color4.FromHexString("#14232cff");
     this.scene.ambientColor = new Color3(0.13, 0.16, 0.19);
     const ambient = new HemisphericLight(
@@ -245,7 +256,7 @@ export class Game {
     sun.diffuse = Color3.FromHexString("#d4dfeb");
     const quality = GRAPHICS[readGraphics() ?? "standard"];
     const shadows = new ShadowGenerator(quality.shadow || 512, sun);
-    this.scene.shadowsEnabled = quality.shadow > 0;
+    this.scene.shadowsEnabled = quality.shadow > 0 && gpuCheck.shadows;
     shadows.usePercentageCloserFiltering = true;
     shadows.filteringQuality =
       quality.shadow === 512
@@ -254,10 +265,11 @@ export class Game {
     shadows.bias = 0.0005;
     shadows.normalBias = 0.02;
     shadows.setDarkness(0.18);
-    const glow = new GlowLayer("subtle glow", this.scene, {
-      mainTextureFixedSize: 512,
-    });
-    glow.intensity = quality.glow;
+    const glow = createGameGlow(this.scene, document.documentElement.dataset.client === "mobile");
+    if (glow) {
+      glow.intensity = quality.glow;
+      glow.isEnabled = gpuCheck.glow;
+    }
     this.scene.imageProcessingConfiguration.contrast = 1.12;
     this.scene.imageProcessingConfiguration.exposure = 1.02;
     officeLighting(this.scene, ambient, sun, shadows);
@@ -350,6 +362,8 @@ export class Game {
       () => this.hud.toast("CORE SHIELDED — ENTER THE BASE"),
       () => this.weaponAudio?.playImpact(),
     );
+    this.weapons.mobileBalance = document.documentElement.dataset.client === "mobile";
+    this.shotPrediction.mobileBalance = this.weapons.mobileBalance;
     this.cores.forEach((core) => core.setActive(false));
     this.weapons.onEmpty = () => {
       if (!this.multiplayer?.room && this.sound) this.weaponAudio?.playEmpty();
@@ -1022,10 +1036,20 @@ export class Game {
       status(text, 0.2 + progress * 0.8),
     );
   }
-  startRendering() {
+  startRendering(onError: (error: unknown) => void = (error) => { throw error; }) {
+    markGPUStartup("touch presentation attaching");
     this.presentation.attach?.(this);
+    markGPUStartup("game rendering starting");
     this.startupPreparing = false;
-    this.engine.runRenderLoop(() => this.tick());
+    let firstFrame = true;
+    startGameRenderLoop(this.engine, () => {
+      if (firstFrame) markGPUStartup("first engine game frame started");
+      this.tick();
+      if (firstFrame) {
+        markGPUStartup("first engine game frame completed");
+        firstFrame = false;
+      }
+    }, onError);
   }
   installMultiplayer() {
     return installMultiplayerImpl.call(this);
@@ -1448,8 +1472,7 @@ export class Game {
       this.world.blood.update(dt);
       finishLocalRound.call(this);
     }
-    this.warzone.update(this.paused ? 0 : dt);
-    this.world.lighting?.update(dt);
+    updateEnvironmentEffects(this, dt);
     const alarmTeam =
       this.intrudedTeam ??
       (this.time < this.breachUntil ? this.breachTeam : undefined);

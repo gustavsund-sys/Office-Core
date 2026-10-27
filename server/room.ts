@@ -435,6 +435,11 @@ export class OfficeRoom extends Room {
     this.onMessage(MSG.teamPing, (client, value) =>
       this.handleTeamPing(client, value),
     );
+    this.onMessage(MSG.clientMode, (client, mode) => {
+      if (mode !== "mobile" && mode !== "desktop") return;
+      const participant = this.participants.get(client.sessionId);
+      if (participant) participant.weapons.mobileBalance = mode === "mobile";
+    });
     this.onMessage(MSG.profile, (client, name) => {
       if (
         !this.permit(client) ||
@@ -579,7 +584,7 @@ export class OfficeRoom extends Room {
   }
   onJoin(
     client: Client,
-    options: { name?: string; team?: Team },
+    options: { name?: string; team?: Team; clientMode?: "mobile" | "desktop" },
     auth: { uid: string },
   ) {
     if ([...this.participants.values()].some((p) => p.uid === auth.uid))
@@ -736,6 +741,7 @@ export class OfficeRoom extends Room {
         z: player.root.position.z,
       });
     };
+    participant.weapons.mobileBalance = options.clientMode === "mobile";
     participant.weapons.visuals = false;
     participant.weapons.pickHit = (ray) =>
       this.hitHistory.pick(

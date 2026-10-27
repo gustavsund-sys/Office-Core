@@ -107,6 +107,8 @@ export function createOfficePortal(
   surface.position.set(opening.x, PORTAL_SURFACE_Y, opening.z);
   surface.material = material;
   surface.isPickable = false;
+  const diagnosticDisabled = scene.metadata?.gpuInvestigation?.portals === false;
+  if (diagnosticDisabled) surface.setEnabled(false);
   surface.metadata = { visualOnly: true, officePortal: true };
   for (const layer of scene.effectLayers ?? [])
     if (layer instanceof GlowLayer) layer.addExcludedMesh(surface);
@@ -114,7 +116,7 @@ export function createOfficePortal(
   const radius = Math.hypot(opening.w, opening.d) / 2;
   const update = () => {
     const viewer = scene.activeCamera;
-    if (!viewer || viewer === camera) return;
+    if (!viewer || viewer === camera || diagnosticDisabled) return;
     viewer.computeWorldMatrix();
     const visible =
       viewer.globalPosition.y > PORTAL_SURFACE_Y + 0.15 &&

@@ -439,13 +439,13 @@ export class Beacons {
     this.carried.add(actor.id);
     return true;
   }
-  place(actor: BeaconActor) {
+  placement(actor: BeaconActor) {
     if (
       !this.carried.has(actor.id) ||
       actor.player.hp <= 0 ||
       !actor.player.grounded
     )
-      return false;
+      return undefined;
     const p = actor.player.root.position,
       yaw = actor.player.root.rotation.y;
     const x = p.x + Math.sin(yaw) * 1.8,
@@ -457,7 +457,7 @@ export class Beacons {
           Math.abs(z - r.z) < r.d / 2 - 0.7,
       )
     )
-      return false;
+      return undefined;
     const start = p.add(new Vector3(0, 0.6, 0)),
       end = new Vector3(x, 0.6, z),
       delta = end.subtract(start);
@@ -469,7 +469,7 @@ export class Beacons {
           (!!m.metadata?.damageable &&
             !actor.player.bodyMeshes.includes(m as Mesh))),
     );
-    if (hit?.hit) return false;
+    if (hit?.hit) return undefined;
     const blocked = this.world.solids.some((m) => {
       if (!m.isEnabled()) return false;
       m.computeWorldMatrix(true);
@@ -485,7 +485,13 @@ export class Beacons {
       blocked ||
       [...this.robots.values()].some((r) => Math.hypot(r.x - x, r.z - z) < 1.4)
     )
-      return false;
+      return undefined;
+    return { x, z, yaw };
+  }
+  place(actor: BeaconActor) {
+    const position = this.placement(actor);
+    if (!position) return false;
+    const { x, z, yaw } = position;
     this.carried.delete(actor.id);
     this.create({
       id: this.nextId++,

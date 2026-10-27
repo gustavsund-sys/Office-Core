@@ -1,3 +1,4 @@
+import { updateEnvironmentEffects } from "./environmentEffects";
 import { updateBombCountdowns } from "../ui/bombCountdowns";
 import { predictionBlocked } from "./predictionWindow";
 import { shotTraceEnd } from "./shotTrace";
@@ -68,6 +69,7 @@ type Context = Pick<
   | "visualCorrection"
   | "weaponAudio"
   | "weapons"
+  | "warzone"
   | "world"
 >;
 type VisualFrame = {
@@ -752,6 +754,7 @@ export function tickOnline(this: Context, dt: number) {
   this.updateCamera(dt);
   this.world.explosions.update(dt);
   this.world.blood.update(dt);
+  updateEnvironmentEffects(this, dt);
   this.cores.forEach((core) => core.update(dt, this.time));
   this.world.destructibles.forEach((prop) => prop.update(dt));
   if (snapshot) {

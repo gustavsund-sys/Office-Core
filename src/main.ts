@@ -1,3 +1,6 @@
+import { preferredRenderer, rendererLabel } from "./game/rendererSelection";
+import { gpuInvestigation } from "./game/gpuInvestigation";
+import { showRuntimeError } from "./ui/runtimeError";
 import { chooseClient } from "./client/chooseClient";
 import { StartupLoading } from "./ui/startupLoading";
 let activeLoading: StartupLoading | undefined;
@@ -111,18 +114,23 @@ async function start() {
     const canvas = document.querySelector<HTMLCanvasElement>("#game")!;
     let engine: import("@babylonjs/core").AbstractEngine | undefined;
     const requestedRenderer = params.get("renderer");
-    if (requestedRenderer !== "webgl") {
+    if (preferredRenderer(requestedRenderer, !!mobile) === "webgpu") {
       loading.update(73, "graphics", "Väcker grafikkortet…");
       const { WebGPUEngine } = await import("@babylonjs/core");
       let gpu: import("@babylonjs/core").WebGPUEngine | undefined;
       try {
         if (await WebGPUEngine.IsSupportedAsync) {
           gpu = new WebGPUEngine(canvas, {
-            antialias: true,
+            antialias: gpuInvestigation().antialias,
             stencil: true,
             powerPreference: "high-performance",
           });
           await gpu.initAsync();
+          if (mobile || params.get("gpuinspect") === "1") {
+            const { installWebGPUDiagnostics } = await import("./game/webgpuDiagnostics");
+            try { installWebGPUDiagnostics(gpu, showRuntimeError); }
+            catch (error) { console.warn("GPU diagnostics unavailable; retaining WebGPU.", error); }
+          }
           engine = gpu;
         }
       } catch (error) {
@@ -132,6 +140,7 @@ async function start() {
     }
     const { Engine } = await import("@babylonjs/core");
     engine ??= new Engine(canvas, true, {
+      disableWebGL2Support: false,
       stencil: true,
       powerPreference: "high-performance",
     });
@@ -158,7 +167,7 @@ async function start() {
     );
     if (import.meta.env.DEV && params.get("effectprofile") === "1")
       (await import("./game/effectProfile")).profileEffects(game);
-    game.startRendering();
+    game.startRendering(showRuntimeError);
     if (import.meta.env.DEV && params.get("turretprofile") === "1")
       (await import("./game/turretProfile")).profileTurret(game);
     if (import.meta.env.DEV && params.get("routeprofile") === "1")
@@ -168,7 +177,7 @@ async function start() {
     ) as PerformanceResourceTiming[];
     const startupReport = {
       at: new Date().toISOString(),
-      renderer: engine.isWebGPU ? "WebGPU" : "WebGL",
+      renderer: rendererLabel(engine),
       files: gameAssets.length,
       assetBytes: gameAssets.reduce((n, a) => n + a.bytes, 0),
       resources: resources.map((r) => ({
@@ -323,7 +332,7 @@ async function start() {
 void start().catch((error) => {
   activeLoading?.remove();
   activeLoading = undefined;
-  console.error(error);
+  showRuntimeError(error);
   const ui = document.querySelector("#ui")!;
   ui.innerHTML =
     '<div class="error"><h1>Office Core kunde inte starta</h1><p></p><a href="/">Försök igen</a></div>';

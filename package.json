@@ -17,8 +17,8 @@
     "test:cache": "node --test scripts/cache.test.mjs"
   },
   "dependencies": {
-    "@babylonjs/core": "^8.0.0",
-    "@babylonjs/loaders": "^8.56.2",
+    "@babylonjs/core": "9.32.0",
+    "@babylonjs/loaders": "9.32.0",
     "@colyseus/core": "~0.16.26",
     "@colyseus/schema": "^3.0.76",
     "@colyseus/ws-transport": "~0.16.5",
@@ -30,6 +30,7 @@
   "devDependencies": {
     "@types/node": "^26.6.3",
     "@types/ws": "^8.18.2",
+    "@webgpu/types": "^0.1.74",
     "firebase-tools": "^15.32.1",
     "prettier": "^3.9.0",
     "tsx": "^4.23.0",
