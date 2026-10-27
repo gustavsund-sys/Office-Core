@@ -134,9 +134,10 @@ test("simultaneous requests share a download; invalid byte range returns 416", a
   ]);
   assert.equal((await s.get("/audio/reload.mp3", "bytes=100-")).status, 416);
 });
-test("live gameplay APIs are never cached", async () => {
+test("live gameplay APIs and the startup version manifest are never cached", async () => {
   const s = setup();
   assert.equal(await s.get("/map"), undefined);
+  assert.equal(await s.get("/game-version.json"), undefined);
   assert.equal(s.downloads, 0);
 });
 

@@ -185,3 +185,23 @@ Utrustningsvalet visar illustrationerna till vänster, sex vapen i ett 3 × 2-ru
 samt tre skills på en rad. På korta skärmar döljs detaljtexter, inte valen.
 Knapparna behåller minst 44 px tryckyta. Spelknapparna har symboler och korta
 etiketter; menyknapparna har rundade former. Desktop använder sin befintliga layout.
+
+### Versionskontroll före klientstart (alla klienter)
+
+`index.html` laddar en liten `boot.ts` utan spelmotor. Den hämtar
+`game-version.json` med `cache: no-store` och kontrollerar att startfilen matchar
+manifestets `bootstrap`. En äldre HTML/startfil navigerar en gång till aktuell
+version; ett upprepat fel visas med en återförsöksknapp i stället för en reload-loop.
+Innan `main.ts` importeras inväntas service workerns kompletta kodcache och säker
+aktivering. En annan flik i match kan blockera aktiveringen; den nya fliken ber då
+spelaren lämna den matchen först. Versionsknappen används fortfarande för senare
+publiceringar under en redan öppen session. Oförändrade resurser återanvänds.
+
+### Mobile menu theme
+
+`src/mobile/theme.css` adds the mobile command-room palette after the viewport layout:
+navy panels, team-colored lobby cards, gold primary actions and equipment selection,
+and visible keyboard focus. It reuses existing loadout artwork and uses static CSS
+backgrounds, with no additional image downloads or rendering loop. The viewport
+layout and 44px touch targets remain in `layout.css`; compact landscape layouts
+continue to hide secondary equipment descriptions. Desktop styles are unaffected.

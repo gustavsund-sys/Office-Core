@@ -1,10 +1,15 @@
+import { waitForWorker, activateStartupWorker } from "./cacheStartup";
+let installation: Promise<void> | undefined;
 let updateAllowed = true;
 let updateButton: HTMLButtonElement | undefined;
 export function setGameUpdateAllowed(allowed: boolean) {
   updateAllowed = allowed;
   if (updateButton) updateButton.hidden = !allowed;
 }
-export async function installGameCache() {
+export function installGameCache(startup = false): Promise<void> {
+  return installation ??= setupGameCache(startup);
+}
+async function setupGameCache(startup: boolean) {
   if (!import.meta.env.PROD || !("serviceWorker" in navigator)) return;
   navigator.serviceWorker.addEventListener("message", (event) => {
     if (event.data?.type === "office-core-update-state") {
@@ -48,20 +53,8 @@ export async function installGameCache() {
   await navigator.serviceWorker
     .register("/sw.js", { updateViaCache: "none" })
     .then(async (registration) => {
-      if (!navigator.serviceWorker.controller) {
-        await Promise.race([
-          new Promise<void>((resolve) =>
-            navigator.serviceWorker.addEventListener(
-              "controllerchange",
-              () => resolve(),
-              { once: true },
-            ),
-          ),
-          new Promise<void>((resolve) => window.setTimeout(resolve, 10000)),
-        ]);
-      }
       const offerUpdate = () => {
-        if (!registration.waiting) return;
+        if (startup || !registration.waiting) return;
         updateButton ??= document.createElement("button");
         updateButton.className = "game-update";
         updateButton.textContent = "Ny version klar · Uppdatera spelet";
@@ -80,7 +73,25 @@ export async function installGameCache() {
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         if (updateButton?.disabled && updateAllowed) location.reload();
       });
-      void registration.update().catch(() => {});
+      if (startup) {
+        await registration.update();
+        await waitForWorker(registration.installing);
+        if (registration.waiting) await activateStartupWorker(navigator.serviceWorker, registration.waiting);
+        if (!navigator.serviceWorker.controller) {
+          const worker = registration.active ?? registration.installing;
+          if (worker) await new Promise<void>((resolve, reject) => {
+            const done = () => {
+              clearTimeout(timer);
+              navigator.serviceWorker.removeEventListener("controllerchange", changed);
+            };
+            const changed = () => { done(); resolve(); };
+            const timer = window.setTimeout(() => { done(); reject(new Error("Spelcachen kunde inte aktiveras. Försök igen.")); }, 15000);
+            navigator.serviceWorker.addEventListener("controllerchange", changed);
+            if (navigator.serviceWorker.controller) changed();
+          });
+        }
+        startup = false;
+      } else void registration.update().catch(() => {});
       navigator.serviceWorker.ready.then((ready) =>
         ready.active?.postMessage({ type: "office-core-version" }),
       );
@@ -100,5 +111,8 @@ export async function installGameCache() {
         if (!document.hidden) void registration.update().catch(() => {});
       });
     })
-    .catch((error) => console.warn("Game cache unavailable", error));
+    .catch((error) => {
+      if (startup) { installation = undefined; throw error; }
+      console.warn("Game cache unavailable", error);
+    });
 }

@@ -1,0 +1,48 @@
+/* Mobile command-room styling. Static gradients keep the menus inexpensive to render. */
+html[data-client="mobile"] .pause-card,
+html[data-client="mobile"] .deployment-screen {
+  background:radial-gradient(ellipse at 0 0,#29434c 0,transparent 60%),linear-gradient(120deg,#101f2a,#0b151f);
+  border:0;border-radius:0;color:#edf4f4;
+}
+html[data-client="mobile"] .pause-card .mobile-menu-nav {padding:0 4px;background:#050d164d;border:1px solid #8caeb322;border-radius:14px;}
+html[data-client="mobile"] .mobile-menu-nav button {border:0;border-radius:10px;background:transparent;color:#a8bec8;letter-spacing:.08em;box-shadow:none;}
+html[data-client="mobile"] .mobile-menu-nav button[aria-pressed="true"] {color:#ffdc98;background:linear-gradient(180deg,#54493388,#302d2877);box-shadow:inset 0 -3px #efbc68;}
+html[data-client="mobile"] :is(.pause-card,.deployment-screen) button {transition:background-color .15s,border-color .15s,box-shadow .15s;}
+html[data-client="mobile"] :is(.pause-card,.deployment-screen) :is(button,input,a):focus-visible {outline:2px solid #ffe0a3;outline-offset:2px;}
+html[data-client="mobile"] .pause-card :is(.lobby,.network-lobby) {border:1px solid #98bbc227;background:#0a172566;border-radius:16px;}
+html[data-client="mobile"] .lobby legend,
+html[data-client="mobile"] .loadout-options legend {color:#c4d4dc;font-weight:700;letter-spacing:.1em;}
+html[data-client="mobile"] .player-name {color:#b8cbd3;letter-spacing:.08em;}
+html[data-client="mobile"] .player-name input {background:#08131e;border:1px solid #a4c6cc38;color:#f0f6f5;box-shadow:inset 0 2px 5px #0003;}
+html[data-client="mobile"] .lobby .lobby-team {position:relative;border:1px solid #88a3b036;border-left:4px solid var(--team);background:linear-gradient(120deg,color-mix(in srgb,var(--team) 13%,#12212d),#101d29);box-shadow:0 4px 12px #0002;}
+html[data-client="mobile"] .lobby .lobby-team.selected {border-color:var(--team);background:linear-gradient(120deg,color-mix(in srgb,var(--team) 25%,#12212d),#152431);box-shadow:inset 0 1px #ffffff18,0 4px 12px #0003;}
+html[data-client="mobile"] .lobby-core strong {font-size:16px;letter-spacing:.07em;}
+html[data-client="mobile"] .lobby-core i {width:13px;height:13px;transform:rotate(45deg);border:2px solid #ffffff66;box-shadow:0 0 12px color-mix(in srgb,var(--team) 40%,transparent);}
+html[data-client="mobile"] .lobby-members li {padding:3px 6px;border-radius:5px;background:#07111a66;}
+html[data-client="mobile"] .lobby-join {letter-spacing:.1em;color:#b8cbd3;}
+html[data-client="mobile"] .pause-card #play,
+html[data-client="mobile"] .available-room button,
+html[data-client="mobile"] .loadout-confirm {border:1px solid #ffe0a3;border-radius:12px;background:linear-gradient(180deg,#ffda90,#e9af50);color:#202525;font-weight:900;letter-spacing:.09em;box-shadow:inset 0 1px #fff7,0 3px 0 #8c642d;}
+html[data-client="mobile"] :is(.loadout-confirm,.available-room button):not(:disabled)::after {content:"  ›";font-size:18px;line-height:0;}
+html[data-client="mobile"] :is(#play,.loadout-confirm,.available-room button):disabled {background:#37434b;border-color:#647079;color:#a2acb1;box-shadow:none;}
+html[data-client="mobile"] .available-room {border:1px solid #6cabb65c;border-radius:12px;background:linear-gradient(120deg,#213e49,#132332);}
+html[data-client="mobile"] .available-room li {background:#0a172466;border-radius:5px;padding:3px 6px;}
+html[data-client="mobile"] .mobile-settings button,
+html[data-client="mobile"] .lobby-chat button,
+html[data-client="mobile"] .network-lobby > .lobby-music {background:linear-gradient(160deg,#2a404d,#172735);border:1px solid #8caab547;border-radius:12px;color:#e0ecee;box-shadow:inset 0 1px #fff1;}
+html[data-client="mobile"] .loadout-heading h2 {letter-spacing:.06em;color:#ffdc98;}
+html[data-client="mobile"] .loadout-heading p {color:#b1c5ce;}
+html[data-client="mobile"] .loadout-options fieldset {background:#08141e66;border:1px solid #8caab52b;}
+html[data-client="mobile"] .loadout-options button {position:relative;background:linear-gradient(140deg,#263b49,#142330);border:1px solid #819daa47;color:#e5eff0;text-align:left;padding-left:10px;box-shadow:inset 0 1px #fff1;}
+html[data-client="mobile"] .loadout-options button small {color:#aec5cf;}
+html[data-client="mobile"] .loadout-options button.selected {border-color:#ffd284;background:linear-gradient(130deg,#584c32,#2b302e);box-shadow:inset 3px 0 #ffd284;color:#ffe2a9;}
+html[data-client="mobile"] .loadout-art figure {border:1px solid #b7c9ca40;box-shadow:0 4px 12px #0004;}
+html[data-client="mobile"] .loadout-art figcaption {background:linear-gradient(transparent,#07111aee);padding:12px 6px 5px;color:#ffe1a3;font-weight:800;letter-spacing:.06em;}
+html[data-client="mobile"] .loadout-status {color:#b1c5ce;}
+@media(max-height:360px) {
+  html[data-client="mobile"] .lobby-core strong {font-size:13px;}
+  html[data-client="mobile"] .lobby-members li {padding:1px 4px;}
+}
+@media(prefers-reduced-motion:reduce) {
+  html[data-client="mobile"] :is(.pause-card,.deployment-screen) button {transition:none;}
+}

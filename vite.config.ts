@@ -92,7 +92,7 @@ export default defineConfig({
         );
         writeFileSync(
           "dist/game-version.json",
-          JSON.stringify({ version, createdAt: new Date().toISOString() }),
+          JSON.stringify({ version, bootstrap: bootFiles[0], createdAt: new Date().toISOString() }),
         );
       },
     },
