@@ -190,6 +190,7 @@ export class MobileControls {
     renderer.className = "mobile-renderer-info";
     renderer.textContent = `Grafikmotor: ${rendererLabel(this.game.engine)}`;
     settings.append(renderer);
+    settings.append(document.querySelector<HTMLButtonElement>("#sound")!);
     const make = (label: string, action: () => void) => {
       const button = document.createElement("button");
       button.textContent = label;

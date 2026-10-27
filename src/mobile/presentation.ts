@@ -6,6 +6,7 @@ import { MobileInput } from "./input";
 import { MobileControls } from "./controls";
 import { mobileViewSize, MOBILE_CAMERA } from "./controlMath";
 import "./mobile.css";
+import "./layout.css";
 
 export function mobilePresentation(): GamePresentation {
   let controls: MobileControls | undefined;

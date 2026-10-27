@@ -175,3 +175,13 @@ Lazily-created panels are moved with a direct-child MutationObserver, avoiding
 per-frame DOM rebuilding. Inactive notices take no space. Bomb rows use two
 compact columns, and round countdown is a small badge instead of a full-screen
 dim layer. The dock hides in menus but remains available during respawn.
+
+### Menyer utan sidscroll
+
+Mobilmenyn använder fasta rader för navigation, innehåll och primär åtgärd.
+Lagvalet visar namn och status på samma rad samt båda lagen sida vid sida.
+Chattmeddelanden och långa spelarlistor får egen intern scroll; sidan ligger still.
+Utrustningsvalet visar illustrationerna till vänster, sex vapen i ett 3 × 2-rutnät
+samt tre skills på en rad. På korta skärmar döljs detaljtexter, inte valen.
+Knapparna behåller minst 44 px tryckyta. Spelknapparna har symboler och korta
+etiketter; menyknapparna har rundade former. Desktop använder sin befintliga layout.

@@ -20,7 +20,7 @@ export function installMobilePlatform() {
     plant:
       "Core Buster: välj vapnet och tryck PLACERA. Skydda laddningen tills den exploderar.",
     disarm:
-      "Fiendens Core Buster? Stå intill och tryck ANVÄND för att påbörja 10 sekunders desarmering. Stanna nära och skjut inte.",
+      "Fiendens Core Buster? Stå intill och tryck DESARMERA för att påbörja 10 sekunders desarmering. Stanna nära och skjut inte.",
     skill:
       "Du börjar med två exemplar av vald skill. Tryck på skillen i inventariet och sedan PLACERA. Välj därefter ditt specialvapen igen.",
     rc: "RC Bomber: kroppen står still medan du kör. Vänster spak kör och svänger. DETONERA spränger bilen. Skydda din kropp!",
