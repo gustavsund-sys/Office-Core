@@ -13,22 +13,18 @@ import "./ui/style.css";
 import { applyMap, parseMap, STORAGE_KEY } from "./maps/layout";
 
 async function start() {
+  const params = new URLSearchParams(location.search);
+  const { showIntro, showTutorial } = await import("./ui/intro");
+  if (params.get("builder") !== "1" &&
+      (params.get("playtest") !== "1" || params.get("intro") === "1")) {
+    await showIntro(params.get("intro") === "1");
+  }
   const client = await chooseClient();
   const mobile =
     client === "mobile" ? await import("./mobile/presentation") : undefined;
   mobile?.installMobilePlatform();
   const loading = new StartupLoading();
   activeLoading = loading;
-  const params = new URLSearchParams(location.search);
-  const { showIntro, showTutorial } = await import("./ui/intro");
-  if (
-    params.get("builder") !== "1" &&
-    (params.get("playtest") !== "1" || params.get("intro") === "1")
-  ) {
-    loading.hidden = true;
-    await showIntro(params.get("intro") === "1");
-    loading.hidden = false;
-  }
   loading.update(2, "connect", "Kontrollerar ditt lokala förråd…");
   await installGameCache();
   if (params.get("playtest") !== "1") loading.serverWaiting();

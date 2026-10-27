@@ -195,6 +195,13 @@ export async function showIntro(force = false) {
           "Tryck på Starta med ljud, eller välj Skip intro.";
       });
     };
-    start.focus();
+    // Start immediately; browsers may require muted autoplay before a gesture.
+    start.click();
+    void video.play().catch(async () => {
+      video.muted = true;
+      sound.textContent = "Slå på ljud";
+      try { await video.play(); }
+      catch { sound.textContent = "Starta filmen"; }
+    });
   });
 }
