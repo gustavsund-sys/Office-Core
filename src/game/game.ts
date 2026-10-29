@@ -956,6 +956,7 @@ export class Game {
     });
     window.addEventListener("keydown", () => {
       if (this.startupPreparing) return;
+      if (this.rangeMode) this.rangeWelcome.play(this.sound);
       this.updateLobbyMusic(true);
       if (this.sound && this.audio?.state === "suspended")
         void this.audio.resume();
@@ -1139,7 +1140,7 @@ export class Game {
     this.updateCamera(10);
     this.rangeExit = installRangeStatus(import.meta.env.VITE_GAME_SERVER_URL || "ws://127.0.0.1:2567", () => this.leaveShootingRange());
     this.prepareAudio();
-    this.rangeWelcome.play(this.sound);
+    this.rangeWelcome.spawn(this.sound);
     this.setPaused(false);
   }
   leaveShootingRange() {
@@ -1303,7 +1304,7 @@ export class Game {
         Math.hypot(actor.x - this.player.root.position.x, actor.z - this.player.root.position.z));
     }
     this.roundSpawnAudio.update(
-      this.multiplayer?.room ? !!supplySnapshot?.started : this.match.started,
+      !this.rangeMode && (this.multiplayer?.room ? !!supplySnapshot?.started : this.match.started),
       this.multiplayer?.room ? supplySnapshot?.round ?? 1 : this.currentRound,
       listenerTeam,
       this.multiplayer?.room ? !!onlineSelf && onlineSelf.hp > 0 : this.player.hp > 0,
@@ -1351,6 +1352,7 @@ export class Game {
           this.player.resetVitals();
           this.localLedger.damage.delete("local");
           this.player.root.setEnabled(true);
+          if (this.rangeMode) this.rangeWelcome.spawn(this.sound);
           this.world.explosions.playerSpawn(
             this.player.root.position,
             TEAMS[CONFIG.player.team as Team],

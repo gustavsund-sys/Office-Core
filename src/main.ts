@@ -162,6 +162,7 @@ async function start() {
     });
     if (game.rangeMode) {
       game.startMatch("RED");
+      game.rangeWelcome.spawn(game.sound);
       game.setPaused(false);
     }
     loading.finish();

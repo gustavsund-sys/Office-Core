@@ -1,9 +1,13 @@
 import { preparedMediaUrl } from "../network/preloadedMedia";
 
-/** One welcome per game session, never on respawn or return visits. */
+/** Play once per spawn, retrying after a blocked autoplay attempt. */
 export class ShootingRangeWelcome {
   private played = false;
-  constructor(private audio = new Audio(preparedMediaUrl("/audio/effects/shooting-range.mp3"))) {}
+  constructor(private audio = new Audio(preparedMediaUrl("/audio/effects/test-some-weapons.mp3"))) {}
+  spawn(audible: boolean) {
+    this.played = false;
+    this.play(audible);
+  }
   play(audible: boolean) {
     if (this.played || !audible) return;
     this.played = true;
