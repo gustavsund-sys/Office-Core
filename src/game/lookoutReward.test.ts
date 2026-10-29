@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { earnLookoutKill, loseLookoutOnDeath } from "./lookoutReward";
+import { earnLookoutKill, earnLookoutSupport, loseLookoutOnDeath } from "./lookoutReward";
 import { Player } from "../player/player";
 
 test("only enemy kills unlock a key; dying without a key retains unfinished progression", () => {
@@ -41,4 +41,13 @@ test("fatal damage immediately removes the key, while shield absorption and nonf
   assert.equal(player.bossLookoutKey, false);
   assert.equal(player.bossLookoutKills, 0);
   assert.equal(player.bossLookoutAmmo, 0);
+});
+
+test("support can unlock the same key without granting extra ammunition while held", () => {
+  const state = { bossLookoutKey: false, bossLookoutKills: 7, bossLookoutAmmo: 0 };
+  assert.equal(earnLookoutSupport(state, 3), true);
+  assert.equal(state.bossLookoutAmmo, 100);
+  state.bossLookoutAmmo = 20;
+  assert.equal(earnLookoutSupport(state, 3), false);
+  assert.equal(state.bossLookoutAmmo, 20);
 });

@@ -51,6 +51,7 @@ test("entering retains the key; bail preserves ammunition and refuses the enemy 
     const view = { mode: Camera.ORTHOGRAPHIC_CAMERA, fov: 0.9, minZ: 0.3 };
     const boss = Object.assign(Object.create(BossLookout.prototype), {
       active: false,
+      world: { explosions: { playerSpawn: () => {} } },
       player,
       view,
       input: { clear: () => {} },
@@ -71,8 +72,8 @@ test("entering retains the key; bail preserves ammunition and refuses the enemy 
     assert.equal(view.mode, Camera.ORTHOGRAPHIC_CAMERA);
     assert.equal(view.fov, 0.9);
     assert.equal(view.minZ, 0.3);
-    assert.equal(player.root.position.x, -94);
-    assert.equal(player.root.position.z, -15);
+    assert.equal(player.root.position.x, -90);
+    assert.equal(player.root.position.z, -12);
     boss.enter(-1);
     assert.equal(boss.active, true);
     assert.equal(boss.ammo, 12);

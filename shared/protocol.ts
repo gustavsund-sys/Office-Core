@@ -3,6 +3,7 @@ import type { Team } from "../src/config/game";
 import type { WeaponId } from "../src/config/weapons";
 export const MSG = {
   lookout: "lookout",
+  supplyRequest: "supplyRequest",
   activity: "activity",
   idle: "idle",
   loadout: "loadout",
@@ -58,6 +59,7 @@ export interface NetLookout {
   crouched: boolean;
 }
 export interface NetPlayer {
+  carryingCoreBuster?: boolean;
   lookout?: NetLookout;
   lookoutKey?: boolean;
   lookoutKills?: number;
@@ -69,6 +71,7 @@ export interface NetPlayer {
   utilityCount?: number;
   pulseTrap?: boolean;
   pulseTrapSelected?: boolean;
+  defense?: number;
   assists?: number;
   disarms?: number;
   coreDamage?: number;
@@ -105,6 +108,8 @@ export interface NetPlayer {
   reload: number;
 }
 export interface Snapshot {
+  supplyDrop?: import("../src/game/supplyDrop").SupplyState;
+  supplyRequestReady?: boolean;
   carts?: import("../src/map/cleaningCarts").CartState[];
   rcCars?: import("../src/game/rcCar").RCCarState[];
   seq?: number;
@@ -115,6 +120,7 @@ export interface Snapshot {
   beacons?: import("../src/game/beacon").BeaconState[];
   beaconDrops?: import("../src/game/beacon").BeaconDrop[];
   countdown?: number;
+  seriesStats?: ({ id: string; name: string; team: Team } & import("../src/game/engagement").Performance)[];
   roundStats?: ({
     id: string;
     name: string;

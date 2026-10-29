@@ -6,7 +6,7 @@ import { blocked } from "../game/collision";
 import { RC } from "../game/rcCar";
 
 export type MobileInteraction = "PLOCKA" | "PLACERA" | "ÖPPNA" | "DESARMERA";
-type Context = Pick<Game, "player" | "weapons" | "pickup" | "world" | "multiplayer" | "boss" | "rc" | "testWeapons">;
+type Context = Pick<Game, "player" | "weapons" | "pickup" | "world" | "multiplayer" | "boss" | "rc" | "testWeapons" | "localSupply">;
 
 /** Only explicit interactions: automatic ammo/health pickups do not need a button. */
 export function mobileInteraction(game: Context): MobileInteraction | undefined {
@@ -38,6 +38,9 @@ export function mobileInteraction(game: Context): MobileInteraction | undefined 
     return pickup.pulseTraps.placement(actor) ? "PLACERA" : undefined;
   }
   if (weapons.carryingBeacon) return pickup.beacons.placement(actor) ? "PLACERA" : undefined;
+  const supply = snapshot ? snapshot.supplyDrop : game.localSupply?.state;
+  if (supply && supply.remaining <= 0 && supply.items.some((item) => item.available && near(item.x, item.z) &&
+    (item.kind === "bossKey" ? !player.bossLookoutKey : item.kind === "shield" ? player.shield < 100 : item.kind === "coreBuster" ? !weapons.carryingCoreBuster : !weapons.carryingBeacon))) return "PLOCKA";
   if (snapshot) {
     if (snapshot.pickups.some((drop) => drop.active && near(drop.x, drop.z) &&
       (drop.type === "weapon" || (drop.type === "shield" && player.shield < 100)))) return "PLOCKA";

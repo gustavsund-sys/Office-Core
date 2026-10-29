@@ -43,6 +43,11 @@ export function installMultiplayer(this: Context) {
   panel.innerHTML =
     '<h3>OFFICE01 · MULTIPLAYER</h3><p>Välj ditt namn och anslut till en lobby. Därefter väljer du lag och chattar med spelarna.</p><div id="available-rooms">Hämtar OFFICE01…</div><button id="leave-room" hidden>LÄMNA SPELET</button><p id="network-status" role="status"></p>';
   this.lobby.el.before(panel);
+  const practice = document.createElement("a");
+  practice.href = "?playtest=1&range=1";
+  practice.textContent = "ÖPPNA SHOOTING RANGE";
+  practice.className = "practice-link";
+  panel.querySelector("#available-rooms")!.after(practice);
   this.lobby.el.hidden = true;
   const nameField = this.lobby.nameInput.closest("label")!;
   const musicButton =

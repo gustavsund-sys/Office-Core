@@ -355,7 +355,7 @@ export function buildLookoutRoom(
       "#ffcf58",
       true,
     );
-  const sign = world.label("BOSS LOOKOUT · LIFT", x, -15.3, "#ffcf58", 5);
+  const sign = world.label("BOSS LOOKOUT · LIFT", x, -15.3, "#ffcf58", 5, 36);
   sign.position.y = 0.09;
   // Enclosed observation room with a recessed gun window and a visible floor.
   box("Boss Lookout floor", x, height - 0.2, 0, 14, 0.4, 14, "#374952");

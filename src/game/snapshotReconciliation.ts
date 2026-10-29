@@ -44,9 +44,11 @@ type Context = Pick<
   | "weapons"
   | "world"
 >;
+const contributionHistory = new WeakMap<object, { id: string; assists: number; disarms: number; defense: number }>();
 export function applyOnline(this: Context, snapshot: Snapshot) {
   if ((snapshot.round ?? 1) !== this.currentRound) {
     this.currentRound = snapshot.round ?? 1;
+    if (this.currentRound % 2 === 0) this.hud.toast("EXTRA LEVERANS · +1 SKILL TILL BÅDA LAGEN");
     closeVictory();
     this.match.winner = undefined;
     this.rc.reset();
@@ -68,6 +70,16 @@ export function applyOnline(this: Context, snapshot: Snapshot) {
     (p) => p.id === this.multiplayer?.room?.sessionId,
   );
   if (!own) return;
+  const stats = snapshot.roundStats?.find((p) => p.id === own.id);
+  if (stats) {
+    const previous = contributionHistory.get(this);
+    if (previous?.id === own.id && snapshot.started && !snapshot.winner) {
+      if (stats.disarms > previous.disarms) this.hud.toast("CORE BUSTER AVVÄPNAD · +200 POÄNG");
+      else if (stats.defense > previous.defense) this.hud.toast("CORE FÖRSVARAD · +75 POÄNG");
+      else if (stats.assists > previous.assists) this.hud.toast("ASSIST · +50 POÄNG");
+    }
+    contributionHistory.set(this, { id: own.id, assists: stats.assists, disarms: stats.disarms, defense: stats.defense });
+  }
   this.inputSequence = Math.max(this.inputSequence, own.ack + 1);
   if (snapshot.winner || !snapshot.started) this.pendingInputs = [];
   for (const state of snapshot.players) {
@@ -159,7 +171,7 @@ export function applyOnline(this: Context, snapshot: Snapshot) {
       },
       !!snapshot.seriesWinner,
       snapshot.wins,
-      snapshot.roundStats ?? [],
+      (snapshot.seriesWinner ? snapshot.seriesStats : snapshot.roundStats) ?? [],
       () => {
         this.multiplayer?.clearResume();
         void this.multiplayer
@@ -167,6 +179,7 @@ export function applyOnline(this: Context, snapshot: Snapshot) {
           .catch((error) => console.warn("Leaving match", error))
           .finally(() => location.reload());
       },
+      own.id,
     );
   }
   if (snapshot.winner) updateReady(snapshot.players, snapshot.ready ?? []);

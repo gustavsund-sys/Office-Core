@@ -1,3 +1,8 @@
+import { BrokenCables } from "./brokenCables";
+import { SupplyDropAudio } from "../audio/supplyDrop";
+import { SupplyDrop } from "./supplyDrop";
+import { SupplyDropVisuals } from "./supplyDropVisuals";
+import { buildShootingRange, installRangeStatus } from "./shootingRange";
 import { updateEnvironmentEffects } from "./environmentEffects";
 import { createGameGlow } from "./compatibleGlow";
 import { gpuInvestigation, effectiveGPUConfig } from "./gpuInvestigation";
@@ -97,6 +102,8 @@ import { Multiplayer } from "../network/client";
 import { MSG, type Snapshot, type NetInput } from "../../shared/protocol";
 export class Game {
   startupPreparing = true;
+  readonly rangeMode = new URLSearchParams(location.search).get("range") === "1";
+  rangeTargets: Damageable[] = [];
   rc!: RCSession;
   boss?: BossLookout;
   private lookoutEntryFilm = new LookoutEntryFilm();
@@ -168,6 +175,10 @@ export class Game {
   engagement!: EngagementUI;
   engagementAudio?: EngagementAudio;
   localLedger = new CombatLedger();
+  localSupply = new SupplyDrop();
+  supplyVisuals!: SupplyDropVisuals;
+  supplyAudio = new SupplyDropAudio();
+  brokenCables?: BrokenCables;
   lastTeamPing = -10;
   localCountdown = 0;
   localRoundAction?: () => void;
@@ -286,9 +297,18 @@ export class Game {
     this.camera.minZ = 0.1;
     this.camera.maxZ = 150;
     this.world = new World(this.scene, shadows);
+    this.supplyVisuals = new SupplyDropVisuals(this.world);
     this.world.explosions.amount = quality.effects;
-    this.world.build();
+    if (this.rangeMode) {
+      document.body.classList.add("shooting-range-mode");
+      this.rangeTargets = buildShootingRange(this.world);
+      installRangeStatus(import.meta.env.VITE_GAME_SERVER_URL || "ws://127.0.0.1:2567");
+    } else {
+      this.world.build();
+      this.localSupply.prepare(this.world.obstacles);
+    }
     this.world.lighting = new CombatLighting(this.world);
+    if (!this.rangeMode) this.brokenCables = new BrokenCables(this.world);
     this.warzone = new Warzone(this.world, quality.effects);
     this.world.explosions.onBurst = (position, power, sound) => {
       const distance = Vector3.Distance(position, this.player.root.position);
@@ -322,6 +342,7 @@ export class Game {
     );
     this.localDisarm.onComplete = () => {
       this.localLedger.add("local", "disarms");
+      this.boss?.recordSupport(3);
       this.hud.toast("CORE BUSTER DISARMED · ROUND SAVED");
       this.engagementAudio?.hit(true);
     };
@@ -524,7 +545,7 @@ export class Game {
     document.querySelector("#ui")!.append(notice);
     const panel = document.createElement("aside");
     panel.className = "build-panel";
-    panel.hidden = !this.testToolsEnabled;
+    panel.hidden = !this.testToolsEnabled || this.rangeMode;
     panel.innerHTML = `<details open><summary>BYGGPANEL · TEST</summary><p>Utrusta spelaren</p><div class="build-weapons">${Object.entries(
       WEAPONS,
     )
@@ -565,6 +586,56 @@ export class Game {
       )
       .join("")}<small>Nivåerna sparas på denna enhet.</small></details>`;
     document.body.append(panel);
+    if (this.rangeMode) {
+      this.testShootingEnabled = false;
+      const range = document.createElement("aside");
+      range.className = "range-controls";
+      range.innerHTML = `<strong>SHOOTING RANGE</strong><span>Välj vapen eller skill. Måltavlorna återkommer automatiskt.</span><div class="range-weapons">${Object.entries(WEAPONS).map(([id, data]) => `<button data-weapon="${id}">${data.name}</button>`).join("")}</div><div class="range-skills"><button data-skill="pulseTrap">PULSE TRAP</button><button data-skill="rcCar">RC BOMBER</button><button data-skill="superMedkit">SUPER MEDKIT</button><button data-skill="beacon">DEFENSIVE BEACON</button></div><button data-heal-test>TESTA SKADA · 20 HP</button>`;
+      document.body.append(range);
+      range.querySelectorAll<HTMLButtonElement>("[data-weapon]").forEach((button) => button.addEventListener("click", () => {
+        if (!this.match.started) return;
+        const id = button.dataset.weapon as WeaponId;
+        this.weapons.ammunition[id] = WEAPONS[id].ammo;
+        this.weapons.specialWeapon = undefined;
+        this.weapons.equip(id);
+        this.hud.toast(`${WEAPONS[id].name} · PÅFYLLD`);
+      }));
+      range.querySelectorAll<HTMLButtonElement>("[data-skill]").forEach((button) => button.addEventListener("click", () => {
+        if (!this.match.started) return;
+        const skill = button.dataset.skill;
+        if (skill === "beacon") { panel.querySelector<HTMLButtonElement>("#test-beacon")!.click(); return; }
+        if (skill === "rcCar") { panel.querySelector<HTMLButtonElement>("#test-rc-car")!.click(); return; }
+        this.weapons.utilityKind = skill as "pulseTrap" | "superMedkit";
+        this.weapons.utilityCount = 2;
+        this.weapons.switchSlot(3);
+        this.hud.toast(`${skill === "pulseTrap" ? "PULSE TRAP" : "SUPER MEDKIT"} · VÄLJ 3 OCH PLACERA`);
+      }));
+      range.querySelector<HTMLButtonElement>("[data-heal-test]")!.onclick = () => { if (this.match.started) this.player.hp = 20; };
+    }
+    if (import.meta.env.DEV && !this.rangeMode) {
+      const opponentWin = document.createElement("button");
+      opponentWin.textContent = "TEST: MOTSTÅNDAREN VINNER EN RUNDA";
+      opponentWin.addEventListener("click", () => {
+        if (this.multiplayer?.room || !this.match.started || this.match.winner) return;
+        const opponent = CONFIG.player.team === "RED" ? "BLUE" : "RED";
+        this.teamWins[opponent] = Math.min(2, this.teamWins[opponent] + 1);
+        this.hud.wins(this.teamWins, this.currentRound);
+        this.hud.toast(`${opponent} · TEST: +1 RUNDVINST`);
+      });
+      panel.querySelector("summary")!.after(opponentWin);
+      const supplyTest = document.createElement("button");
+      supplyTest.textContent = "TEST: SPECIAL SUPPLY DROP";
+      supplyTest.addEventListener("click", () => {
+        if (!this.multiplayer?.room && this.match.started) {
+          this.localSupply.reset();
+          this.teamWins[CONFIG.player.team as Team] = 0;
+          this.teamWins[CONFIG.player.team === "RED" ? "BLUE" : "RED"] = 1;
+          const zone = office01.weaponEnds.find((p) => CONFIG.player.team === "RED" ? p.x < 0 : p.x > 0)!;
+          this.player.root.position.set(zone.x, 0, zone.z);
+        }
+      });
+      panel.querySelector("summary")!.after(supplyTest);
+    }
     const vfxToggle = document.createElement("button");
     const vfxLabel = () => {
       vfxToggle.textContent = this.world.explosions.spriteMode
@@ -924,10 +995,17 @@ export class Game {
       }
     });
   }
+  requestSupply() {
+    if (this.paused || this.player.hp <= 0 || !this.player.grounded || this.boss?.active || this.rc.locked) return;
+    if (this.multiplayer?.room) this.multiplayer.room.send(MSG.supplyRequest);
+    else if (this.match.started && !this.match.winner && this.localSupply.request(CONFIG.player.team as Team, this.teamWins, this.player.root.position.x, this.player.root.position.z, this.world.obstacles))
+      this.hud.toast("SPECIAL SUPPLY DROP BEGÄRD");
+  }
   /** Shared game actions called by keyboard or a platform's explicit controls. */
   handleGameKey(e: KeyboardEvent) {
     if (!this.paused && this.boss?.key(e)) return;
     if (e.code === "KeyE" && this.input.remote) return;
+    if (!this.paused && !e.repeat && e.code === "KeyF" && !(e.target instanceof HTMLInputElement) && !(e.target instanceof HTMLTextAreaElement)) { this.requestSupply(); return; }
     if (!this.paused && !e.repeat && this.multiplayer?.room) {
       if (e.code === "Space") {
         e.preventDefault();
@@ -1128,12 +1206,28 @@ export class Game {
       this.boss?.syncRound(this.currentRound);
       this.boss?.update(dt, this.paused || this.lookoutEntryFilm.active);
     }
+    this.brokenCables?.update(this.paused ? 0 : dt, this.player.root.position, this.sound && !this.paused);
+    const supplySnapshot = this.multiplayer?.room ? this.multiplayer.snapshot : undefined;
+    const scores = supplySnapshot?.wins ?? this.teamWins;
+    const supplyTeam = CONFIG.player.team as Team;
+    const opposingTeam = supplyTeam === "RED" ? "BLUE" : "RED";
+    const canRequest = !this.paused && !this.rangeMode && this.player.hp > 0 && !this.boss?.active && !this.rc.locked &&
+      !!(supplySnapshot ? supplySnapshot.started && !supplySnapshot.winner && supplySnapshot.supplyRequestReady : !this.multiplayer?.room && this.match.started && !this.match.winner && !this.localSupply.started) &&
+      scores[supplyTeam] < scores[opposingTeam];
+    const atZone = office01.weaponEnds.some((zone) => (supplyTeam === "RED" ? zone.x < 0 : zone.x > 0) && Math.hypot(this.player.root.position.x - zone.x, this.player.root.position.z - zone.z) <= 8);
+    this.hud.supplyRequest(canRequest, atZone, () => this.requestSupply());
+    const supplyState = this.multiplayer?.room ? supplySnapshot?.supplyDrop : this.localSupply.state;
+    const supplyActive = this.multiplayer?.room ? !!supplySnapshot?.started && !supplySnapshot.winner : this.match.started && !this.match.winner;
+    this.supplyAudio.update(!!supplyActive && !!supplyState && supplyState.remaining > 0, this.sound && !this.paused, supplyState ? Math.hypot(this.player.root.position.x - supplyState.x, this.player.root.position.z - supplyState.z) : 0);
     if (!this.paused) this.updateInjuryEffects(dt);
     if (this.multiplayer?.room) {
       this.tickOnline(dt);
       return;
     }
     if (!this.paused) {
+      if (this.match.started && !this.match.winner && !this.rangeMode) this.localSupply.update(dt);
+      this.supplyVisuals.update(this.localSupply.state);
+      this.hud.supply(this.localSupply.state, CONFIG.player.team as Team);
       this.time += dt;
       if (this.player.hp <= 0 && this.respawnRemaining === 0) {
         if (this.sound) this.weaponAudio?.playDeath();
@@ -1155,7 +1249,7 @@ export class Game {
           const base = office01.bases.find(
             (base) => base.team === CONFIG.player.team,
           )!;
-          this.player.root.position.set(base.spawn.x, 0, base.spawn.z);
+          this.player.root.position.set(this.rangeMode ? 0 : base.spawn.x, 0, this.rangeMode ? -10 : base.spawn.z);
           this.player.verticalVelocity = 0;
           this.player.knockbackX = 0;
           this.player.knockbackZ = 0;
@@ -1397,6 +1491,18 @@ export class Game {
         this.pickup.chooseRequested = false;
         this.hud.toast("DEFENSIVE BEACON · LMB / E TO PLACE");
       }
+      if (this.pickup.chooseRequested && this.player.hp > 0) {
+        const reward = this.localSupply.collect(this.player.root.position.x, this.player.root.position.z, (kind) =>
+          kind === "bossKey" ? !this.player.bossLookoutKey : kind === "shield" ? this.player.shield < 100 : kind === "coreBuster" ? !this.weapons.carryingCoreBuster : !this.pickup.beacons.carried.has("local"));
+        if (reward) {
+          this.pickup.chooseRequested = false;
+          if (reward === "bossKey") this.boss?.reward();
+          if (reward === "shield") this.player.shield = 100;
+          if (reward === "coreBuster") this.weapons.equip("coreBuster");
+          if (reward === "beacon") this.pickup.beacons.carried.add("local");
+          this.hud.toast(reward === "bossKey" ? "BOSS KEY UPPLÅST" : reward === "shield" ? "TACTICAL VEST · 100 SHIELD" : reward === "coreBuster" ? "CORE BUSTER UPPLOCKAD" : "DEFENSIVE BEACON · PLACERA MED E");
+        }
+      }
       this.weapons.carryingBeacon = this.pickup.beacons.carried.has("local");
       this.weapons.update(
         disarming || placingBeacon || placingTrap
@@ -1437,6 +1543,7 @@ export class Game {
           : []),
       ]);
       this.cores.forEach((t) => t.update(dt, this.time));
+      this.rangeTargets.forEach((t) => t.update(dt, this.time));
       this.world.destructibles.forEach((o) => o.update(dt));
       this.world.explosions.update(dt);
       this.world.blood.update(dt);
@@ -1866,12 +1973,9 @@ export class Game {
             b.team ===
             (id === "local" ? CONFIG.player.team : this.match.members[1]?.team),
         )!;
-        this.localLedger.kill(
-          id,
-          entry[0],
-          this.time,
-          Math.hypot(position.x - base.x, position.z - base.z) <= 12,
-        );
+        const defending = Math.hypot(position.x - base.x, position.z - base.z) <= 12;
+        this.localLedger.kill(id, entry[0], this.time, defending);
+        if (id === "local" && defending) this.boss?.recordSupport(1);
         if (id === "local") {
           this.engagement.confirm(true);
           this.engagementAudio?.hit(true);

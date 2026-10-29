@@ -22,6 +22,7 @@ type Context = Pick<
   | "localCountdown"
   | "localDisarm"
   | "localLedger"
+  | "localSupply"
   | "localRoundAction"
   | "rc"
   | "match"
@@ -72,6 +73,7 @@ export function finishLocalRound(this: Context) {
         this.localRoundAction = () => {
           closeVictory();
           this.localLedger.resetRound();
+          this.localSupply.reset();
           this.engagement.clear();
           this.match.winner = undefined;
           this.currentRound++;
@@ -102,6 +104,7 @@ export function finishLocalRound(this: Context) {
           if (this.testToolsEnabled)
             this.pickup.pulseTraps.spawnTestTrap(this.match.members[1].team);
           applyLoadout(this.weapons, this.loadout.choice);
+          if (this.currentRound % 2 === 0) this.weapons.utilityCount++;
           this.setPaused(false);
         };
         this.localCountdown = 3;
@@ -111,7 +114,7 @@ export function finishLocalRound(this: Context) {
       this.teamWins,
       this.match.members.map((member, i) => ({
         name: member.name,
-        ...(this.localLedger.round.get(i === 0 ? "local" : "bot") ??
+        ...((this.teamWins[winner] >= 3 ? this.localLedger.totals : this.localLedger.round).get(i === 0 ? "local" : "bot") ??
           emptyPerformance()),
       })),
     );

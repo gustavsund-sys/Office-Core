@@ -283,7 +283,7 @@ export class World {
     }
     return m;
   }
-  label(text: string, x: number, z: number, color = "#c0ced4", size = 3) {
+  label(text: string, x: number, z: number, color = "#c0ced4", size = 3, fontSize = 48) {
     const tex = new DynamicTexture(
       text,
       { width: 512, height: 128 },
@@ -295,7 +295,7 @@ export class World {
       text,
       null,
       82,
-      "bold 48px sans-serif",
+      `bold ${fontSize}px sans-serif`,
       color,
       "transparent",
       true,

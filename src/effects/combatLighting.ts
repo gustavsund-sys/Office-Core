@@ -1,6 +1,7 @@
 import {
   Color3,
   PointLight,
+  SpotLight,
   LightConstants,
   StandardMaterial,
   type Material,
@@ -89,7 +90,7 @@ export class CombatLighting {
     light.position.copyFrom(position);
     light.intensity = level;
   }
-  private receivers(light: PointLight) {
+  receivers(light: PointLight | SpotLight) {
     const p = light.position,
       range = light.range;
     const walls: { x: number; z: number; w: number; d: number }[] = [];

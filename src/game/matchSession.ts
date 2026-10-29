@@ -15,6 +15,7 @@ import { Weapons } from "../weapons/system";
 import type { Game } from "./game";
 type Context = Pick<
   Game,
+  | "rangeMode"
   | "bindLocalTarget"
   | "cameraTarget"
   | "cores"
@@ -42,7 +43,7 @@ export function startMatch(this: Context, team: Team) {
   this.match.start(team);
   CONFIG.player.team = team;
   const base = office01.bases.find((base) => base.team === team)!;
-  this.player.root.position.set(base.spawn.x, 0, base.spawn.z);
+  this.player.root.position.set(this.rangeMode ? 0 : base.spawn.x, 0, this.rangeMode ? -10 : base.spawn.z);
   this.player.torso.material = this.world.finish(TEAMS[team], "fabric");
   this.world.explosions.playerSpawn(this.player.root.position, TEAMS[team]);
   this.cores.forEach((core) => core.setActive(this.match.isActive(core.team!)));
@@ -50,7 +51,7 @@ export function startMatch(this: Context, team: Team) {
     const other = this.match.members[1];
     const otherBase = office01.bases.find((base) => base.team === other.team)!;
     this.testPlayer = new Player(this.world);
-    this.testPlayer.root.position.set(otherBase.spawn.x, 0, otherBase.spawn.z);
+    this.testPlayer.root.position.set(this.rangeMode ? 0 : otherBase.spawn.x, 0, this.rangeMode ? 6 : otherBase.spawn.z);
     this.testPlayer.torso.material = this.world.finish(
       TEAMS[other.team],
       "fabric",
@@ -91,12 +92,12 @@ export function startMatch(this: Context, team: Team) {
     );
     this.testWeapons.equip("machineGun");
     this.testWeapons.ammo = Infinity;
-    this.pickup.beacons.spawnTestGuard({
+    if (!this.rangeMode) this.pickup.beacons.spawnTestGuard({
       id: "bot",
       team: other.team,
       player: this.testPlayer,
     });
-    this.pickup.pulseTraps.spawnTestTrap(other.team);
+    if (!this.rangeMode) this.pickup.pulseTraps.spawnTestTrap(other.team);
     this.world.label(
       "TEST PLAYER",
       otherBase.spawn.x,

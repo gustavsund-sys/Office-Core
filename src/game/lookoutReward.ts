@@ -5,17 +5,21 @@ export interface LookoutRewardState {
   bossLookoutKills: number;
   bossLookoutAmmo: number;
 }
+export function earnLookoutSupport(state: LookoutRewardState, amount: number) {
+  if (state.bossLookoutKey || amount <= 0) return false;
+  state.bossLookoutKills = Math.min(10, (state.bossLookoutKills ?? 0) + amount);
+  if (state.bossLookoutKills < 10) return false;
+  state.bossLookoutKey = true;
+  state.bossLookoutAmmo = 100;
+  return true;
+}
 export function earnLookoutKill(
   state: LookoutRewardState,
   team: Team,
   victim: Team,
 ) {
   if (team === victim || state.bossLookoutKey) return false;
-  state.bossLookoutKills = Math.min(10, (state.bossLookoutKills ?? 0) + 1);
-  if (state.bossLookoutKills < 10) return false;
-  state.bossLookoutKey = true;
-  state.bossLookoutAmmo = 100;
-  return true;
+  return earnLookoutSupport(state, 1);
 }
 export function exhaustLookout(state: LookoutRewardState) {
   state.bossLookoutKey = false;

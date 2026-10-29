@@ -5,6 +5,7 @@ import {
   validTeamPing,
   highlights,
   emptyPerformance,
+  performanceScore,
 } from "./engagement";
 import { OfficeRoom } from "../../server/room";
 import type { Client } from "@colyseus/core";
@@ -110,4 +111,8 @@ test("server sends pings only to teammates, rate-limits spam and cancels countdo
     room.clients.length = 0;
     room.onDispose();
   }
+});
+
+test("contribution score rewards defense, support and objectives", () => {
+  assert.equal(performanceScore({ kills: 1, assists: 2, disarms: 1, defense: 1, coreDamage: 250 }), 500);
 });

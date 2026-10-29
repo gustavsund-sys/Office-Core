@@ -1,3 +1,4 @@
+import { performanceScore } from "../game/engagement";
 import { deathDescriptionParts, type CombatDeath } from "./combatFeed";
 import { updateBombCountdowns } from "./bombCountdowns";
 import { TEAMS } from "../config/game";
@@ -17,6 +18,8 @@ export class HUD {
   el = document.querySelector<HTMLDivElement>("#ui")!;
   toastTime = 0;
   warningTime = 0;
+  supplyMarker?: { x: number; z: number };
+  private supplyPhase = "";
   minimap: HTMLCanvasElement;
   ctx: CanvasRenderingContext2D;
   constructor() {
@@ -53,11 +56,62 @@ export class HUD {
       `${team.charAt(0) + team.slice(1).toLowerCase()} core is under attack! Protect it!`;
     this.warningTime = 4;
   }
-  plantedWarning(team: string) {
+  supplyRequest(eligible: boolean, nearby: boolean, request: () => void) {
+    let panel = this.el.querySelector<HTMLElement>("#supply-request");
+    if (!panel) {
+      panel = document.createElement("aside");
+      panel.id = "supply-request";
+      const text = document.createElement("span");
+      const button = document.createElement("button");
+      button.textContent = "BEGÄR SUPPLY DROP · F";
+      button.addEventListener("click", request);
+      panel.append(text, button);
+      this.el.append(panel);
+    }
+    panel.hidden = !eligible;
+    if (eligible) {
+      panel.querySelector("span")!.textContent = nearby ? "You’re behind! Request a Supply Drop here to even out the odds!" : "You’re behind! Request a Supply Drop in the Weapon Drop Zone to even out the odds!";
+      panel.querySelector<HTMLButtonElement>("button")!.hidden = !nearby;
+    }
+  }
+  supply(state?: import("../game/supplyDrop").SupplyState, team?: import("../config/game").Team) {
+    let panel = this.el.querySelector<HTMLElement>("#supply-drop-status");
+    if (!panel) {
+      panel = document.createElement("aside");
+      panel.id = "supply-drop-status";
+      panel.setAttribute("role", "status");
+      panel.setAttribute("aria-live", "polite");
+      this.el.append(panel);
+    }
+    const remaining = state?.remaining ?? 0;
+    const ownDrop = !!state && state.team === team;
+    const phase = !ownDrop ? "" : remaining > 0 ? "incoming" : "landed";
+    if (phase && phase !== this.supplyPhase)
+      this.toast(phase === "incoming" ? "SPECIAL SUPPLY DROP PÅ VÄG · SE KARTAN" : "SPECIAL SUPPLY DROP HAR LANDAT · PLOCKA UPP MED E");
+    this.supplyPhase = phase;
+    this.supplyMarker = state && remaining > 0 ? { x: state.x, z: state.z } : undefined;
+    panel.hidden = !ownDrop || !state || (remaining <= 0 && !state.items.some((item) => item.available));
+    if (!panel.hidden) panel.textContent = remaining > 0 ? `SPECIAL SUPPLY DROP · ${Math.ceil(remaining)}s · SE KARTAN` : `SPECIAL SUPPLY DROP · LANDAD · PLOCKA UPP`;
+  }
+  plantedWarning(team: string, timer?: number, direction?: string) {
     const name = team.charAt(0) + team.slice(1).toLowerCase();
     this.el.querySelector("#warning")!.textContent =
-      `A Core Buster has been planted at ${name} Core! ${name} Team! Disarm IT!`;
+      `CORE BUSTER · ${name.toUpperCase()} CORE${direction ? ` · ${direction}` : ""}${timer === undefined ? "" : ` · ${Math.max(0, timer).toFixed(1)}s`} · ${name.toUpperCase()} TEAM: GET CLOSE AND USE TO DISARM`;
     this.warningTime = 1;
+  }
+  approachingWarning(direction: string) {
+    this.el.querySelector("#warning")!.textContent = `FIENDENS CORE BUSTER NÄRMAR SIG · ${direction} · STOPPA BÄRAREN`;
+    this.warningTime = 1;
+  }
+  comeback(behind: boolean, core: number, doors: number, skill: number) {
+    let panel = this.el.querySelector<HTMLElement>("#comeback-status");
+    if (!panel) {
+      panel = document.createElement("aside");
+      panel.id = "comeback-status";
+      this.el.append(panel);
+    }
+    panel.hidden = !behind;
+    if (behind) panel.textContent = `COMEBACK · CORE ${Math.max(0, Math.ceil(core))}% · ${doors} SKYDD KVAR · ${skill} SKILLS`;
   }
   statsStarted = false;
   showStats(started: boolean) {
@@ -79,7 +133,8 @@ export class HUD {
     this.el.querySelector("#core-series")!.textContent = `ROUND ${round} · FIRST TO 3`;
   }
 
-  scoreboard(players: { name: string; kills?: number; team?: string }[]) {
+  scoreboard(players: { name: string; kills?: number; assists?: number; disarms?: number; defense?: number; coreDamage?: number; team?: string }[]) {
+    const points = (p: typeof players[number]) => performanceScore({ kills: p.kills ?? 0, assists: p.assists ?? 0, disarms: p.disarms ?? 0, defense: p.defense ?? 0, coreDamage: p.coreDamage ?? 0 });
     let list = this.el.querySelector<HTMLElement>("#kill-counter");
     if (!list) {
       list = document.createElement("aside");
@@ -88,17 +143,17 @@ export class HUD {
     }
     list.hidden = !this.statsStarted || players.length === 0;
     const key = JSON.stringify(
-      players.map((p) => [p.name, p.team, p.kills ?? 0]),
+      players.map((p) => [p.name, p.team, points(p)]),
     );
     if (key === this.scoresKey) return;
     this.scoresKey = key;
     list.replaceChildren();
     const title = document.createElement("b");
     title.className = "score-heading";
-    title.textContent = "✦ KILL LEADERBOARD";
+    title.textContent = "✦ CONTRIBUTION POINTS";
     list.append(title);
     for (const p of [...players].sort(
-      (a, b) => (b.kills ?? 0) - (a.kills ?? 0),
+      (a, b) => points(b) - points(a),
     )) {
       const row = document.createElement("div");
       row.className = "kill-row";
@@ -111,7 +166,7 @@ export class HUD {
       const name = document.createElement("span");
       name.textContent = p.name;
       const count = document.createElement("strong");
-      count.textContent = String(p.kills ?? 0);
+      count.textContent = String(points(p));
       row.append(rank, name, count);
       list.append(row);
     }
@@ -372,7 +427,7 @@ export class HUD {
           ? "KEY RECEIVED!"
           : player.bossLookoutKey
           ? `KEY READY · ${player.bossLookoutActive ? "IN USE" : `${player.bossLookoutAmmo ?? 100} RDS`}`
-          : `${player.bossLookoutKills ?? 0}/10 kills to obtain`;
+          : `${player.bossLookoutKills ?? 0}/10 points to obtain`;
         continue;
       }
       const state = weapons.reloads[slot.dataset.weapon as WeaponId];
@@ -448,6 +503,12 @@ export class HUD {
     for (const point of office01.weaponEnds) {
       c.fillStyle = "#ffd580";
       c.fillRect(px(point.x) - 2, pz(point.z) - 2, 4, 4);
+    }
+    if (this.supplyMarker) {
+      const mx = px(this.supplyMarker.x), mz = pz(this.supplyMarker.z);
+      c.fillStyle = "#00000099"; c.beginPath(); c.arc(mx, mz, 8, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = "#ffce64"; c.lineWidth = 2; c.stroke();
+      c.fillStyle = "#ffce64"; c.beginPath(); c.arc(mx, mz, 3, 0, Math.PI * 2); c.fill();
     }
     c.save();
     c.translate(px(x), pz(z));

@@ -31,6 +31,10 @@ export const emptyPerformance = (): Performance => ({
   coreDamage: 0,
   defense: 0,
 });
+/** Objective contributions count alongside combat without affecting weapon balance. */
+export function performanceScore(p: Performance): number {
+  return p.kills * 100 + p.assists * 50 + p.disarms * 200 + p.defense * 75 + Math.floor(p.coreDamage / 10);
+}
 export class CombatLedger {
   totals = new Map<string, Performance>();
   round = new Map<string, Performance>();

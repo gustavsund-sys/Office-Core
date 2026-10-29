@@ -1,6 +1,7 @@
-import { CONFIG, type Team } from "../config/game";
+import { CONFIG, TEAMS, type Team } from "../config/game";
 import {
   earnLookoutKill,
+  earnLookoutSupport,
   exhaustLookout,
   lookoutTeam,
   loseLookoutOnDeath,
@@ -24,7 +25,7 @@ import type { Player, Input } from "../player/player";
 import type { Hittable } from "../core/hittable";
 import { office01 } from "../maps/office01";
 
-import { LOOKOUT, lookoutPose } from "./lookoutConfig";
+import { LOOKOUT, lookoutPose, lookoutExitSpawn, LOOKOUT_KEY_HINT } from "./lookoutConfig";
 export { LOOKOUT, lookoutPose } from "./lookoutConfig";
 export function keyModel(world: World) {
   const root = new Mesh("Boss Lookout key", world.scene);
@@ -189,12 +190,15 @@ export class BossLookout {
     this.player.bossLookoutAmmo = LOOKOUT.shots;
     this.ammo = LOOKOUT.shots;
     this.toast(
-      "BOSS KEY UNLOCKED! · 10 enemy kills · Use your team's lift · 100 turret rounds",
+      "BOSS KEY UNLOCKED! · 10 contribution points · Use your team's lift · 100 turret rounds",
     );
   }
   recordKill(victim: Team) {
     if (earnLookoutKill(this.player, CONFIG.player.team as Team, victim))
       this.reward();
+  }
+  recordSupport(amount: number) {
+    if (earnLookoutSupport(this.player, amount)) this.reward();
   }
   syncRound(round: number) {
     if (round !== this.lastRound) {
@@ -255,7 +259,7 @@ export class BossLookout {
             "This Boss Lookout belongs to the other team. Use your own team’s lift.",
           );
         else if (this.player.bossLookoutKey) this.enter(side);
-        else this.toast("Boss Lookout requires a key");
+        else this.toast(LOOKOUT_KEY_HINT);
         return true;
       }
     return false;
@@ -331,8 +335,9 @@ export class BossLookout {
     this.firingSound?.(false, true);
     this.scope = false;
     this.player.root.position.copyFrom(
-      lookoutPose(this.side).door.add(new Vector3(0, 0, -2)),
+      lookoutExitSpawn(this.side),
     );
+    if (!this.online && this.player.hp > 0) this.world.explosions.playerSpawn(this.player.root.position, TEAMS[lookoutTeam(this.side)]);
     this.player.verticalVelocity = 0;
     this.player.knockbackX = 0;
     this.player.knockbackZ = 0;
@@ -517,7 +522,7 @@ export class BossLookout {
     if (!this.online && loseLookoutOnDeath(this.player, this.player.hp)) {
       this.selected = false;
       this.ammo = 0;
-      this.toast("Boss Key lost on death · Get 10 enemy kills for a new key");
+      this.toast("Boss Key lost on death · Earn 10 points for a new key");
     }
     if (this.active && this.player.hp <= 0) this.exit();
     this.player.bossLookoutSelected =
@@ -664,7 +669,7 @@ export class BossLookout {
         if (this.ammo <= 0) {
           this.exit();
           this.toast(
-            "Turret empty · Boss Key expired · Get 10 enemy kills for a new key",
+            "Turret empty · Boss Key expired · Earn 10 points for a new key",
           );
         }
       }
@@ -691,7 +696,7 @@ export class BossLookout {
             ? "BOSS LOOKOUT OCCUPIED · WAIT FOR YOUR TEAMMATE"
             : this.player.bossLookoutKey
               ? "E · ENTER BOSS LOOKOUT"
-              : "BOSS KEY · 10 ENEMY KILLS REQUIRED";
+              : "BOSS KEY · EARN 10 POINTS ... OR LOOK TO THE SKY WHEN HOPE IS LOW";
     }
   }
 }

@@ -58,6 +58,7 @@ type Context = Pick<
   | "pulseTrapAudio"
   | "scene"
   | "shotPrediction"
+  | "supplyVisuals"
   | "sound"
   | "time"
   | "updateBeaconPrompt"
@@ -758,17 +759,32 @@ export function tickOnline(this: Context, dt: number) {
   this.cores.forEach((core) => core.update(dt, this.time));
   this.world.destructibles.forEach((prop) => prop.update(dt));
   if (snapshot) {
+    this.supplyVisuals.update(snapshot.supplyDrop);
+    this.hud.supply(snapshot.supplyDrop, snapshot.players.find((p) => p.id === this.multiplayer?.room?.sessionId)?.team);
     this.hud.scoreboard(snapshot.players);
     const self = snapshot.players.find(
       (p) => p.id === this.multiplayer?.room?.sessionId,
     );
     this.updateDisarm(self?.disarm);
-    const threat = snapshot.bombs.flatMap((b) =>
-      office01.bases.filter(
-        (core) => Math.hypot(b.x - core.x, b.z - core.z) <= 5,
-      ),
-    )[0];
-    if (threat) this.hud.plantedWarning(threat.team);
+    if (self && snapshot.wins) {
+      const enemy = self.team === "RED" ? "BLUE" : "RED";
+      const core = snapshot.cores.find((c) => c.team === self.team && c.active);
+      const doors = this.world.destructibles.filter((d) => d.prop.kind === "coreDoor" && d.team === self.team && d.hp > 0).length;
+      this.hud.comeback(snapshot.wins[self.team] < snapshot.wins[enemy], core ? core.hp / 10 : 0, doors, self.utilityCount ?? 0);
+    }
+
+    const threat = snapshot.bombs.flatMap((bomb) =>
+      office01.bases.filter((core) => Math.hypot(bomb.x - core.x, bomb.z - core.z) <= 5)
+        .map((core) => ({ core, bomb })),
+    ).sort((a, b) => a.bomb.timer - b.bomb.timer)[0];
+    const direction = (x: number, z: number) => {
+      const dx = x - this.player.root.position.x, dz = z - this.player.root.position.z;
+      return Math.abs(dx) > Math.abs(dz) ? (dx > 0 ? "ÖSTER →" : "← VÄSTER") : (dz > 0 ? "SÖDER ↓" : "↑ NORR");
+    };
+    const base = office01.bases.find((b) => b.team === self?.team);
+    const carrier = base && snapshot.players.find((p) => p.team !== self?.team && p.hp > 0 && p.carryingCoreBuster && Math.hypot(p.x - base.x, p.z - base.z) <= 15);
+    if (threat) this.hud.plantedWarning(threat.core.team, threat.bomb.timer, direction(threat.bomb.x, threat.bomb.z));
+    else if (carrier) this.hud.approachingWarning(direction(carrier.x, carrier.z));
     else if (snapshot.alarms?.length)
       this.hud.breachWarning(snapshot.alarms[0]);
   }

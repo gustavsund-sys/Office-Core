@@ -40,6 +40,7 @@ export interface StreamPacket {
   clocks?: Record<string, number>;
 }
 const fastPlayer = new Set([
+  "carryingCoreBuster",
   "lookout",
   "lookoutKey",
   "lookoutKills",

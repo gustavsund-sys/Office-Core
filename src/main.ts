@@ -32,7 +32,10 @@ async function start() {
   if (params.get("playtest") === "1") {
     const saved = localStorage.getItem(STORAGE_KEY);
     // A fresh browser origin can playtest the bundled map without an editor save.
-    if (saved) applyMap(parseMap(JSON.parse(saved)));
+    if (params.get("range") === "1") {
+      const { defaultMap } = await import("./maps/layout");
+      applyMap({ ...defaultMap(), name: "Shooting Range", objects: [], spawns: [] });
+    } else if (saved) applyMap(parseMap(JSON.parse(saved)));
     else applyMap(parseMap((await import("../server/map.json")).default));
   } else {
     const url = new URL(
@@ -157,6 +160,10 @@ async function start() {
         text,
       );
     });
+    if (game.rangeMode) {
+      game.startMatch("RED");
+      game.setPaused(false);
+    }
     loading.finish();
     await new Promise<void>((resolve) =>
       requestAnimationFrame(() => requestAnimationFrame(() => resolve())),

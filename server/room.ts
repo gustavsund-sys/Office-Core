@@ -1,3 +1,4 @@
+import { SupplyDrop } from "../src/game/supplyDrop";
 import { ServerLookout } from "./lookout";
 import type { CombatDeath } from "../src/ui/combatFeed";
 import { BloodCadence } from "../src/effects/bloodCadence";
@@ -122,6 +123,7 @@ export class OfficeRoom extends Room {
   preparing = false;
   winner?: Team;
   ledger = new CombatLedger();
+  supplyDrop = new SupplyDrop();
   countdownUntil = 0;
   round = 1;
   wins: Record<Team, number> = { RED: 0, BLUE: 0 };
@@ -144,6 +146,7 @@ export class OfficeRoom extends Room {
     const sun = new DirectionalLight("sun", new Vector3(0, -1, 0), this.scene);
     this.world = new ServerWorld(this.scene, new ShadowGenerator(64, sun));
     this.world.build();
+    this.supplyDrop.prepare(this.world.obstacles);
     this.cores = office01.bases.map(
       (base) => new Damageable(this.world, "core", base.x, base.z, base.team),
     );
@@ -432,6 +435,7 @@ export class OfficeRoom extends Room {
       p.lastChat = Date.now();
       this.broadcast(MSG.chat, { name: p.name, text: text.trim() });
     });
+    this.onMessage(MSG.supplyRequest, (client) => this.requestSupply(client));
     this.onMessage(MSG.teamPing, (client, value) =>
       this.handleTeamPing(client, value),
     );
@@ -518,6 +522,13 @@ export class OfficeRoom extends Room {
     this.clock.setInterval(() => this.sendSnapshots(), 50);
     console.info("room created", this.roomId);
   }
+  requestSupply(client: Client) {
+    const p = this.participants.get(client.sessionId);
+    if (!this.permit(client) || !p || !this.started || this.winner || p.awaitingLoadout || !p.connected || p.player.hp <= 0 || !p.player.grounded || p.player.bossLookoutActive || this.rc.controlling(client.sessionId)) return false;
+    const accepted = this.supplyDrop.request(p.team, this.wins, p.player.root.position.x, p.player.root.position.z, this.world.obstacles);
+    if (accepted) this.sendSnapshots();
+    return accepted;
+  }
   private startWhenEquipped() {
     if (this.started || !this.preparing) return;
     const status = preparationStatus([...this.participants.values()]);
@@ -527,6 +538,7 @@ export class OfficeRoom extends Room {
     }
     if (status !== "ready") return;
     this.started = true;
+    this.supplyDrop.reset();
     this.preparing = false;
     for (const p of this.participants.values())
       if (p.loadout) applyLoadout(p.weapons, p.loadout);
@@ -711,6 +723,7 @@ export class OfficeRoom extends Room {
                 victim.player.root.position.x - base.x,
                 victim.player.root.position.z - base.z,
               ) <= 12;
+            if (defending) this.lookout.recordSupport(client.sessionId, participant, 1);
             this.ledger.kill(
               client.sessionId,
               victimEntry[0],
@@ -732,6 +745,7 @@ export class OfficeRoom extends Room {
     );
     participant.disarm.onComplete = () => {
       this.ledger.add(client.sessionId, "disarms");
+      this.lookout.recordSupport(client.sessionId, participant, 3);
       this.event({
         kind: "disarmed",
         player: client.sessionId,
@@ -935,6 +949,7 @@ export class OfficeRoom extends Room {
       }
     }
     if (!this.started || this.winner) return;
+    this.supplyDrop.update(dt);
     this.hitHistory.record(
       Date.now(),
       [...this.participants].map(([id, p]) => ({
@@ -1135,7 +1150,17 @@ export class OfficeRoom extends Room {
         if (placing && !disarming) this.pickup.beacons.place(actor);
         const placingBuster =
           !disarming && p.weapons.carryingCoreBuster && input.interact;
-        const collected =
+        const supply = !placing && !placingTrap && !placingBuster && !disarming && input.interact && p.player.hp > 0
+          ? this.supplyDrop.collect(p.player.root.position.x, p.player.root.position.z, (kind) =>
+              kind === "bossKey" ? !p.player.bossLookoutKey : kind === "shield" ? p.player.shield < 100 : kind === "coreBuster" ? !p.weapons.carryingCoreBuster : !this.pickup.beacons.carried.has(id))
+          : undefined;
+        if (supply === "bossKey") { p.player.bossLookoutKey = true; p.player.bossLookoutKills = 10; p.player.bossLookoutAmmo = 100; }
+        if (supply === "shield") p.player.shield = 100;
+          if (supply === "coreBuster") p.weapons.equip("coreBuster");
+        if (supply === "beacon") this.pickup.beacons.carried.add(id);
+        if (supply) this.event({ kind: "lookoutNotice", player: id, x: p.player.root.position.x, y: 0, z: p.player.root.position.z,
+          message: supply === "bossKey" ? "BOSS KEY UPPLÅST" : supply === "shield" ? "TACTICAL VEST · 100 SHIELD" : supply === "coreBuster" ? "CORE BUSTER UPPLOCKAD" : "DEFENSIVE BEACON · PLACERA MED E" });
+        const collected = !!supply ||
           !placing &&
           !placingTrap &&
           !placingBuster &&
@@ -1226,6 +1251,8 @@ export class OfficeRoom extends Room {
   rc!: RCCars;
   snapshot(): Snapshot {
     return {
+      supplyRequestReady: !this.supplyDrop.started,
+      supplyDrop: this.supplyDrop.state ? { ...this.supplyDrop.state, items: this.supplyDrop.state.items.map((item) => ({ ...item })) } : undefined,
       rcCars: this.rc.snapshot(),
       serverTime: Date.now(),
       placedMedkits: [...this.pickup.pulseTraps.medkits.values()].map((k) => ({
@@ -1238,6 +1265,7 @@ export class OfficeRoom extends Room {
       owner: this.owner,
       players: [...this.participants].map(([id, p]) => ({
         id,
+        carryingCoreBuster: p.weapons.carryingCoreBuster,
         lookout: this.lookout.snapshot(id),
         lookoutKey: p.player.bossLookoutKey,
         lookoutKills: p.player.bossLookoutKills,
@@ -1370,6 +1398,10 @@ export class OfficeRoom extends Room {
       countdown: this.countdownUntil
         ? Math.max(0, this.countdownUntil - this.time)
         : undefined,
+      seriesStats: this.seriesWinner ? [...this.participants].map(([id, p]) => ({
+        id, name: p.name, team: p.team,
+        ...(this.ledger.totals.get(id) ?? emptyPerformance()),
+      })) : undefined,
       roundStats: [...this.participants].map(([id, p]) => ({
         id,
         name: p.name,
@@ -1398,6 +1430,7 @@ export class OfficeRoom extends Room {
     if (!this.countdownUntil) this.countdownUntil = this.time + 3;
   }
   completeNextRound() {
+    this.supplyDrop.reset();
     this.lookout.reset(this.participants, true);
     this.ledger.resetRound();
     resetRound(
@@ -1412,7 +1445,10 @@ export class OfficeRoom extends Room {
     this.orphanWeapons = [];
     for (const p of this.participants.values()) {
       this.spawn(p);
-      if (p.loadout) applyLoadout(p.weapons, p.loadout);
+      if (p.loadout) {
+        applyLoadout(p.weapons, p.loadout);
+        if ((this.round + 1) % 2 === 0) p.weapons.utilityCount++;
+      }
       if (p.awaitingLoadout) {
         p.player.hp = 0;
         p.player.root.setEnabled(false);
