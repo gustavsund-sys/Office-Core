@@ -2,17 +2,19 @@ import type { World } from "../map/builder";
 import { Damageable } from "../core/damageable";
 
 /** A self-contained indoor practice layout, independent of the match map. */
-export function buildShootingRange(world: World) {
-  world.box("range floor", 0, -0.15, 0, 30, 0.3, 32, "#40515a");
-  for (const x of [-15, 15]) world.box("range wall", x, 2, 0, 0.4, 4, 32, "#273b45", true);
-  for (const z of [-16, 16]) world.box("range wall", 0, 2, z, 30, 4, 0.4, "#273b45", true);
+export const RANGE_X = 500;
+export function buildShootingRange(world: World, offset = 0) {
+  const box = (name: string, x: number, y: number, z: number, w: number, h: number, d: number, color: string, solid = false) => world.box(name, x + offset, y, z, w, h, d, color, solid);
+  box("range floor", 0, -0.15, 0, 30, 0.3, 32, "#40515a");
+  for (const x of [-15, 15]) box("range wall", x, 2, 0, 0.4, 4, 32, "#273b45", true);
+  for (const z of [-16, 16]) box("range wall", 0, 2, z, 30, 4, 0.4, "#273b45", true);
   for (const x of [-10, -5, 0, 5, 10])
-    world.box("range lane", x, 0.01, 0, 0.06, 0.02, 28, "#a8c4bd");
+    box("range lane", x, 0.01, 0, 0.06, 0.02, 28, "#a8c4bd");
   for (const z of [-5, 0, 5, 10])
-    world.box("range distance marker", 0, 0.02, z, 28, 0.025, 0.05, "#839991");
-  world.label("OFFICE CORE · SHOOTING RANGE", 0, 13, "#75decf", 4);
-  world.coreDoor("BLUE", 12, 8, 2, 0.5);
-  return [-10, -5, 0, 5, 10].map((x) => new Damageable(world, "target", x, 8));
+    box("range distance marker", 0, 0.02, z, 28, 0.025, 0.05, "#839991");
+  world.label("OFFICE CORE · SHOOTING RANGE", offset, 13, "#75decf", 4);
+  world.coreDoor("BLUE", offset + 12, 8, 2, 0.5);
+  return [-10, -5, 0, 5, 10].map((x) => new Damageable(world, "target", x + offset, 8));
 }
 
 export function rangeRoomStatus(room: { players: unknown[]; capacity: number; started: boolean }, wasFull: boolean) {
@@ -22,11 +24,12 @@ export function rangeRoomStatus(room: { players: unknown[]; capacity: number; st
 }
 
 /** Poll independently of gameplay so a full match never blocks practice. */
-export function installRangeStatus(endpoint: string) {
+export function installRangeStatus(endpoint: string, onReturn?: () => void) {
   const panel = document.createElement("aside");
   panel.className = "range-server-status";
   panel.innerHTML = '<strong>OFFICE01 · SERVERSTATUS</strong><span role="status" aria-live="polite">Kontrollerar servern…</span><a href="/">TILL SERVERLOBBYN ↗</a>';
   document.body.append(panel);
+  if (onReturn) panel.querySelector("a")!.onclick = (event) => { event.preventDefault(); cleanup(); onReturn(); };
   const status = panel.querySelector("span")!;
   let wasFull = false;
   let busy = false;
@@ -60,5 +63,7 @@ export function installRangeStatus(endpoint: string) {
   };
   void check();
   const interval = window.setInterval(() => void check(), 5000);
-  window.addEventListener("pagehide", () => window.clearInterval(interval), { once: true });
+  const cleanup = () => { window.clearInterval(interval); panel.remove(); };
+  window.addEventListener("pagehide", cleanup, { once: true });
+  return cleanup;
 }

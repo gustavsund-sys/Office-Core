@@ -8,6 +8,7 @@ import { office01 } from "../maps/office01";
 import type { Game } from "./game";
 type Context = Pick<
   Game,
+  | "rangeMode"
   | "rc"
   | "camera"
   | "cameraTarget"
@@ -49,8 +50,10 @@ export function updateCamera(this: Context, dt: number) {
     0,
     edge - c.viewSize / 2 / Math.sin((c.angle * Math.PI) / 180),
   );
-  desired.x = Math.max(-limitX, Math.min(limitX, desired.x));
-  desired.z = Math.max(-limitZ, Math.min(limitZ, desired.z));
+  if (!this.rangeMode) {
+    desired.x = Math.max(-limitX, Math.min(limitX, desired.x));
+    desired.z = Math.max(-limitZ, Math.min(limitZ, desired.z));
+  }
   Vector3.LerpToRef(
     this.cameraTarget,
     desired,

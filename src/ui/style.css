@@ -4580,7 +4580,28 @@ dialog.whats-new {
 #comeback-status { position: absolute; top: 112px; left: 18px; padding: 8px 11px; color: #e8f4ed; background: #142f3cdd; border-left: 3px solid #ffc969; font-size: 11px; font-weight: 700; letter-spacing: .04em; }
 #comeback-status[hidden] { display: none; }
 
-.practice-link { display: block; margin-top: 10px; color: #a4e5dc; font-size: 11px; font-weight: 700; }
+.network-lobby .practice-link {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid #507d7c;
+  border-left: 3px solid #79d5c6;
+  border-radius: 4px;
+  background: linear-gradient(120deg, #17363d, #11272e);
+  color: #def3ed;
+  text-decoration: none;
+  transition: background 0.15s, border-color 0.15s;
+}
+.network-lobby .practice-link:hover, .network-lobby .practice-link:focus-visible {
+  background: #24505a;
+  border-color: #a5ebdb;
+  outline: 2px solid #a5ebdb;
+  outline-offset: 2px;
+}
+.network-lobby .practice-link strong { color: #a5ebdb; font-size: 13px; letter-spacing: .08em; }
+.network-lobby .practice-link span { color: #c4d9d4; font-size: 11px; font-weight: 400; }
+.network-lobby .practice-link b { color: #ffcf75; font-size: 11px; letter-spacing: .04em; }
 .range-server-status,.range-controls { position: fixed; z-index: 30; color: #ebf7f4; background: #102630ed; border: 1px solid #5b8585; border-radius: 7px; padding: 10px 12px; display: grid; gap: 7px; font-size: 11px; max-width: min(300px, 44vw); }
 .range-server-status { top: 10px; right: 12px; }
 .range-server-status span { color: #ffc570; }
@@ -4599,3 +4620,5 @@ dialog.whats-new {
 #supply-request { position:absolute; top:160px; left:50%; transform:translateX(-50%); display:flex; gap:8px; align-items:center; padding:8px 12px; background:#172e35ed; color:#ffe1a3; border:1px solid #b98c3b; border-radius:5px; font-size:11px; font-weight:700; }
 #supply-request button { padding:7px 10px; white-space:nowrap; background:#8b5f1d; }
 #supply-request[hidden], #supply-request button[hidden] { display:none; }
+
+.range-controls[hidden], .range-server-status[hidden] { display: none !important; }

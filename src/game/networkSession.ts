@@ -12,6 +12,7 @@ import { Multiplayer } from "../network/client";
 import type { Game } from "./game";
 type Context = Pick<
   Game,
+  | "enterShootingRange"
   | "boss"
   | "applyOnline"
   | "beaconAudio"
@@ -48,7 +49,8 @@ export function installMultiplayer(this: Context) {
   this.lobby.el.before(panel);
   const practice = document.createElement("a");
   practice.href = "?playtest=1&range=1";
-  practice.textContent = "ÖPPNA SHOOTING RANGE";
+  practice.addEventListener("click", (event) => { event.preventDefault(); this.enterShootingRange(); });
+  practice.innerHTML = "<strong>SHOOTING RANGE</strong><span>Träna med vapen och skills medan du väntar</span><b>ÖPPNA TRÄNINGSBANAN →</b>";
   practice.className = "practice-link";
   panel.querySelector("#available-rooms")!.after(practice);
   this.lobby.el.hidden = true;

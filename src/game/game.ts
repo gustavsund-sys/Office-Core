@@ -1,3 +1,4 @@
+import { ShootingRangeWelcome } from "../audio/shootingRangeWelcome";
 import { SupplyDropLandingAudio } from "../audio/supplyDropLanding";
 import { CoreAttackAnnouncement } from "../audio/coreAttackAnnouncement";
 import { CombatAnnouncements } from "../audio/combatAnnouncements";
@@ -7,7 +8,7 @@ import { BrokenCables } from "./brokenCables";
 import { SupplyDropAudio } from "../audio/supplyDrop";
 import { SupplyDrop } from "./supplyDrop";
 import { SupplyDropVisuals } from "./supplyDropVisuals";
-import { buildShootingRange, installRangeStatus } from "./shootingRange";
+import { buildShootingRange, installRangeStatus, RANGE_X } from "./shootingRange";
 import { updateEnvironmentEffects } from "./environmentEffects";
 import { createGameGlow } from "./compatibleGlow";
 import { gpuInvestigation, effectiveGPUConfig } from "./gpuInvestigation";
@@ -107,8 +108,11 @@ import { Multiplayer } from "../network/client";
 import { MSG, type Snapshot, type NetInput } from "../../shared/protocol";
 export class Game {
   startupPreparing = true;
-  readonly rangeMode = new URLSearchParams(location.search).get("range") === "1";
+  rangeMode = new URLSearchParams(location.search).get("range") === "1";
   rangeTargets: Damageable[] = [];
+  rangeWelcome = new ShootingRangeWelcome();
+  private rangeExit?: () => void;
+  private rangeMeshes: import("@babylonjs/core").AbstractMesh[] = [];
   rc!: RCSession;
   boss?: BossLookout;
   private lookoutEntryFilm = new LookoutEntryFilm();
@@ -597,10 +601,11 @@ export class Game {
       )
       .join("")}<small>Nivåerna sparas på denna enhet.</small></details>`;
     document.body.append(panel);
-    if (this.rangeMode) {
-      this.testShootingEnabled = false;
+    {
+      if (this.rangeMode) this.testShootingEnabled = false;
       const range = document.createElement("aside");
       range.className = "range-controls";
+      range.hidden = !this.rangeMode;
       range.innerHTML = `<strong>SHOOTING RANGE</strong><span>Välj vapen eller skill. Måltavlorna återkommer automatiskt.</span><div class="range-weapons">${Object.entries(WEAPONS).map(([id, data]) => `<button data-weapon="${id}">${data.name}</button>`).join("")}</div><div class="range-skills"><button data-skill="pulseTrap">PULSE TRAP</button><button data-skill="rcCar">RC BOMBER</button><button data-skill="superMedkit">SUPER MEDKIT</button><button data-skill="beacon">DEFENSIVE BEACON</button></div><button data-heal-test>TESTA SKADA · 20 HP</button>`;
       document.body.append(range);
       range.querySelectorAll<HTMLButtonElement>("[data-weapon]").forEach((button) => button.addEventListener("click", () => {
@@ -719,7 +724,7 @@ export class Game {
       });
     panel.querySelector("#test-beacon")!.addEventListener("click", () => {
       if (
-        this.multiplayer ||
+        this.multiplayer?.room ||
         !this.match.started ||
         this.match.winner ||
         this.player.hp <= 0
@@ -731,7 +736,7 @@ export class Game {
     });
     panel.querySelector("#test-pulse-trap")!.addEventListener("click", () => {
       if (
-        this.multiplayer ||
+        this.multiplayer?.room ||
         !this.match.started ||
         this.match.winner ||
         this.player.hp <= 0
@@ -743,7 +748,7 @@ export class Game {
     });
     panel.querySelector("#test-rc-car")!.addEventListener("click", () => {
       if (
-        this.multiplayer ||
+        this.multiplayer?.room ||
         !this.match.started ||
         this.match.winner ||
         this.player.hp <= 0 ||
@@ -757,7 +762,7 @@ export class Game {
     });
     panel.querySelector("#view-test-trap")!.addEventListener("click", () => {
       if (
-        this.multiplayer ||
+        this.multiplayer?.room ||
         !this.match.started ||
         this.match.winner ||
         this.player.hp <= 0
@@ -944,6 +949,7 @@ export class Game {
     window.addEventListener("resize", () => this.resize());
     window.addEventListener("pointerdown", () => {
       if (this.startupPreparing) return;
+      if (this.rangeMode) this.rangeWelcome.play(this.sound);
       this.updateLobbyMusic(true);
       if (this.sound && this.audio?.state === "suspended")
         void this.audio.resume();
@@ -1109,6 +1115,46 @@ export class Game {
         firstFrame = false;
       }
     }, onError);
+  }
+  enterShootingRange() {
+    if (this.multiplayer?.room || this.rangeMode) return;
+    this.rangeMode = true;
+    if (!this.rangeTargets.length) {
+      const existing = new Set(this.scene.meshes);
+      this.rangeTargets = buildShootingRange(this.world, RANGE_X);
+      this.rangeMeshes = this.scene.meshes.filter((mesh) => !existing.has(mesh));
+    }
+    this.rangeMeshes.forEach((mesh) => mesh.setEnabled(true));
+    document.body.classList.add("shooting-range-mode");
+    document.querySelector<HTMLElement>(".range-controls")!.hidden = false;
+    this.match.start("RED");
+    CONFIG.player.team = "RED";
+    this.player.root.position.set(RANGE_X, 0, -10);
+    this.player.hp = 100;
+    this.player.resetVitals();
+    this.player.root.setEnabled(true);
+    this.player.setViewVisibility(1);
+    this.player.verticalVelocity = 0;
+    this.cameraTarget.copyFrom(this.player.root.position);
+    this.updateCamera(10);
+    this.rangeExit = installRangeStatus(import.meta.env.VITE_GAME_SERVER_URL || "ws://127.0.0.1:2567", () => this.leaveShootingRange());
+    this.prepareAudio();
+    this.rangeWelcome.play(this.sound);
+    this.setPaused(false);
+  }
+  leaveShootingRange() {
+    if (!this.rangeMode) return;
+    this.rangeMode = false;
+    this.rangeExit?.(); this.rangeExit = undefined;
+    this.rangeMeshes.forEach((mesh) => mesh.setEnabled(false));
+    document.body.classList.remove("shooting-range-mode");
+    document.querySelector<HTMLElement>(".range-controls")!.hidden = true;
+    this.match.started = false;
+    this.player.root.position.set(office01.spawn.x, 0, office01.spawn.z);
+    this.player.hp = 100; this.player.resetVitals();
+    this.cameraTarget.copyFrom(this.player.root.position);
+    this.updateCamera(10);
+    this.setPaused(true);
   }
   installMultiplayer() {
     return installMultiplayerImpl.call(this);
@@ -1297,7 +1343,7 @@ export class Game {
           const base = office01.bases.find(
             (base) => base.team === CONFIG.player.team,
           )!;
-          this.player.root.position.set(this.rangeMode ? 0 : base.spawn.x, 0, this.rangeMode ? -10 : base.spawn.z);
+          this.player.root.position.set(this.rangeMode ? (this.rangeMeshes.length ? RANGE_X : 0) : base.spawn.x, 0, this.rangeMode ? -10 : base.spawn.z);
           this.player.verticalVelocity = 0;
           this.player.knockbackX = 0;
           this.player.knockbackZ = 0;
@@ -1595,7 +1641,7 @@ export class Game {
       this.world.destructibles.forEach((o) => o.update(dt));
       this.world.explosions.update(dt);
       this.world.blood.update(dt);
-      finishLocalRound.call(this);
+      if (!this.rangeMode) finishLocalRound.call(this);
     }
     updateEnvironmentEffects(this, dt);
     const alarmTeam =
