@@ -13,6 +13,11 @@ import type { Game } from "./game";
 type Context = Pick<
   Game,
   | "enterShootingRange"
+  | "setPaused"
+  | "loadout"
+  | "input"
+  | "onlineSpawned"
+  | "pendingInputs"
   | "boss"
   | "applyOnline"
   | "beaconAudio"
@@ -49,7 +54,13 @@ export function installMultiplayer(this: Context) {
   this.lobby.el.before(panel);
   const practice = document.createElement("a");
   practice.href = "?playtest=1&range=1";
-  practice.addEventListener("click", (event) => { event.preventDefault(); this.enterShootingRange(); });
+  practice.addEventListener("click", (event) => {
+    event.preventDefault();
+    void (async () => {
+      if (this.multiplayer?.room) await returnToMenu();
+      this.enterShootingRange();
+    })();
+  });
   practice.innerHTML = "<strong>SHOOTING RANGE</strong><span>Träna med vapen och skills medan du väntar</span><b>ÖPPNA TRÄNINGSBANAN →</b>";
   practice.className = "practice-link";
   panel.querySelector("#available-rooms")!.after(practice);
@@ -66,30 +77,57 @@ export function installMultiplayer(this: Context) {
     "Anslut till lobbyn för att se spelare och chatta.";
   const play = document.querySelector<HTMLButtonElement>("#play")!;
   play.hidden = true;
-  const net = (this.multiplayer ??= new Multiplayer());
+  let net = (this.multiplayer ??= new Multiplayer());
   let busy = false;
   let refreshing = false;
   net.onStatus = (text) => {
     panel.querySelector("#network-status")!.textContent = text;
   };
-  panel.querySelector("#leave-room")!.addEventListener("click", async () => {
-    const button = panel.querySelector<HTMLButtonElement>("#leave-room")!;
-    button.disabled = true;
-    try {
-      await this.multiplayer?.leave();
-    } finally {
-      location.reload();
-    }
-  });
   const leaveInGame = document.createElement("button");
   leaveInGame.id = "leave-game";
   leaveInGame.textContent = "LÄMNA LOBBY";
   leaveInGame.hidden = true;
   this.hud.el.querySelector("header")!.append(leaveInGame);
-  leaveInGame.addEventListener("click", () => {
-    leaveInGame.disabled = true;
-    panel.querySelector<HTMLButtonElement>("#leave-room")!.click();
-  });
+  const returnToMenu = async () => {
+    if (busy) return;
+    busy = true;
+    const old = net;
+    try {
+      await old.leave();
+    } catch (error) {
+      console.warn("Could not close the room cleanly", error);
+    } finally {
+      net = this.multiplayer = new Multiplayer();
+      net.onStatus = (message) => { panel.querySelector("#network-status")!.textContent = message; };
+      this.boss?.exit();
+      this.rc.reset();
+      for (const player of this.onlinePlayers.values()) player.root.dispose();
+      this.onlinePlayers.clear();
+      for (const trace of this.onlineTraces) trace.mesh.dispose();
+      this.onlineTraces.length = 0;
+      this.pendingInputs = [];
+      this.onlineSpawned = false;
+      this.remoteCombatAnnouncements.clear();
+      this.match.started = false; this.match.winner = undefined;
+      this.loadout.el.hidden = true; this.loadout.confirmed = false;
+      this.lobby.el.disabled = false; this.lobby.el.hidden = true;
+      panel.querySelector<HTMLElement>("#available-rooms")!.hidden = false;
+      panel.querySelector("h3")!.textContent = "OFFICE01 · MULTIPLAYER";
+      panel.querySelector("p")!.textContent = "Välj ditt namn och anslut till en lobby. Därefter väljer du lag och chattar med spelarna.";
+      panel.querySelector("#available-rooms")!.before(nameField);
+      panel.append(musicButton);
+      musicButton.disabled = false;
+      panel.querySelector<HTMLButtonElement>("#leave-room")!.hidden = true;
+      leaveInGame.hidden = true; leaveInGame.disabled = false;
+      play.hidden = true; play.disabled = false;
+      this.player.root.setEnabled(true);
+      this.setPaused(true);
+      busy = false;
+      void refresh();
+    }
+  };
+  panel.querySelector("#leave-room")!.addEventListener("click", () => void returnToMenu());
+  leaveInGame.addEventListener("click", () => void returnToMenu());
   const connect = async (id: string) => {
     if (!this.lobby.validName()) return;
     if (this.multiplayer?.room || busy) return;
