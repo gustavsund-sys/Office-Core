@@ -63,6 +63,29 @@ export class SupplyDropVisuals {
       box("supply crate", 0, 1.1, 0, 2.8, 2.2, 2.5, "#716340");
       for (const x of [-1.0, 1.0]) box("crate metal strap", x, 1.1, 0, 0.16, 2.28, 2.58, "#263b40");
       box("crate lid", 0, 2.25, 0, 2.95, 0.18, 2.65, "#a38b58");
+      // Reinforced shipping crate with panel seams, corner guards and lid latches.
+      for (const z of [-1.27, 1.27]) {
+        for (const y of [0.55, 1.1, 1.65])
+          box("crate panel seam", 0, y, z, 2.75, 0.025, 0.025, "#4f4937");
+        for (const x of [-1.32, 1.32])
+          box("crate corner guard", x, 1.1, z, 0.19, 2.24, 0.09, "#38464b");
+        for (const x of [-1, 1]) {
+          box("crate lid latch", x, 2.03, z * 1.025, 0.28, 0.3, 0.07, "#a1a9a6");
+          box("crate latch catch", x, 2.02, z * 1.06, 0.1, 0.12, 0.04, "#344047");
+        }
+        box("supply identification plate", 0, 1.35, z * 1.025, 1.02, 0.6, 0.035, "#d2bc7c");
+        box("supply plate marking", 0, 1.35, z * 1.05, 0.65, 0.09, 0.02, "#333e40");
+      }
+      for (const x of [-1.43, 1.43]) {
+        box("crate carrying handle", x, 1.55, 0, 0.08, 0.14, 0.65, "#354449");
+        for (const z of [-0.29, 0.29])
+          box("handle mount", x, 1.42, z, 0.09, 0.25, 0.12, "#687579");
+      }
+      for (const x of [-1.15, 1.15]) for (const z of [-1.05, 1.05]) {
+        const eye = MeshBuilder.CreateTorus("cargo suspension eye", { diameter: 0.22, thickness: 0.055, tessellation: 12 }, this.world.scene);
+        eye.parent = load; eye.position.set(x, 2.4, z); eye.rotation.x = Math.PI / 2;
+        eye.material = this.world.mat("#a4aaa0"); eye.isPickable = false;
+      }
       // Inflated round cargo canopy: individual gores bulge between stitched seams.
       // The skirt turns inward slightly, leaving a visibly open, shaded underside.
       const gores = 28;
@@ -122,7 +145,14 @@ export class SupplyDropVisuals {
     if (!falling && this.wasFalling) this.landedAt = performance.now();
     this.wasFalling = falling;
     this.load!.setEnabled(falling);
-    this.load!.position.y = supplyDropHeight(state.remaining);
+    // Use descent time, so all clients see the same sway. Settle before touchdown.
+    const elapsed = SUPPLY_DESCENT - Math.max(0, Math.min(SUPPLY_DESCENT, state.remaining));
+    const settle = Math.min(1, Math.max(0, state.remaining) / 4);
+    const amplitude = settle * settle * (3 - 2 * settle);
+    this.load!.position.set(Math.sin(elapsed * 1.05) * 0.45 * amplitude,
+      supplyDropHeight(state.remaining), Math.sin(elapsed * 0.8) * 0.3 * amplitude);
+    this.load!.rotation.set(Math.sin(elapsed * 0.8) * 0.025 * amplitude,
+      Math.sin(elapsed * 0.38) * 0.09 * amplitude, Math.sin(elapsed * 1.05) * 0.035 * amplitude);
     const t = this.landedAt ? Math.min(1, (performance.now() - this.landedAt) / 650) : 1;
     const spread = 1 - (1 - t) * (1 - t);
     this.items.forEach((item, i) => {

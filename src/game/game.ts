@@ -1,3 +1,8 @@
+import { SupplyDropLandingAudio } from "../audio/supplyDropLanding";
+import { CoreAttackAnnouncement } from "../audio/coreAttackAnnouncement";
+import { CombatAnnouncements } from "../audio/combatAnnouncements";
+import { RoundSpawnAudio } from "../audio/roundSpawn";
+import { SupplyDropRequestAudio } from "../audio/supplyDropRequest";
 import { BrokenCables } from "./brokenCables";
 import { SupplyDropAudio } from "../audio/supplyDrop";
 import { SupplyDrop } from "./supplyDrop";
@@ -177,7 +182,13 @@ export class Game {
   localLedger = new CombatLedger();
   localSupply = new SupplyDrop();
   supplyVisuals!: SupplyDropVisuals;
+  coreAttackAnnouncement = new CoreAttackAnnouncement();
+  combatAnnouncements = new CombatAnnouncements();
+  remoteCombatAnnouncements = new Map<string, CombatAnnouncements>();
+  roundSpawnAudio = new RoundSpawnAudio();
   supplyAudio = new SupplyDropAudio();
+  supplyLandingAudio = new SupplyDropLandingAudio();
+  supplyRequestAudio = new SupplyDropRequestAudio();
   brokenCables?: BrokenCables;
   lastTeamPing = -10;
   localCountdown = 0;
@@ -1217,7 +1228,44 @@ export class Game {
     const atZone = office01.weaponEnds.some((zone) => (supplyTeam === "RED" ? zone.x < 0 : zone.x > 0) && Math.hypot(this.player.root.position.x - zone.x, this.player.root.position.z - zone.z) <= 8);
     this.hud.supplyRequest(canRequest, atZone, () => this.requestSupply());
     const supplyState = this.multiplayer?.room ? supplySnapshot?.supplyDrop : this.localSupply.state;
+    const listenerTeam = this.multiplayer?.room
+      ? supplySnapshot?.players.find((p) => p.id === this.multiplayer?.room?.sessionId)?.team
+      : CONFIG.player.team as Team;
+    this.supplyRequestAudio.update(supplyState, listenerTeam, this.sound && !this.paused);
+    const onlineSelf = supplySnapshot?.players.find((p) => p.id === this.multiplayer?.room?.sessionId);
+    this.coreAttackAnnouncement.update(
+      this.multiplayer?.room ? !!supplySnapshot?.started : this.match.started,
+      this.multiplayer?.room ? supplySnapshot?.round ?? 1 : this.currentRound,
+      this.multiplayer?.room ? supplySnapshot?.cores ?? [] : this.cores,
+      this.sound && !this.paused, listenerTeam,
+    );
+    this.combatAnnouncements.update(
+      this.multiplayer?.room ? !!supplySnapshot?.started : this.match.started,
+      this.multiplayer?.room ? supplySnapshot?.round ?? 1 : this.currentRound,
+      this.multiplayer?.room ? onlineSelf?.hp ?? 0 : this.player.hp,
+      this.sound && !this.paused,
+    );
+    const remoteActors = this.multiplayer?.room
+      ? (supplySnapshot?.players ?? []).filter((p) => p.id !== this.multiplayer?.room?.sessionId)
+      : this.testPlayer ? [{ id: "bot", hp: this.testPlayer.hp, x: this.testPlayer.root.position.x, z: this.testPlayer.root.position.z }] : [];
+    for (const actor of remoteActors) {
+      let announcements = this.remoteCombatAnnouncements.get(actor.id);
+      if (!announcements) this.remoteCombatAnnouncements.set(actor.id, announcements = new CombatAnnouncements());
+      announcements.update(this.multiplayer?.room ? !!supplySnapshot?.started : this.match.started,
+        this.multiplayer?.room ? supplySnapshot?.round ?? 1 : this.currentRound,
+        actor.hp, this.sound && !this.paused,
+        Math.hypot(actor.x - this.player.root.position.x, actor.z - this.player.root.position.z));
+    }
+    this.roundSpawnAudio.update(
+      this.multiplayer?.room ? !!supplySnapshot?.started : this.match.started,
+      this.multiplayer?.room ? supplySnapshot?.round ?? 1 : this.currentRound,
+      listenerTeam,
+      this.multiplayer?.room ? !!onlineSelf && onlineSelf.hp > 0 : this.player.hp > 0,
+      this.sound && !this.paused,
+    );
     const supplyActive = this.multiplayer?.room ? !!supplySnapshot?.started && !supplySnapshot.winner : this.match.started && !this.match.winner;
+    this.supplyLandingAudio.update(supplyActive ? supplyState : undefined, this.sound && !this.paused,
+      supplyState ? Math.hypot(this.player.root.position.x - supplyState.x, this.player.root.position.z - supplyState.z) : 0);
     this.supplyAudio.update(!!supplyActive && !!supplyState && supplyState.remaining > 0, this.sound && !this.paused, supplyState ? Math.hypot(this.player.root.position.x - supplyState.x, this.player.root.position.z - supplyState.z) : 0);
     if (!this.paused) this.updateInjuryEffects(dt);
     if (this.multiplayer?.room) {
@@ -1976,7 +2024,9 @@ export class Game {
         const defending = Math.hypot(position.x - base.x, position.z - base.z) <= 12;
         this.localLedger.kill(id, entry[0], this.time, defending);
         if (id === "local" && defending) this.boss?.recordSupport(1);
+        if (id === "bot" && this.testPlayer) this.remoteCombatAnnouncements.get("bot")?.kill(this.sound && !this.paused, Vector3.Distance(this.testPlayer.root.position, this.player.root.position));
         if (id === "local") {
+          this.combatAnnouncements.kill(this.sound && !this.paused);
           this.engagement.confirm(true);
           this.engagementAudio?.hit(true);
         }

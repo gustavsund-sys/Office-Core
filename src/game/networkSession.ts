@@ -1,3 +1,4 @@
+import { CombatAnnouncements } from "../audio/combatAnnouncements";
 import { shard, beam, flash as pooledFlash } from "./effectPool";
 
 import { Vector3 } from "@babylonjs/core";
@@ -16,6 +17,8 @@ type Context = Pick<
   | "beaconAudio"
   | "beaconImpact"
   | "beaconShot"
+  | "combatAnnouncements"
+  | "remoteCombatAnnouncements"
   | "engagement"
   | "engagementAudio"
   | "hud"
@@ -199,7 +202,15 @@ export function installMultiplayer(this: Context) {
         this.engagement.impact(position, material, event.destroyed);
         this.engagementAudio?.impact(material, distance, event.destroyed);
       }
+      if (event.kind === "kill" && event.player && event.player !== net.room?.sessionId) {
+        let announcements = this.remoteCombatAnnouncements.get(event.player);
+        if (!announcements) this.remoteCombatAnnouncements.set(event.player, announcements = new CombatAnnouncements());
+        const shooter = net.snapshot?.players.find((p) => p.id === event.player);
+        const range = shooter ? Math.hypot(shooter.x - this.player.root.position.x, shooter.z - this.player.root.position.z) : Infinity;
+        announcements.kill(this.sound, range);
+      }
       if (event.kind === "kill" && event.player === net.room?.sessionId) {
+        this.combatAnnouncements.kill(this.sound);
         this.engagement.confirm(true);
         this.engagementAudio?.hit(true);
       }
@@ -307,6 +318,8 @@ export function installMultiplayer(this: Context) {
           event.explosionStyle,
         );
       if (event.kind === "death") {
+        if (event.player === net.room?.sessionId) this.combatAnnouncements.death();
+        else if (event.player) this.remoteCombatAnnouncements.get(event.player)?.death();
         if (event.death) this.hud.combatDeath(event.death);
         this.world.explosions.playerDeath(position, TEAMS[event.team ?? "RED"]);
         if (this.sound)
