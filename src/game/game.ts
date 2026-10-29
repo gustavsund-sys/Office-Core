@@ -765,28 +765,6 @@ export class Game {
       this.hud.toast("TESTSKYTT · SIKTAR UTAN ATT SKJUTA · HÅLL C FÖR SKYDD");
     });
     enterTurretTest.after(sniperTest);
-    const rifleLookoutTest = document.createElement("button");
-    rifleLookoutTest.textContent = "TEST: SIKTA MOT LOOKOUT";
-    rifleLookoutTest.addEventListener("click", () => {
-      if (
-        !this.boss ||
-        this.multiplayer?.room ||
-        !this.match.started ||
-        this.player.hp <= 0
-      )
-        return;
-      this.boss.exit();
-      this.rifleScope?.exit();
-      const side = CONFIG.player.team === "RED" ? 1 : -1;
-      const target = lookoutPose(side).station.add(
-        new Vector3(-side * LOOKOUT.eyeOffset, LOOKOUT.eyeHeight, 0),
-      );
-      this.player.root.position.set(target.x - side * 80, 0, 0);
-      this.weapons.equip("huntingRifle");
-      this.rifleScope?.aimAt(target);
-      this.hud.toast("GEVÄRSTEST · SIKTAR MOT MOTSTÅNDARNAS BOSS LOOKOUT");
-    });
-    sniperTest.after(rifleLookoutTest);
     panel.querySelector("#test-low-hp")!.addEventListener("click", () => {
       if (this.player.hp <= 0) return;
       this.player.hp = 20;
@@ -874,15 +852,7 @@ export class Game {
       this.player,
       this.input,
       this.camera,
-      () =>
-        this.match.started &&
-        !this.paused &&
-        !this.boss?.active &&
-        !this.rc.locked &&
-        this.player.hp > 0 &&
-        this.weapons.id === "huntingRifle" &&
-        !this.weapons.pulseTrapSelected &&
-        !this.weapons.carryingBeacon,
+      () => false,
     );
     this.sniperGlints = new SniperGlints(this.world);
 

@@ -15,7 +15,7 @@ export function installMobilePlatform() {
       "Vänster spak flyttar spelaren oberoende av siktet. Ju längre ut du drar, desto snabbare går du. Över 90 % börjar du springa. Höger spak siktar; dess yttersta 5 % skjuter. Håll DUCKA för att ta skydd.",
     movementTips: [
       "HOPPA: hoppa · ANVÄND: plocka upp / desarmera · Ⅱ: paus",
-      "Tryck på inventarieraden för att välja pistol, specialvapen eller skill. SIKTE öppnar Hunting Rifles kikarsikte.",
+      "Tryck på inventarieraden för att välja pistol, specialvapen eller skill.",
     ],
     plant:
       "Core Buster: välj vapnet och tryck PLACERA. Skydda laddningen tills den exploderar.",

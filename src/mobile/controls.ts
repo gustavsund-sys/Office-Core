@@ -125,7 +125,6 @@ export class MobileControls {
     bindMobilePress(this.scopeButton, () => {
       if (!this.playable()) return false;
       if (game.boss?.active) game.boss.toggleScope();
-      else game.rifleScope?.toggle();
     });
     for (const [name, code] of [
       ["reload", "KeyR"],
@@ -334,8 +333,7 @@ export class MobileControls {
       if (action !== this.interaction) this.setInteraction(action);
       this.interactionElapsed = 0;
     }
-    this.scopeButton.hidden =
-      !this.game.boss?.active && this.game.weapons.id !== "huntingRifle";
+    this.scopeButton.hidden = !this.game.boss?.active;
     this.exitButton.hidden = !this.game.boss?.active;
     const warcry = this.button("warcry");
     const shield = this.game.player.invulnerable;

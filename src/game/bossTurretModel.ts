@@ -147,11 +147,6 @@ export function bossTurretModel(world: World): Mesh {
   handle.material = world.finish("#343f3b", "metal");
   handle.isPickable = false;
   box("feed port", -0.09, 0.025, 0.02, 0.045, 0.07, 0.14, "#1d2a2b");
-  for (let i = 0; i < 7; i++) {
-    const x = -0.12 - i * 0.025,
-      y = 0.04 - Math.max(0, i - 2) * 0.018;
-    box("belt link", x, y, 0.005, 0.021, 0.024, 0.022, "#3a4643");
-  }
   box("charging handle", 0.1, 0.025, -0.06, 0.085, 0.025, 0.035, "#8d9889");
   for (const x of [-0.077, 0.077])
     for (const z of [-0.15, 0.05, 0.17])
@@ -285,34 +280,6 @@ export function bossTurretModel(world: World): Mesh {
   for (const z of [-0.075, 0.105]) {
     box("ammunition can strap", -0.352, -0.17, z, 0.01, 0.22, 0.018, edge);
     box("ammunition lid clasp", -0.358, -0.07, z, 0.014, 0.04, 0.026, steel);
-  }
-  for (let i = 0; i < 7; i++) {
-    const x = -0.12 - i * 0.025;
-    const y = 0.04 - Math.max(0, i - 2) * 0.018;
-    const cartridge = tube(
-      "rounded brass cartridge",
-      0.025,
-      0.105,
-      0.017,
-      "#b49c61",
-      y,
-    );
-    cartridge.position.x = x;
-    const tip = MeshBuilder.CreateCylinder(
-      "copper cartridge tip",
-      {
-        diameterTop: 0.003,
-        diameterBottom: 0.017,
-        height: 0.025,
-        tessellation: 6,
-      },
-      world.scene,
-    );
-    tip.rotation.x = Math.PI / 2;
-    tip.position.set(x, y, 0.09);
-    tip.parent = root;
-    tip.material = world.finish("#b49c61", "metal");
-    tip.isPickable = false;
   }
   return finishStaticModel(world, "Boss M60 turret", root);
 }

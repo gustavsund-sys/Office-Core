@@ -74,6 +74,9 @@ export class BossLookout {
   private savedMinZ = 1;
   private rounds?: LookoutRounds;
   private turrets = new Map<number, LookoutRig>();
+  private beltRounds = new Map<Mesh, Mesh[]>();
+  private beltPhase = new Map<Mesh, number>();
+  private casings: { mesh: Mesh; velocity: Vector3; life: number }[] = [];
   private atmosphere?: LookoutAtmosphere;
   private held: Mesh;
   private viewGun: Mesh;
@@ -112,6 +115,7 @@ export class BossLookout {
     for (const side of [-1, 1])
       this.turrets.set(side, buildLookoutRoom(world, side, LOOKOUT.height));
     this.viewGun = this.turrets.get(-1)!.gun;
+    for (const rig of this.turrets.values()) this.createBelt(rig.gun);
     window.addEventListener("pointermove", (e) => {
       if (!this.active || this.paused()) return;
       const center = lookoutPose(this.side).yaw;
@@ -377,6 +381,58 @@ export class BossLookout {
     this.view.getViewMatrix(true);
     return true;
   }
+  private createBelt(gun: Mesh) {
+    const rounds: Mesh[] = [];
+    for (let i = 0; i < 7; i++) {
+      const round = MeshBuilder.CreateCylinder("turret belt cartridge", { diameter: 0.017, height: 0.105, tessellation: 8 }, this.world.scene);
+      round.rotation.x = Math.PI / 2;
+      round.parent = gun;
+      round.material = this.world.finish("#b49c61", "metal");
+      round.isPickable = false;
+      const link = this.world.box("turret belt link", 0, 0, 0, 0.021, 0.024, 0.022, "#3a4643");
+      link.parent = round;
+      link.isPickable = false;
+      rounds.push(round);
+    }
+    this.beltRounds.set(gun, rounds);
+    this.positionBelt(gun, 0);
+  }
+  private positionBelt(gun: Mesh, phase: number) {
+    this.beltRounds.get(gun)?.forEach((round, i) => {
+      const index = (i - phase % 1 + 7) % 7;
+      round.position.set(-0.095 - index * 0.025, 0.04 - Math.max(0, index - 2) * 0.018, 0.025);
+    });
+  }
+  private turretShot(gun: Mesh) {
+    if (!this.beltPhase || !gun) return;
+    this.beltPhase.set(gun, (this.beltPhase.get(gun) ?? 0) + 1);
+    const matrix = gun.computeWorldMatrix(true);
+    const shell = MeshBuilder.CreateCylinder("ejected turret casing", { diameter: 0.018, height: 0.075, tessellation: 8 }, this.world.scene);
+    shell.material = this.world.finish("#b49c61", "metal");
+    shell.isPickable = false;
+    shell.position.copyFrom(Vector3.TransformCoordinates(new Vector3(0.1, 0.01, 0), matrix));
+    const velocity = Vector3.TransformNormal(new Vector3(1.6, 1.1, -0.3), matrix);
+    this.casings.push({ mesh: shell, velocity, life: 1.2 });
+    if (this.casings.length > 30) this.casings.shift()!.mesh.dispose();
+  }
+  private updateTurretEffects(dt: number) {
+    if (!this.beltPhase || !this.casings) return;
+    for (const [gun, target] of this.beltPhase) {
+      const current = (gun.metadata?.beltPhase as number | undefined) ?? 0;
+      const next = current + (target - current) * Math.min(1, dt * 18);
+      gun.metadata = { ...gun.metadata, beltPhase: next };
+      this.positionBelt(gun, next);
+    }
+    for (let i = this.casings.length - 1; i >= 0; i--) {
+      const casing = this.casings[i];
+      casing.life -= dt;
+      casing.velocity.y -= 5 * dt;
+      casing.mesh.position.addInPlace(casing.velocity.scale(dt));
+      casing.mesh.rotation.x += dt * 12;
+      casing.mesh.rotation.z += dt * 8;
+      if (casing.life <= 0) { casing.mesh.dispose(); this.casings.splice(i, 1); }
+    }
+  }
   syncOnline(snapshot: import("../../shared/protocol").Snapshot, id: string) {
     const self = snapshot.players.find((p) => p.id === id);
     if (!self) {
@@ -413,6 +469,8 @@ export class BossLookout {
   }
   networkShot(event: import("../../shared/protocol").NetEvent, own: boolean) {
     const start = new Vector3(event.x, event.y, event.z);
+    const rig = [...this.turrets.values()].reduce((best, candidate) => Vector3.DistanceSquared(candidate.gun.getAbsolutePosition(), start) < Vector3.DistanceSquared(best.gun.getAbsolutePosition(), start) ? candidate : best);
+    this.turretShot(rig.gun);
     const end = new Vector3(event.endX!, event.endY!, event.endZ!);
     this.world.explosions.muzzle(
       start,
@@ -499,6 +557,7 @@ export class BossLookout {
       true,
     );
     this.rounds?.update(dt);
+    this.updateTurretEffects(dt);
     this.prompt.hidden = true;
     if (this.active) {
       // Exponential recovery stays consistent across different frame rates.
@@ -575,6 +634,7 @@ export class BossLookout {
         // Close cover can sit behind an extended barrel: never draw a backward tracer.
         if (Vector3.Dot(end.subtract(start), ray.direction) <= 0)
           start.copyFrom(ray.origin);
+        this.turretShot(this.viewGun);
         this.world.explosions.muzzle(
           start,
           false,
