@@ -12,6 +12,9 @@ import { Multiplayer } from "../network/client";
 import type { Game } from "./game";
 type Context = Pick<
   Game,
+  | "spectatorRound"
+  | "spectatorMode"
+  | "spectatorTarget"
   | "enterShootingRange"
   | "setPaused"
   | "loadout"
@@ -33,6 +36,8 @@ type Context = Pick<
   | "match"
   | "rc"
   | "multiplayer"
+  | "onlineObjects"
+  | "onlineModels"
   | "onlineTraces"
   | "onlinePlayers"
   | "player"
@@ -102,12 +107,21 @@ export function installMultiplayer(this: Context) {
       this.boss?.exit();
       this.rc.reset();
       for (const player of this.onlinePlayers.values()) player.root.dispose();
-      this.onlinePlayers.clear();
+      this.onlinePlayers.clear(); this.onlineModels.clear();
+      for (const mesh of this.onlineObjects.values()) mesh.dispose();
+      this.onlineObjects.clear();
       for (const trace of this.onlineTraces) trace.mesh.dispose();
       this.onlineTraces.length = 0;
       this.pendingInputs = [];
       this.onlineSpawned = false;
       this.remoteCombatAnnouncements.clear();
+      if (this.spectatorMode) {
+        this.world.destructibles.forEach(prop => prop.reset());
+        this.world.blood.reset();
+      }
+      this.spectatorMode = false; this.spectatorTarget = undefined; this.spectatorRound = undefined;
+      document.body.classList.remove("spectating");
+      document.querySelector("#spectator-panel")?.remove();
       this.match.started = false; this.match.winner = undefined;
       this.loadout.el.hidden = true; this.loadout.confirmed = false;
       this.lobby.el.disabled = false; this.lobby.el.hidden = true;
@@ -128,18 +142,26 @@ export function installMultiplayer(this: Context) {
   };
   panel.querySelector("#leave-room")!.addEventListener("click", () => void returnToMenu());
   leaveInGame.addEventListener("click", () => void returnToMenu());
-  const connect = async (id: string) => {
-    if (!this.lobby.validName()) return;
+  const connect = async (id: string, spectate = false) => {
+    if (!spectate && !this.lobby.validName()) return;
     if (this.multiplayer?.room || busy) return;
     busy = true;
+    this.spectatorMode = spectate;
     panel
       .querySelectorAll<HTMLButtonElement>("[data-room]")
       .forEach((button) => (button.disabled = true));
     const net = (this.multiplayer ??= new Multiplayer());
     net.onStatus = (text) => {
       panel.querySelector("#network-status")!.textContent = text;
+      if (this.spectatorMode && /misslyckades|bröts|fel/i.test(text)) {
+        const status = document.querySelector<HTMLElement>("#spectator-panel [data-availability]");
+        if (status) status.textContent = text;
+      }
     };
-    net.onSnapshot = (snapshot) => this.applyOnline(snapshot);
+    net.onSnapshot = (snapshot) => {
+      if (this.spectatorMode) updateSpectator(snapshot);
+      else this.applyOnline(snapshot);
+    };
     net.onEvent = (event) => {
       if (event.kind === "lookoutNotice") {
         if (event.player === net.room?.sessionId && event.message)
@@ -386,8 +408,18 @@ export function installMultiplayer(this: Context) {
         this.match.playerName,
         document.querySelector<HTMLInputElement>('input[name="team"]:checked')!
           .value,
-        id,
+        id, spectate,
       );
+      if (spectate) {
+        this.spectatorMode = true; this.match.started = true; this.match.winner = undefined;
+        this.loadout.el.hidden = true; this.player.root.setEnabled(false);
+        document.body.classList.add("spectating");
+        this.setPaused(false); this.input.active = false;
+        this.prepareAudio();
+        setupSpectator(id);
+        if (net.snapshot) updateSpectator(net.snapshot);
+        return;
+      }
       this.inputSequence = Math.max(this.inputSequence, net.sequence + 1);
       panel
         .querySelectorAll<HTMLButtonElement>("button")
@@ -413,12 +445,82 @@ export function installMultiplayer(this: Context) {
       this.testWeapons = undefined;
       this.prepareAudio();
     } catch (error) {
+      this.spectatorMode = false;
       net.onStatus(connectionError(error));
     } finally {
       busy = false;
       if (!net.room) void refresh();
     }
   };
+  let spectatorRoom = "";
+  let spectatorPolling = false;
+  let previousFull = false;
+  const updateSpectator = (snapshot: import("../../shared/protocol").Snapshot) => {
+    const panel = document.querySelector<HTMLElement>("#spectator-panel");
+    if (!panel) return;
+    const select = panel.querySelector<HTMLSelectElement>("select")!;
+    const selected = this.spectatorTarget;
+    const ids = snapshot.players.map(p => `${p.id}:${p.name}:${p.team}:${p.hp > 0}`).join("|");
+    if (select.dataset.players !== ids) {
+      select.replaceChildren();
+      for (const player of snapshot.players) {
+        const option = document.createElement("option"); option.value = player.id;
+        option.textContent = `${player.name} · ${player.team}${player.hp <= 0 ? " · ÅTERUPPSTÅR" : ""}`;
+        select.append(option);
+      }
+      select.dataset.players = ids;
+    }
+    if (!snapshot.players.some(p => p.id === selected)) this.spectatorTarget = snapshot.players[0]?.id;
+    if (this.spectatorTarget) select.value = this.spectatorTarget;
+    panel.querySelector<HTMLElement>("[data-round]")!.textContent = !snapshot.started ? "VÄNTAR PÅ NÄSTA MATCH" : snapshot.winner
+      ? `${snapshot.winner} vann rundan · Väntar på nästa runda` : `RUNDA ${snapshot.round ?? 1} · RED ${snapshot.wins?.RED ?? 0} – ${snapshot.wins?.BLUE ?? 0} BLUE`;
+  };
+  const pollSpectator = async () => {
+    if (!this.spectatorMode || spectatorPolling) return;
+    if (!net.connected) {
+      const panel = document.querySelector<HTMLElement>("#spectator-panel");
+      if (panel) { panel.querySelector<HTMLButtonElement>("[data-join]")!.disabled = true; panel.querySelector<HTMLElement>("[data-availability]")!.textContent = "ANSLUTNINGEN BRUTEN · TILLBAKA TILL SPELMENYN FÖR ATT FÖRSÖKA IGEN"; }
+      return;
+    }
+    spectatorPolling = true;
+    try {
+      const rooms = await net.rooms();
+      const room = rooms.find(r => r.id === spectatorRoom);
+      const panel = document.querySelector<HTMLElement>("#spectator-panel");
+      if (!panel || !this.spectatorMode) return;
+      const join = panel.querySelector<HTMLButtonElement>("[data-join]")!;
+      const status = panel.querySelector<HTMLElement>("[data-availability]")!;
+      if (!room) { join.disabled = true; status.textContent = "Matchen är inte längre tillgänglig"; return; }
+      const full = room.players.length >= room.capacity;
+      join.disabled = full;
+      status.textContent = full ? "SERVERN ÄR FULL" : previousFull ? "PLATS LEDIG! DU KAN ANSLUTA" : "PLATS LEDIG · DU KAN ANSLUTA";
+      panel.classList.toggle("available", !full);
+      previousFull = full;
+    } catch { const status = document.querySelector<HTMLElement>("#spectator-panel [data-availability]"); if (status) status.textContent = "KUNDE INTE HÄMTA SERVERSTATUS"; }
+    finally { spectatorPolling = false; }
+  };
+  const setupSpectator = (roomId: string) => {
+    spectatorRoom = roomId; previousFull = false;
+    const controls = document.createElement("aside"); controls.id = "spectator-panel";
+    controls.innerHTML = '<strong>ÅSKÅDARLÄGE</strong><span data-round></span><label>FÖLJ SPELARE <select aria-label="Välj spelare att följa"></select></label><span data-availability role="status" aria-live="polite">Kontrollerar servern…</span><label>DITT NAMN FÖR ATT SPELA <input data-name maxlength="24" autocomplete="nickname" placeholder="Skriv ditt namn"></label><button data-join disabled>JOINA MATCHEN</button><button data-exit>TILL SPELMENYN</button>';
+    document.body.append(controls);
+    controls.querySelector<HTMLInputElement>("[data-name]")!.value = this.lobby.nameInput.value;
+    controls.querySelector<HTMLSelectElement>("select")!.onchange = (event) => { this.spectatorTarget = (event.target as HTMLSelectElement).value; };
+    controls.querySelector<HTMLButtonElement>("[data-exit]")!.onclick = () => void returnToMenu();
+    controls.querySelector<HTMLButtonElement>("[data-join]")!.onclick = async () => {
+      const button = controls.querySelector<HTMLButtonElement>("[data-join]")!;
+      const nameInput = controls.querySelector<HTMLInputElement>("[data-name]")!;
+      if (!nameInput.value.trim()) { nameInput.setCustomValidity("Välj ditt namn först."); nameInput.reportValidity(); nameInput.focus(); nameInput.setCustomValidity(""); return; }
+      const name = nameInput.value.trim();
+      button.disabled = true;
+      await returnToMenu();
+      this.lobby.nameInput.value = name;
+      this.lobby.nameInput.dispatchEvent(new Event("input", { bubbles: true }));
+      await connect(roomId);
+    };
+    void pollSpectator();
+  };
+  window.setInterval(() => void pollSpectator(), 5000);
   const refresh = async () => {
     if (net.room || busy || refreshing || net.leaving) return;
     refreshing = true;
@@ -455,6 +557,12 @@ export function installMultiplayer(this: Context) {
         join.disabled = room.players.length >= room.capacity;
         join.addEventListener("click", () => void connect(room.id));
         card.append(title, state, roster, join);
+        if (room.started) {
+          const watch = document.createElement("button");
+          watch.textContent = "TITTA PÅ MATCHEN";
+          watch.addEventListener("click", () => void connect(room.id, true));
+          card.append(watch);
+        }
         list.append(card);
       }
       if (!rooms.length)

@@ -273,7 +273,7 @@ export function buildOfficeServiceDecor(world: World) {
           const ring = keep(
             MeshBuilder.CreateTorus(
               "duct coupling",
-              { diameter: 0.49, thickness: 0.035, tessellation: 12 },
+              { diameter: 0.49, thickness: 0.035, tessellation: 8 },
               scene,
             ),
           );

@@ -1,3 +1,4 @@
+import { batchRigidAssembly } from "../weapons/rigidBatch";
 import { MeshBuilder, TransformNode, Vector3, Mesh } from "@babylonjs/core";
 import type { World } from "../map/builder";
 /** Compact camera buggy, about 8% wider than the pulse-trap casing. Forward is +Z. */
@@ -362,6 +363,12 @@ export function rcCarModel(world: World) {
       merged.isPickable = false;
     }
   }
+  // Keep the named destruction pieces and the wheel pivots independent.
+  batchRigidAssembly(world, body, (body.getChildMeshes(true) as Mesh[]).filter(m =>
+    !/metal chassis|retro camera casing|explosive pack|lens hood/.test(m.name) && !m.getChildren().length));
+  for (const wheel of wheels)
+    batchRigidAssembly(world, wheel.spin, (wheel.spin.getChildMeshes() as Mesh[]).filter(m =>
+      !m.getChildren().length && m.name !== "rubber tire"));
   root.scaling.set(1.35, 0.95, 1.05);
   if (!world.authoritative)
     root.getChildMeshes().forEach((m) => world.shadows?.addShadowCaster(m));

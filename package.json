@@ -17,8 +17,8 @@
     "test:cache": "node --test scripts/cache.test.mjs"
   },
   "dependencies": {
-    "@babylonjs/core": "9.32.0",
-    "@babylonjs/loaders": "9.32.0",
+    "@babylonjs/core": "9.33.0",
+    "@babylonjs/loaders": "9.33.0",
     "@colyseus/core": "~0.16.26",
     "@colyseus/schema": "^3.0.76",
     "@colyseus/ws-transport": "~0.16.5",

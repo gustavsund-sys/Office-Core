@@ -106,7 +106,7 @@ export function edgeRadius(name: string) {
   )
     return 0.085;
   if (
-    /^(desk|counter|meetingTable|planter|printer|coffee|waterCooler|vending|server|screen|wall cap|mouse)$/.test(
+    /^(desk|counter|meetingTable|planter|printer|coffee|waterCooler|vending|server|screen|mouse)$/.test(
       name,
     )
   )

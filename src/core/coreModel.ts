@@ -123,7 +123,7 @@ export function coreModel(world: World, team: Team, x: number, z: number) {
   ) => {
     const m = MeshBuilder.CreateTorus(
       name,
-      { diameter, thickness, tessellation: 32 },
+      { diameter, thickness, tessellation: 16 },
       world.scene,
     );
     m.parent = root;

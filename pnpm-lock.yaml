@@ -9,11 +9,11 @@ importers:
   .:
     dependencies:
       '@babylonjs/core':
-        specifier: 9.32.0
-        version: 9.32.0
+        specifier: 9.33.0
+        version: 9.33.0
       '@babylonjs/loaders':
-        specifier: 9.32.0
-        version: 9.32.0(@babylonjs/core@9.32.0)(babylonjs-gltf2interface@9.32.0)
+        specifier: 9.33.0
+        version: 9.33.0(@babylonjs/core@9.33.0)(babylonjs-gltf2interface@9.32.0)
       '@colyseus/core':
         specifier: ~0.16.26
         version: 0.16.26(@colyseus/schema@3.0.76)(@pm2/io@6.1.0(supports-color@7.2.0))(supports-color@7.2.0)
@@ -69,11 +69,11 @@ packages:
   '@apphosting/common@0.0.8':
     resolution: {integrity: sha512-RJu5gXs2HYV7+anxpVPpp04oXeuHbV3qn402AdXVlnuYM/uWo7aceqmngpfp6Bi376UzRqGjfpdwFHxuwsEGXQ==}
 
-  '@babylonjs/core@9.32.0':
-    resolution: {integrity: sha512-mHBsyKJuQHbs97Rb/1qxMRg6Ru79+0BjLhGLTa34s6U/fkBCtOh+xKTQDqFpFtPqgBw9TLFcIEvFHy01vnJxwA==}
+  '@babylonjs/core@9.33.0':
+    resolution: {integrity: sha512-JMbMUoPy1AUQsqTKSjFOJV+gtshgfZdHDn3ZIFzOWwxQpKrHUQCgFDYKXRU4CwD/tAfT9zubiRJtUKCh5wpo7Q==}
 
-  '@babylonjs/loaders@9.32.0':
-    resolution: {integrity: sha512-pHWbOaR34riRNxX0rffPpVcbaAoEXmjtS00A4RO43zoz4EPVg4mESX0EqzaA8yl7FbVk+aYWwyj30uR1OWrl1Q==}
+  '@babylonjs/loaders@9.33.0':
+    resolution: {integrity: sha512-uS9fY2yB8i1KdOIuQBd4O3XRji9K3MicSGlJIyBcSlW1kEetl9GO8B6ttbJK0ocH1PPvOfMRHOqMDGK4zRUDZw==}
     peerDependencies:
       '@babylonjs/core': ^9.0.0
       babylonjs-gltf2interface: ^9.0.0
@@ -3369,11 +3369,11 @@ snapshots:
 
   '@apphosting/common@0.0.8': {}
 
-  '@babylonjs/core@9.32.0': {}
+  '@babylonjs/core@9.33.0': {}
 
-  '@babylonjs/loaders@9.32.0(@babylonjs/core@9.32.0)(babylonjs-gltf2interface@9.32.0)':
+  '@babylonjs/loaders@9.33.0(@babylonjs/core@9.33.0)(babylonjs-gltf2interface@9.32.0)':
     dependencies:
-      '@babylonjs/core': 9.32.0
+      '@babylonjs/core': 9.33.0
       babylonjs-gltf2interface: 9.32.0
 
   '@colors/colors@1.5.0':

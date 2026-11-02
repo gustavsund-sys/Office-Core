@@ -125,7 +125,7 @@ test("server limits teams to four players and refuses a ninth participant", () =
         ),
       /Choose a name/,
     );
-    assert.equal(room.maxClients, 8);
+    assert.equal(room.maxClients, 16);
     for (let i = 0; i < 8; i++) join(`player-${i}`);
     for (const team of ["RED", "BLUE"] as const)
       assert.equal(

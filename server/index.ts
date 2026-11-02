@@ -11,6 +11,7 @@ import { Server, matchMaker } from "@colyseus/core";
 import { WebSocketTransport } from "@colyseus/ws-transport";
 import { initializeApp, applicationDefault } from "firebase-admin/app";
 import { OfficeRoom } from "./room";
+import { MAX_PLAYERS } from "../src/config/game";
 initializeApp({
   projectId: process.env.GOOGLE_CLOUD_PROJECT ?? "officecore-ad307",
   ...(process.env.FIREBASE_AUTH_EMULATOR_HOST || process.env.DEV_ALLOW_GUEST
@@ -76,7 +77,7 @@ const http = createServer(async (req, res) => {
           name: p.name,
           team: p.team,
         })),
-        capacity: room.maxClients,
+        capacity: MAX_PLAYERS,
         started: room.started || room.locked,
       }));
       res.writeHead(200, { "Content-Type": "application/json" });

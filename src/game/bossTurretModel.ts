@@ -8,6 +8,14 @@ export function bossTurretModel(world: World): Mesh {
   const cached = cachedStaticModel(world, "Boss M60 turret");
   if (cached) return cached;
   const root = new Mesh("Boss M60 turret", world.scene);
+  // Shared metal finishes retain dark recesses, steel faces and bright edges.
+  const metalPalette = ["#47534f", "#69716a", "#88918a", "#303a35", "#1a2427", "#a4aaa0", "#b18a62"];
+  const metalColor = (color: string) => {
+    const rgb = (hex: string) => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+    const source = rgb(color);
+    const ranked = metalPalette.map(c => ({ c, distance: rgb(c).reduce((sum, v, i) => sum + (v - source[i]) ** 2, 0) })).sort((a,b) => a.distance-b.distance);
+    return ranked[0].distance <= 625 ? ranked[0].c : color;
+  };
   const box = (
     name: string,
     x: number,
@@ -22,7 +30,7 @@ export function bossTurretModel(world: World): Mesh {
     m.parent = root;
     m.isPickable = false;
     m.material = world.finish(
-      color,
+      /stock|grip/.test(name) ? color : metalColor(color),
       /stock|grip/.test(name) ? "polymer" : "metal",
     );
     return m;
@@ -43,7 +51,7 @@ export function bossTurretModel(world: World): Mesh {
     m.rotation.x = Math.PI / 2;
     m.position.set(0, y, z);
     m.parent = root;
-    m.material = world.finish(color, "metal");
+    m.material = world.finish(metalColor(color), "metal");
     m.isPickable = false;
     return m;
   };

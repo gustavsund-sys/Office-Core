@@ -49,6 +49,7 @@ import {
   type Snapshot,
   type NetEvent,
 } from "../shared/protocol";
+export const MAX_SPECTATORS = 8;
 class ServerWorld extends World {
   override authoritative = true;
   override label(text: string) {
@@ -118,6 +119,9 @@ export class OfficeRoom extends Room {
   pickup!: Pickup;
   orphanWeapons: Weapons[] = [];
   participants = new Map<string, Participant>();
+  spectators = new Set<string>();
+  private spectatorReadyAt = new Map<string, number>();
+  private spectatorActivity = new Map<string, { last: number; warned: boolean }>();
   cores: Damageable[] = [];
   started = false;
   preparing = false;
@@ -139,7 +143,8 @@ export class OfficeRoom extends Room {
     OfficeRoom.active++;
     this.counted = true;
     OfficeRoom.rooms.set(this.roomId, this);
-    this.maxClients = MAX_PLAYERS;
+    // Spectators need separate connection slots without increasing player capacity.
+    this.maxClients = MAX_PLAYERS + MAX_SPECTATORS;
     this.engine = new NullEngine();
     this.scene = new Scene(this.engine);
     new FreeCamera("server", new Vector3(0, 30, -20), this.scene);
@@ -252,6 +257,8 @@ export class OfficeRoom extends Room {
       });
     this.onMessage(MSG.activity, (client) => {
       const p = this.participants.get(client.sessionId);
+      const spectator = this.spectatorActivity.get(client.sessionId);
+      if (spectator) { spectator.last = Date.now(); if (spectator.warned) client.send(MSG.idle, { remaining: null }); spectator.warned = false; return; }
       if (!p || p.idleExpired) return;
       const now = Date.now();
       if (now - (p.lastActivity ?? 0) < 900) return;
@@ -261,7 +268,11 @@ export class OfficeRoom extends Room {
     });
     this.clock.setInterval(() => this.checkInactivity(), 1000);
     this.onMessage(MSG.netReady, (client, capabilities) => {
-      if (!this.permit(client)) return;
+      if (this.spectators.has(client.sessionId)) {
+        const now = Date.now();
+        if (now - (this.spectatorReadyAt.get(client.sessionId) ?? 0) < 250) return;
+        this.spectatorReadyAt.set(client.sessionId, now);
+      } else if (!this.permit(client)) return;
       this.optimizedClients.set(client.sessionId, undefined);
       if (capabilities?.stream === 2)
         this.streamClients.set(client.sessionId, 0);
@@ -583,6 +594,13 @@ export class OfficeRoom extends Room {
   checkInactivity(now = Date.now()) {
     for (const client of this.clients) {
       const p = this.participants.get(client.sessionId);
+      const spectator = this.spectatorActivity.get(client.sessionId);
+      if (spectator) {
+        const state = inactivityState(spectator.last, now);
+        if (state.expired) client.leave(IDLE_CLOSE_CODE);
+        else if (state.warn) { spectator.warned = true; client.send(MSG.idle, { remaining: state.remaining }); }
+        continue;
+      }
       if (!p || p.idleExpired) continue;
       const state = inactivityState(p.lastActivity ?? now, now);
       if (state.expired) {
@@ -596,9 +614,17 @@ export class OfficeRoom extends Room {
   }
   onJoin(
     client: Client,
-    options: { name?: string; team?: Team; clientMode?: "mobile" | "desktop" },
+    options: { name?: string; team?: Team; clientMode?: "mobile" | "desktop"; spectator?: boolean },
     auth: { uid: string },
   ) {
+    if (options.spectator === true) {
+      if (!this.started) throw new ServerError(409, "No active match to spectate");
+      if (this.spectators.size >= MAX_SPECTATORS) throw new ServerError(409, "Spectator capacity reached");
+      this.spectators.add(client.sessionId);
+      this.spectatorActivity.set(client.sessionId, { last: Date.now(), warned: false });
+      client.send(MSG.snapshot, this.snapshot());
+      return;
+    }
     if ([...this.participants.values()].some((p) => p.uid === auth.uid))
       throw new ServerError(409, "Already in match");
     if (
@@ -1525,7 +1551,14 @@ export class OfficeRoom extends Room {
   }
   async onLeave(client: Client, consented: boolean) {
     const p = this.participants.get(client.sessionId);
-    if (!p) return;
+    if (!p) {
+      this.spectators.delete(client.sessionId);
+      this.spectatorReadyAt.delete(client.sessionId);
+      this.spectatorActivity.delete(client.sessionId);
+      this.optimizedClients.delete(client.sessionId);
+      this.streamClients.delete(client.sessionId);
+      return;
+    }
     this.optimizedClients.delete(client.sessionId);
     this.streamClients.delete(client.sessionId);
     this.lookout.exit(client.sessionId, p);

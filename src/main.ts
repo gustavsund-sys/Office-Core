@@ -123,6 +123,9 @@ async function start() {
             antialias: gpuInvestigation().antialias,
             stencil: true,
             powerPreference: "high-performance",
+            ...(params.get("performanceprofile") === "1"
+              ? { deviceDescriptor: { requiredFeatures: ["timestamp-query" as GPUFeatureName] } }
+              : {}),
           });
           await gpu.initAsync();
           if (mobile || params.get("gpuinspect") === "1") {
@@ -172,6 +175,10 @@ async function start() {
     if (import.meta.env.DEV && params.get("effectprofile") === "1")
       (await import("./game/effectProfile")).profileEffects(game);
     game.startRendering(showRuntimeError);
+    if (params.get("performanceprofile") === "1")
+      (await import("./game/livePerformanceProfile")).installLivePerformanceProfile(game);
+    if (import.meta.env.DEV && params.get("cullingprofile") === "1")
+      (await import("./game/cullingDiagnostics")).installCullingDiagnostics(game);
     if (import.meta.env.DEV && params.get("turretprofile") === "1")
       (await import("./game/turretProfile")).profileTurret(game);
     if (import.meta.env.DEV && params.get("routeprofile") === "1")

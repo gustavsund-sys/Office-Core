@@ -1,6 +1,6 @@
 import { CleaningCarts } from "./cleaningCarts";
 import { buildOfficeLife, dressOfficeProp } from "./officeLife";
-import { batchBuildingTrim, batchWallVisuals } from "./buildingBatch";
+import { batchBuildingTrim, batchWallVisuals, batchFixedMapDetails } from "./buildingBatch";
 import { installOfficeDetailLOD } from "./detailLOD";
 import { buildOfficeServiceDecor } from "./officeServiceDecor";
 import { deskAssembly } from "./deskAssembly";
@@ -781,6 +781,7 @@ export class World {
     if (!this.authoritative) {
       batchBuildingTrim(this);
       batchWallVisuals(this);
+      batchFixedMapDetails(this);
     }
   }
   async whenAssetsReady() {

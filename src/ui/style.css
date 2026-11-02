@@ -4622,3 +4622,12 @@ dialog.whats-new {
 #supply-request[hidden], #supply-request button[hidden] { display:none; }
 
 .range-controls[hidden], .range-server-status[hidden] { display: none !important; }
+
+.spectating #ui footer, .spectating #ui .location, .spectating #crosshair,
+.spectating #inventory-slots, .spectating #pause, .spectating #leave-game { display: none !important; }
+#spectator-panel { position: fixed; z-index: 100; top: 75px; right: 14px; display: grid; gap: 8px; padding: 15px; min-width: 235px; color: #e6f3ef; background: #122c35ed; border: 1px solid #77afa6; border-radius: 6px; font-size: 12px; pointer-events: auto; }
+#spectator-panel strong { color: #f5ce85; letter-spacing: .1em; }
+#spectator-panel label { display: grid; gap: 5px; }
+#spectator-panel input, #spectator-panel select, #spectator-panel button { padding: 8px; color: #e9f5f0; background: #294b53; border: 1px solid #7ba7a1; border-radius: 3px; }
+#spectator-panel button:disabled { opacity: .45; }
+#spectator-panel.available [data-availability] { color: #88edb6; }

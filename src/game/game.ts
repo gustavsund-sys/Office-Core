@@ -1,3 +1,8 @@
+import { spectatorTarget } from "./spectator";
+import { heldWeapon, rocketModel } from "../weapons/models";
+import { releaseEffect } from "./effectPool";
+import { interpolateYaw } from "../network/interpolation";
+import { syncOnlineVisuals } from "./onlineSimulation";
 import { ShootingRangeWelcome } from "../audio/shootingRangeWelcome";
 import { SupplyDropLandingAudio } from "../audio/supplyDropLanding";
 import { CoreAttackAnnouncement } from "../audio/coreAttackAnnouncement";
@@ -109,6 +114,9 @@ import { MSG, type Snapshot, type NetInput } from "../../shared/protocol";
 export class Game {
   startupPreparing = true;
   rangeMode = new URLSearchParams(location.search).get("range") === "1";
+  spectatorMode = false;
+  spectatorTarget?: string;
+  spectatorRound?: number;
   rangeTargets: Damageable[] = [];
   rangeWelcome = new ShootingRangeWelcome();
   private rangeExit?: () => void;
@@ -1157,6 +1165,82 @@ export class Game {
     this.updateCamera(10);
     this.setPaused(true);
   }
+  tickSpectator(dt: number) {
+    const snapshot = this.multiplayer?.snapshot;
+    if (!snapshot) { this.scene.render(); return; }
+    this.time += dt;
+    if (this.spectatorRound !== snapshot.round) {
+      this.spectatorRound = snapshot.round;
+      this.world.destructibles.forEach(prop => prop.reset());
+      this.world.blood.reset();
+    }
+    this.world.carts?.sync(snapshot.carts ?? []);
+    for (const [id, player] of this.onlinePlayers) if (!snapshot.players.some(p => p.id === id)) {
+      player.root.dispose(); this.onlinePlayers.delete(id); this.onlineModels.delete(id);
+    }
+    const renderAt = this.multiplayer!.timing.renderTime(performance.now());
+    const history = this.multiplayer!.history;
+    const before = [...history].reverse().find(frame => frame.at <= renderAt) ?? history[0];
+    const after = history.find(frame => frame.at >= renderAt) ?? history.at(-1);
+    const fraction = before && after && after.at > before.at ? Math.max(0, Math.min(1, (renderAt - before.at) / (after.at - before.at))) : 1;
+    for (const state of snapshot.players) {
+      const previous = before?.snapshot.players.find(p => p.id === state.id);
+      const next = after?.snapshot.players.find(p => p.id === state.id);
+      const interpolate = previous && next && previous.hp > 0 && next.hp > 0 && Math.hypot(previous.x - next.x, previous.z - next.z) < 8;
+      let player = this.onlinePlayers.get(state.id);
+      if (!player) { player = new Player(this.world); this.onlinePlayers.set(state.id, player); }
+      player.root.setEnabled(state.hp > 0);
+      const oldX = player.root.position.x, oldZ = player.root.position.z;
+      player.root.position.set(interpolate ? previous.x + (next.x - previous.x) * fraction : state.x,
+        interpolate ? previous.y + (next.y - previous.y) * fraction : state.y,
+        interpolate ? previous.z + (next.z - previous.z) * fraction : state.z);
+      player.root.rotation.y = interpolate ? interpolateYaw(previous.yaw, next.yaw, fraction) : state.yaw;
+      player.animate(Math.hypot(player.root.position.x - oldX, player.root.position.z - oldZ) > 0.002, dt);
+      player.gun.rotation.x = state.gunPitch ?? 0;
+      player.hp = state.hp; player.shield = state.shield ?? 0;
+      player.torso.material = this.world.finish(TEAMS[state.team], "fabric");
+      if (this.onlineModels.get(state.id) !== state.weapon) {
+        player.setWeaponModel(state.weapon); this.onlineModels.set(state.id, state.weapon);
+      }
+      player.showTacticalShield();
+    }
+    const target = spectatorTarget(snapshot.players, this.spectatorTarget);
+    this.spectatorTarget = target?.id;
+    if (target) {
+      const followed = this.onlinePlayers.get(target.id);
+      if (followed) this.player.root.position.copyFrom(followed.root.position);
+      else this.player.root.position.set(target.x, target.y, target.z);
+      if (this.input.mode === "thirdPerson") this.input.yaw = target.yaw;
+      this.updateCamera(dt);
+    }
+    this.player.root.setEnabled(false);
+    this.cores.forEach(core => {
+      const value = snapshot.cores.find(c => c.team === core.team);
+      if (value) {
+        core.setActive(value.active);
+        if (core.hp > value.hp) core.damage(core.hp - value.hp);
+        core.hp = value.hp;
+        core.bar.scaling.x = Math.max(0.001, core.hp / core.maxHp);
+      }
+      core.update(dt, this.time);
+    });
+    snapshot.props.forEach((hp, index) => { const prop = this.world.destructibles[index]; if (prop && prop.hp > hp) prop.damage(prop.hp - hp, "coreBuster", false); });
+    this.hud.wins(snapshot.wins ?? { RED: 0, BLUE: 0 }, snapshot.round ?? 1);
+    this.hud.update(dt, this.cores, this.weapons, this.player);
+    const { visuals } = syncOnlineVisuals(this, snapshot, dt);
+    for (const object of visuals.objects) {
+      let mesh = this.onlineObjects.get(object.key);
+      if (!mesh) { mesh = object.weapon === "bazooka" ? rocketModel(this.world) : heldWeapon(this.world, object.weapon); this.onlineObjects.set(object.key, mesh); }
+      mesh.position.copyFrom(object.target);
+    }
+    for (const [key, mesh] of this.onlineObjects) if (!visuals.objectKeys.has(key)) { mesh.dispose(); this.onlineObjects.delete(key); }
+    for (const trace of this.onlineTraces) trace.life -= dt;
+    this.onlineTraces = this.onlineTraces.filter(trace => { if (trace.life > 0) return true; releaseEffect(trace.mesh); return false; });
+    this.world.explosions.update(dt); this.world.blood.update(dt);
+    updateEnvironmentEffects(this, dt);
+    this.supplyVisuals.update(snapshot.supplyDrop);
+    this.scene.render();
+  }
   installMultiplayer() {
     return installMultiplayerImpl.call(this);
   }
@@ -1315,6 +1399,10 @@ export class Game {
       supplyState ? Math.hypot(this.player.root.position.x - supplyState.x, this.player.root.position.z - supplyState.z) : 0);
     this.supplyAudio.update(!!supplyActive && !!supplyState && supplyState.remaining > 0, this.sound && !this.paused, supplyState ? Math.hypot(this.player.root.position.x - supplyState.x, this.player.root.position.z - supplyState.z) : 0);
     if (!this.paused) this.updateInjuryEffects(dt);
+    if (this.multiplayer?.room && this.spectatorMode) {
+      this.tickSpectator(dt);
+      return;
+    }
     if (this.multiplayer?.room) {
       this.tickOnline(dt);
       return;

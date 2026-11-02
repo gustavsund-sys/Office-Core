@@ -1,3 +1,4 @@
+import { batchRigidAssembly } from "../weapons/rigidBatch";
 import { Color3, Mesh, MeshBuilder, SpotLight, StandardMaterial, TransformNode, Vector3 } from "@babylonjs/core";
 import { heldWeapon } from "../weapons/models";
 import type { World } from "../map/builder";
@@ -125,6 +126,7 @@ export class SupplyDropVisuals {
         radius: 0.025, tessellation: 4,
       }, this.world.scene);
       hem.parent = load; hem.material = cordMaterial; hem.isPickable = false;
+      batchRigidAssembly(this.world, load, load.getChildMeshes(true) as Mesh[]);
       this.items = state.items.map((item) => {
         const anchor = new TransformNode(`supply ${item.kind}`, this.world.scene);
         anchor.parent = root; anchor.position.set(item.x - state.x, 0.65, item.z - state.z);

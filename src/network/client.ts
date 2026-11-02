@@ -33,6 +33,7 @@ export class Multiplayer {
   private activitySentAt = 0;
   private idleNotice?: HTMLElement;
   leaving = false;
+  spectating = false;
   private serverRequests = new AbortController();
   constructor() {
     window.addEventListener("pagehide", () => this.saveResume());
@@ -77,7 +78,7 @@ export class Multiplayer {
     await this.room?.leave();
   }
   saveResume() {
-    if (this.leaving || !this.room || !this.connected) return;
+    if (this.spectating || this.leaving || !this.room || !this.connected) return;
     try {
       sessionStorage.setItem(
         "officeCore.resume",
@@ -133,9 +134,10 @@ export class Multiplayer {
   onSnapshot: (snapshot: Snapshot) => void = () => {};
   onEvent: (event: NetEvent) => void = () => {};
   onStatus: (text: string) => void = () => {};
-  async connect(name: string, team: string, id: string) {
+  async connect(name: string, team: string, id: string, spectator = false) {
     this.onStatus("Ansluter…");
-    const resume = this.resumeInfo();
+    this.spectating = spectator;
+    const resume = spectator ? undefined : this.resumeInfo();
     if (resume?.id === id && resume.token) {
       for (let attempt = 0; attempt < 4; attempt++) {
         try {
@@ -149,7 +151,7 @@ export class Multiplayer {
     }
     this.clearResume();
     const user = auth.currentUser ?? (await signInAnonymously(auth)).user;
-    const options = { token: await user.getIdToken(), name, team, clientMode: document.documentElement.dataset.client === "mobile" ? "mobile" : "desktop" };
+    const options = { token: await user.getIdToken(), name, team, spectator, clientMode: document.documentElement.dataset.client === "mobile" ? "mobile" : "desktop" };
     const ready = new URL(this.endpoint);
     ready.protocol = ready.protocol === "wss:" ? "https:" : "http:";
     ready.pathname = "/map";
