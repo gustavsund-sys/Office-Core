@@ -1550,11 +1550,14 @@ button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
+/* Keep menu composition independent of the continuously rendered game canvas.
+   A backdrop blur requires resampling that GPU surface on every frame. */
 #overlay {
   background:
     radial-gradient(ellipse at 15% 15%, #37606a80, transparent 55%),
-    linear-gradient(115deg, #06131ee8, #101f2cb0);
-  backdrop-filter: blur(5px);
+    linear-gradient(115deg, #06131ef5, #101f2ced);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .pause-card,
 .pause-card:has(.lobby) {

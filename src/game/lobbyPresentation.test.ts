@@ -14,7 +14,18 @@ test("online lobby keeps waiting labels stable across snapshots and pause events
     set innerHTML(value: string) { writes++; this.value = value; },
   };
   const node = { textContent: "", style: { display: "" }, disabled: false };
-  const el = { hidden: true, disabled: false, querySelector: () => node };
+  let textWrites = 0;
+  const nodes = new Map<string, { textContent: string }>();
+  const el = { hidden: true, disabled: false, querySelector: (selector: string) => {
+    if (!nodes.has(selector)) {
+      let text = "";
+      nodes.set(selector, {
+        get textContent() { return text; },
+        set textContent(value: string) { textWrites++; text = value; },
+      });
+    }
+    return nodes.get(selector)!;
+  } };
   globalThis.document = {
     querySelector: (selector: string) => selector === "#play" ? play : node,
     body: { classList: { toggle() {} } },
@@ -41,12 +52,14 @@ test("online lobby keeps waiting labels stable across snapshots and pause events
       presentMatch.call(context as any, snapshot as any, own as any);
       assert.equal(play.textContent, expected);
       const initialWrites = writes;
+      const initialTextWrites = textWrites;
       for (let i = 0; i < 30; i++) {
         context.setPaused(true);
         presentMatch.call(context as any, snapshot as any, own as any);
       }
       assert.equal(play.textContent, expected);
       assert.equal(writes, initialWrites, "unchanged lobby must not rewrite the start button");
+      assert.equal(textWrites, initialTextWrites, "unchanged snapshots must not replace lobby and HUD text nodes");
     }
   } finally { globalThis.document = previousDocument; }
 });

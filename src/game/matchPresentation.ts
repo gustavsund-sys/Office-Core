@@ -16,27 +16,26 @@ type Context = Pick<
   | "setPaused"
   | "updateLobbyMusic"
 >;
+function updateText(element: Element, value: string) {
+  if (element.textContent !== value) element.textContent = value;
+}
+
 export function presentMatch(
   this: Context,
   snapshot: Snapshot,
   own: Snapshot["players"][number],
 ) {
   CONFIG.player.team = own.team;
-  this.hud.el.querySelector(".brand small")!.textContent =
-    "ALPHA 0.1 · MULTIPLAYER";
-  this.hud.el.querySelector(".location p")!.textContent =
-    `ONLINE · ${snapshot.players.length} spelare`;
-  this.hud.el.querySelector(".health > span")!.textContent =
-    `PLAYER / ${own.team} TEAM`;
+  updateText(this.hud.el.querySelector(".brand small")!, "ALPHA 0.1 · MULTIPLAYER");
+  updateText(this.hud.el.querySelector(".location p")!, `ONLINE · ${snapshot.players.length} spelare`);
+  updateText(this.hud.el.querySelector(".health > span")!, `PLAYER / ${own.team} TEAM`);
   this.match.members = snapshot.players.map((p) => ({
     name: p.name,
     team: p.team,
   }));
   this.lobby.update(this.match.members, own.team);
-  this.lobby.el.querySelector(".lobby-status")!.textContent =
-    `${snapshot.players.length} SPELARE · ONLINE`;
-  this.lobby.el.querySelector("small")!.textContent =
-    "Välj Core och namn. Första spelaren är värd och startar matchen när minst två lag har anslutit.";
+  updateText(this.lobby.el.querySelector(".lobby-status")!, `${snapshot.players.length} SPELARE · ONLINE`);
+  updateText(this.lobby.el.querySelector("small")!, "Välj Core och namn. Första spelaren är värd och startar matchen när minst två lag har anslutit.");
   const play = document.querySelector<HTMLButtonElement>("#play")!;
   if (!snapshot.started) {
     const host = snapshot.owner === own.id;
