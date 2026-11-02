@@ -20,3 +20,7 @@ server-dist/
 
 # Licensed user-supplied ventilation smoke; keep out of public Git history.
 /public/vfx/vent-smoke/
+# Desktop installers and local build tooling
+/desktop/release/
+/desktop/native/display-mode-arm64
+/desktop/native/display-mode-x64

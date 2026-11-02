@@ -155,7 +155,7 @@ export function buildOfficeServiceDecor(world: World) {
         const band = keep(
           MeshBuilder.CreateTorus(
             "atrium trunk reinforcement band",
-            { diameter: 1.46, thickness: 0.065, tessellation: 16 },
+            { diameter: 1.46, thickness: 0.065, tessellation: 12 },
             scene,
           ),
         );

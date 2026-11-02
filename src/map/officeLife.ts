@@ -66,7 +66,7 @@ export function dressOfficeProp(
     m.metadata = { visualOnly: true, distanceDetail: true };
     const coffee = MeshBuilder.CreateCylinder("coffee surface", {diameter:.105,height:.006,tessellation:12},world.scene);
     coffee.position.copyFrom(m.position);coffee.position.y+=.09;coffee.material=world.mat("#503d31");coffee.isPickable=false;coffee.metadata=m.metadata;
-    const handle=MeshBuilder.CreateTorus("ceramic mug handle",{diameter:.095,thickness:.023,tessellation:12},world.scene);
+    const handle=MeshBuilder.CreateTorus("ceramic mug handle",{diameter:.095,thickness:.023,tessellation:8},world.scene);
     handle.position.copyFrom(m.position);handle.position.x+=.075;handle.rotation.x=Math.PI/2;handle.material=m.material;handle.isPickable=false;handle.metadata=m.metadata;
 
   };
@@ -128,7 +128,7 @@ export function dressOfficeProp(
     }
     const headphones = MeshBuilder.CreateTorus(
       "desk headphones",
-      { diameter: 0.22, thickness: 0.026, tessellation: 12 },
+      { diameter: 0.22, thickness: 0.026, tessellation: 8 },
       world.scene,
     );
     headphones.position.set(x - side * w * 0.3, 1.08, z - d * 0.2);

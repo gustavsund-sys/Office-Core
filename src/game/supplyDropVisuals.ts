@@ -36,14 +36,14 @@ export class SupplyDropVisuals {
       const marker = this.marker = MeshBuilder.CreateDisc("supply landing shadow", { radius: 4.8, tessellation: 32 }, this.world.scene);
       marker.rotation.x = Math.PI / 2; marker.position.y = 0.035; marker.parent = root;
       const shadow = this.world.mat("#24323b"); marker.material = shadow; marker.visibility = 0.58; marker.isPickable = false;
-      const ring = MeshBuilder.CreateTorus("supply landing marker", { diameter: 9.6, thickness: 0.14, tessellation: 32 }, this.world.scene);
+      const ring = MeshBuilder.CreateTorus("supply landing marker", { diameter: 9.6, thickness: 0.14, tessellation: 16 }, this.world.scene);
       ring.parent = root; ring.position.y = 0.06; ring.material = this.world.mat("#ffca58", true); ring.isPickable = false;
       const housing = new TransformNode("physical warning beacon housing", this.world.scene);
       housing.parent = root;
       housing.position.set(5.3, 0, 0);
       const pedestal = MeshBuilder.CreateCylinder("beacon metal base", { diameter: 0.85, height: 0.32, tessellation: 24 }, this.world.scene);
       pedestal.parent = housing; pedestal.position.y = 0.16; pedestal.material = this.world.finish("#343c42", "metal"); pedestal.isPickable = false;
-      const dome = MeshBuilder.CreateSphere("beacon red glass dome", { diameter: 0.7, segments: 24 }, this.world.scene);
+      const dome = MeshBuilder.CreateSphere("beacon red glass dome", { diameter: 0.7, segments: 12 }, this.world.scene);
       dome.parent = housing; dome.position.y = 0.61; dome.scaling.y = 1.1; dome.isPickable = false;
       const glass = this.lampMaterial = new StandardMaterial("red beacon glass", this.world.scene);
       glass.diffuseColor = new Color3(0.55, 0.015, 0.02); glass.specularColor = new Color3(0.9, 0.7, 0.7); glass.specularPower = 96; glass.alpha = 0.55;

@@ -12,6 +12,7 @@ type Context = Pick<
   | "loadout"
   | "lobby"
   | "match"
+  | "paused"
   | "setPaused"
   | "updateLobbyMusic"
 >;
@@ -41,14 +42,15 @@ export function presentMatch(
     const host = snapshot.owner === own.id;
     const enough = new Set(snapshot.players.map((p) => p.team)).size >= 2;
     play.disabled = !host || !enough;
-    play.textContent = !host
+    const label = !host
       ? "VÄNTAR PÅ VÄRDEN"
       : enough
         ? "STARTA MATCH"
         : "VÄNTAR PÅ ETT ANNAT LAG";
+    if (play.textContent !== label) play.textContent = label;
   } else {
     play.disabled = false;
-    play.textContent = "FORTSÄTT SPELA";
+    if (play.textContent !== "FORTSÄTT SPELA") play.textContent = "FORTSÄTT SPELA";
   }
   const wasPreparing = !this.loadout.el.hidden;
   const phase = gamePhase(snapshot);
@@ -58,7 +60,7 @@ export function presentMatch(
   if (!snapshot.started) {
     this.match.started = false;
     this.lobby.el.disabled = false;
-    this.setPaused(true);
+    if (!this.paused || wasPreparing) this.setPaused(true);
     if (!own.loadout) {
       this.loadout.confirmed = false;
       this.loadout.el.querySelector<HTMLButtonElement>(".loadout-confirm")!.disabled = false;

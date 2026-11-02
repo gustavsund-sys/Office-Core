@@ -112,10 +112,13 @@ export function setPaused(this: Context, value: boolean) {
   (document.querySelector("#overlay") as HTMLElement).style.display = value
     ? "grid"
     : "none";
-  document.querySelector("#play")!.innerHTML =
-    this.multiplayer?.room && !this.multiplayer.snapshot?.started
-      ? "STARTA MATCH <span>↗</span>"
-      : "FORTSÄTT SPELA <span>↗</span>";
+  // The online lobby owns its host/waiting label. Pausing must not overwrite it
+  // on every server snapshot (which also changes the button's layout).
+  if (!(this.multiplayer?.room && !this.multiplayer.snapshot?.started)) {
+    const play = document.querySelector("#play")!;
+    const label = "FORTSÄTT SPELA <span>↗</span>";
+    if (play.innerHTML !== label) play.innerHTML = label;
+  }
   document.body.classList.toggle("playing", !value);
 }
 

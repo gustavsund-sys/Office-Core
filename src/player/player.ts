@@ -686,7 +686,7 @@ export class Player {
     }
     const ring = MeshBuilder.CreateTorus(
       "player ring",
-      { diameter: 1.15, thickness: 0.035, tessellation: 32 },
+      { diameter: 1.15, thickness: 0.035, tessellation: 16 },
       world.scene,
     );
     this.groundRing = ring;

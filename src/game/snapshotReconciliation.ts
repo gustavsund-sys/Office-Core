@@ -26,6 +26,7 @@ type Context = Pick<
   | "rc"
   | "multiplayer"
   | "onlineSpawned"
+  | "paused"
   | "pendingInputs"
   | "inputSequence"
   | "pickup"

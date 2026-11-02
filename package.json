@@ -14,7 +14,11 @@
     "deploy:web": "sh scripts/deploy-web.sh",
     "deploy:server": "sh scripts/deploy-server.sh",
     "test:multiplayer": "node --import tsx scripts/multiplayer-smoke.ts",
-    "test:cache": "node --test scripts/cache.test.mjs"
+    "test:cache": "node --test scripts/cache.test.mjs",
+    "desktop:start": "pnpm --dir desktop start",
+    "desktop:mac": "pnpm --dir desktop dist:mac",
+    "desktop:win": "pnpm --dir desktop dist:win",
+    "desktop:test": "pnpm --dir desktop test"
   },
   "dependencies": {
     "@babylonjs/core": "9.33.0",

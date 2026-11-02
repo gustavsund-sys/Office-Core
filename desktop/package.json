@@ -1,0 +1,74 @@
+{
+  "name": "office-core-desktop",
+  "productName": "Office Core",
+  "version": "0.1.0",
+  "description": "Office Core multiplayer desktop client",
+  "author": "Office Core",
+  "private": true,
+  "type": "module",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist:mac": "node build-native.cjs && electron-builder --mac dmg --arm64 --x64",
+    "dist:win": "electron-builder --win nsis --x64",
+    "test": "node --test *.test.cjs",
+    "native:mac": "node build-native.cjs"
+  },
+  "devDependencies": {
+    "electron": "45.2.1",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "com.officecore.desktop",
+    "productName": "Office Core",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "main.cjs",
+      "policy.cjs",
+      "offline.html",
+      "build/icon.png",
+      "package.json",
+      "display-mode.cjs"
+    ],
+    "mac": {
+      "category": "public.app-category.action-games",
+      "icon": "build/icon.png",
+      "target": [
+        "dmg"
+      ],
+      "hardenedRuntime": true,
+      "artifactName": "Office-Core-${version}-mac-${arch}.${ext}"
+    },
+    "win": {
+      "icon": "build/icon.png",
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "Office-Core-${version}-windows-${arch}-setup.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true
+    },
+    "toolsets": {
+      "nsis": "1.2.1"
+    },
+    "extraResources": [
+      {
+        "from": "native",
+        "to": "native",
+        "filter": [
+          "display-mode-arm64",
+          "display-mode-x64",
+          "display-mode.ps1"
+        ]
+      }
+    ]
+  }
+}
