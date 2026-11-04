@@ -1,7 +1,7 @@
 {
   "name": "office-core-desktop",
   "productName": "Office Core",
-  "version": "0.2.0-beta.2",
+  "version": "0.2.0-beta.3",
   "description": "Office Core multiplayer desktop client",
   "author": "Office Core",
   "private": true,
@@ -10,10 +10,11 @@
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "dist:mac": "node build-native.cjs && electron-builder --mac dmg --arm64 --x64",
+    "dist:mac": "node check-mac-signing.cjs && node build-native.cjs && electron-builder --mac dmg --arm64 --x64",
     "dist:win": "electron-builder --win nsis --x64",
     "test": "node --test *.test.cjs",
-    "native:mac": "node build-native.cjs"
+    "native:mac": "node build-native.cjs",
+    "dist:mac:test": "node build-native.cjs && electron-builder --mac dmg --arm64 --x64 --config.mac.identity=- --config.mac.notarize=false --config.afterAllArtifactBuild=verify-mac-test.cjs --config.directories.output=release-test"
   },
   "devDependencies": {
     "electron": "45.2.1",
@@ -43,7 +44,9 @@
         "dmg"
       ],
       "hardenedRuntime": true,
-      "artifactName": "Office-Core-${version}-mac-${arch}.${ext}"
+      "artifactName": "Office-Core-${version}-mac-${arch}.${ext}",
+      "forceCodeSigning": true,
+      "notarize": true
     },
     "win": {
       "icon": "build/icon.png",
@@ -71,6 +74,7 @@
           "display-mode.ps1"
         ]
       }
-    ]
+    ],
+    "afterAllArtifactBuild": "verify-mac-release.cjs"
   }
 }

@@ -24,3 +24,5 @@ server-dist/
 /desktop/release/
 /desktop/native/display-mode-arm64
 /desktop/native/display-mode-x64
+
+/desktop/release-test/
