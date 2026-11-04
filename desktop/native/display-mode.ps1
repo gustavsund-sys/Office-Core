@@ -1,3 +1,4 @@
+param([int]$Width = 1920, [int]$Height = 1080)
 $ErrorActionPreference = 'Stop'
 Add-Type @'
 using System;
@@ -28,13 +29,13 @@ $original = [DisplayMode]::Read(-1)
 $target = $null
 for ($i = 0; ; $i++) {
   try { $candidate = [DisplayMode]::Read($i) } catch { break }
-  if ($candidate.width -eq 1920 -and $candidate.height -eq 1080 -and $candidate.bits -eq $original.bits) {
+  if ($candidate.width -eq $Width -and $candidate.height -eq $Height -and $candidate.bits -eq $original.bits) {
     if ($null -eq $target -or [Math]::Abs([double]$candidate.frequency - $original.frequency) -lt [Math]::Abs([double]$target.frequency - $original.frequency)) { $target = $candidate }
   }
 }
-if ($null -eq $target) { Write-Output 'ERROR: Display does not support 1920x1080'; exit 1 }
+if ($null -eq $target) { Write-Output "ERROR: Display does not support ${Width}x${Height}"; exit 1 }
 try {
-  if ([DisplayMode]::ChangeDisplaySettings([ref]$target, 4) -ne 0) { throw 'Display rejected 1920x1080' }
+  if ([DisplayMode]::ChangeDisplaySettings([ref]$target, 4) -ne 0) { throw "Display rejected ${Width}x${Height}" }
   Write-Output 'READY'
   [Console]::Out.Flush()
   $null = [Console]::ReadLine()

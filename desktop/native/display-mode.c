@@ -14,18 +14,23 @@ int main(int argc, char **argv) {
         printf("%zux%zu pixels=%zux%zu\n", CGDisplayModeGetWidth(original), CGDisplayModeGetHeight(original), CGDisplayModeGetPixelWidth(original), CGDisplayModeGetPixelHeight(original));
         return 0;
     }
+    int width = argc > 3 ? atoi(argv[2]) : 1920;
+    int height = argc > 3 ? atoi(argv[3]) : 1080;
+    if (!((width == 1280 && height == 720) || (width == 1920 && height == 1080) || (width == 2560 && height == 1440))) {
+        puts("ERROR: Invalid display resolution"); return 1;
+    }
     CGDisplayModeRef target = NULL;
     for (CFIndex i = 0; i < CFArrayGetCount(modes); i++) {
         CGDisplayModeRef mode = (CGDisplayModeRef)CFArrayGetValueAtIndex(modes, i);
         if (argc > 2 && !strcmp(argv[2], "--list")) {
             printf("%zux%zu pixels=%zux%zu hz=%.2f\n", CGDisplayModeGetWidth(mode), CGDisplayModeGetHeight(mode), CGDisplayModeGetPixelWidth(mode), CGDisplayModeGetPixelHeight(mode), CGDisplayModeGetRefreshRate(mode));
         }
-        if (CGDisplayModeGetWidth(mode) != 1920 || CGDisplayModeGetHeight(mode) != 1080 || CGDisplayModeGetPixelWidth(mode) != 1920 || CGDisplayModeGetPixelHeight(mode) != 1080) continue;
+        if (CGDisplayModeGetWidth(mode) != (size_t)width || CGDisplayModeGetHeight(mode) != (size_t)height || CGDisplayModeGetPixelWidth(mode) != (size_t)width || CGDisplayModeGetPixelHeight(mode) != (size_t)height) continue;
         if (!target || fabs(CGDisplayModeGetRefreshRate(mode) - CGDisplayModeGetRefreshRate(original)) < fabs(CGDisplayModeGetRefreshRate(target) - CGDisplayModeGetRefreshRate(original))) target = mode;
     }
     if (argc > 2 && !strcmp(argv[2], "--list")) return 0;
-    if (!target) { puts("ERROR: Display does not support 1920x1080"); return 1; }
-    if (CGDisplaySetDisplayMode(display, target, NULL) != kCGErrorSuccess) { puts("ERROR: Display rejected 1920x1080"); return 1; }
+    if (!target) { printf("ERROR: Display does not support %dx%d\n", width, height); return 1; }
+    if (CGDisplaySetDisplayMode(display, target, NULL) != kCGErrorSuccess) { printf("ERROR: Display rejected %dx%d\n", width, height); return 1; }
     puts("READY"); fflush(stdout);
     // EOF restores the mode even when the parent Electron process crashes.
     getchar();

@@ -14,7 +14,7 @@ function helper() {
 test('mac helper receives display ID and restores once through EOF', async () => {
   const child = helper();
   const result = startDisplayMode({ platform: 'darwin', arch: 'arm64', resourcesPath: '/app', displayId: 42, launch: (command, args) => {
-    assert.equal(command, '/app/native/display-mode-arm64'); assert.deepEqual(args, ['42']);
+    assert.equal(command, '/app/native/display-mode-arm64'); assert.deepEqual(args, ['42', '1920', '1080']);
     return child;
   } });
   child.stdout.write('REA'); child.stdout.write('DY\n');

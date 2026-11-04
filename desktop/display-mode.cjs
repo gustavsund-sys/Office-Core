@@ -1,11 +1,11 @@
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 
-function startDisplayMode({ platform = process.platform, arch = process.arch, resourcesPath, displayId, launch = spawn }) {
+function startDisplayMode({ platform = process.platform, arch = process.arch, resourcesPath, displayId, width = 1920, height = 1080, launch = spawn }) {
   const native = path.join(resourcesPath, 'native');
   let child;
-  if (platform === 'darwin') child = launch(path.join(native, `display-mode-${arch}`), [String(displayId)], { stdio: ['pipe', 'pipe', 'pipe'] });
-  else if (platform === 'win32') child = launch('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', path.join(native, 'display-mode.ps1')], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+  if (platform === 'darwin') child = launch(path.join(native, `display-mode-${arch}`), [String(displayId), String(width), String(height)], { stdio: ['pipe', 'pipe', 'pipe'] });
+  else if (platform === 'win32') child = launch('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', path.join(native, 'display-mode.ps1'), '-Width', String(width), '-Height', String(height)], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
   else return Promise.resolve({ ok: false, reason: 'Unsupported platform', restore: () => Promise.resolve() });
   let restored, exited = false;
   child.on('exit', () => { exited = true; });

@@ -1,3 +1,4 @@
+import { DESKTOP_RELEASE_URL } from "../client/downloads";
 import type { Game } from "../game/game";
 import {
   readGraphics,
@@ -42,9 +43,9 @@ export function openSettings() {
     <div class="settings-layout"><nav class="settings-nav" aria-label="Inställningskategorier"><button type="button" data-tab="graphics" aria-pressed="true"><span>01</span> Grafik</button><button type="button" data-tab="audio" aria-pressed="false"><span>02</span> Ljud</button><button type="button" data-tab="controls" aria-pressed="false"><span>03</span> Kontroller</button><p>Sparas på den här enheten.</p></nav>
     <div class="settings-content">
       <section data-panel="graphics"><span class="settings-eyebrow">BILDKVALITET</span><h2>Skärpa eller fler bildrutor?</h2>
-        <label class="settings-row"><span><strong>3D-upplösning</strong><small>Menyer och text behåller skärmens skärpa.</small></span><select name="resolution" aria-label="3D-upplösning"><option value="1440">2560 × 1440</option><option value="1080">1920 × 1080</option><option value="720">1280 × 720</option></select></label>
+        <label class="settings-row"><span><strong>Skärmupplösning</strong><small>Ändrar skärmens upplösning i fullskärmsläget.</small></span><select name="resolution" aria-label="Skärmupplösning"><option value="1440">2560 × 1440</option><option value="1080">1920 × 1080</option><option value="720">1280 × 720</option></select></label>
         <label class="settings-row"><span><strong>Detaljnivå</strong><small>Styr skuggor, ljussken och mängden effekter.</small></span><select name="quality" aria-label="Detaljnivå"><option value="standard">Hög</option><option value="medium">Mellan</option><option value="low">Låg</option></select></label>
-        <div class="settings-quality-note"><span>◆</span><p data-quality-note></p></div><p class="settings-footnote">Bildens proportioner följer din skärm. Högre upplösning kan sänka bildfrekvensen.</p>
+        <div class="settings-quality-note"><span>◆</span><p data-quality-note></p></div><p class="settings-footnote">Skärmen måste stödja upplösningen. Högre upplösning kan sänka bildfrekvensen.</p>
       </section>
       <section data-panel="audio" hidden><span class="settings-eyebrow">LJUDMIX</span><h2>Hör kontoret på ditt sätt.</h2><p>Justera musik och speleffekter separat. Du hör volymändringen direkt.</p>
         <label class="settings-volume"><span><strong>Musik</strong><output data-volume="music"></output></span><input type="range" name="music" aria-label="Musikvolym" min="0" max="100" step="1"><small>Lobbymusik och musik under matchen.</small></label>
@@ -86,7 +87,9 @@ export function openSettings() {
     dialog.querySelector('[data-tab="graphics"]')!.remove();
     dialog.querySelector('[data-panel="graphics"]')!.remove();
     dialog.querySelector<HTMLElement>('[data-panel="audio"]')!.hidden = false;
-    dialog.querySelector('[data-tab="audio"]')!.setAttribute("aria-pressed", "true");
+    dialog
+      .querySelector('[data-tab="audio"]')!
+      .setAttribute("aria-pressed", "true");
     dialog.querySelectorAll("[data-tab] span").forEach((number, index) => {
       number.textContent = String(index + 1).padStart(2, "0");
     });
@@ -119,7 +122,9 @@ export function openSettings() {
         );
     });
   }
+  let saving = false;
   const close = (saved = false) => {
+    if (saving) return;
     if (!saved) {
       setVolume("music", originalVolumes.music);
       setVolume("effects", originalVolumes.effects);
@@ -138,29 +143,81 @@ export function openSettings() {
     event.preventDefault();
     close();
   });
-  dialog.querySelector(".settings-save")!.addEventListener("click", () => {
-    if (graphicsAvailable) {
-      saveGraphics(quality.value as GraphicsTier);
-      saveResolution(Number(resolution.value) as RenderResolution);
-    }
-    const controls = dialog.querySelector<HTMLInputElement>(
-      '[name="settings-controls"]:checked',
-    )!.value as ControlScheme;
-    saveControlScheme(controls);
-    game?.setControlScheme(controls === "aim", false);
-    if (game) {
-      game.sound = true;
-      game.lobbyMuted = false;
-      try {
-        localStorage.setItem("officeCore.lobbyMuted", "false");
-      } catch {
-        /* Optional persistence. */
+  dialog
+    .querySelector(".settings-save")!
+    .addEventListener("click", async () => {
+      if (saving) return;
+      const saveButton =
+        dialog.querySelector<HTMLButtonElement>(".settings-save")!;
+      const status = dialog.querySelector<HTMLElement>('[role="status"]')!;
+      if (graphicsAvailable) {
+        const setResolution = window.officeCoreDesktop?.setResolution;
+        if (!setResolution) {
+          status.textContent =
+            "Installera den nya desktopversionen för att kunna byta skärmens upplösning.";
+          const download = document.createElement("a");
+          download.href = DESKTOP_RELEASE_URL;
+          download.textContent = "Hämta uppdateringen";
+          status.append(" ", download);
+          return;
+        }
+        saving = true;
+        dialog
+          .querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+            "input, select",
+          )
+          .forEach((input) => {
+            input.disabled = true;
+          });
+        saveButton.disabled = true;
+        status.textContent = "Byter skärmens upplösning…";
+        try {
+          const result = await setResolution(
+            Number(resolution.value) as RenderResolution,
+          );
+          if (!result.ok) {
+            status.textContent =
+              result.error ?? "Skärmens upplösning kunde inte ändras.";
+            return;
+          }
+        } catch {
+          status.textContent =
+            "Skärmens upplösning kunde inte ändras. Försök igen.";
+          return;
+        } finally {
+          saving = false;
+          dialog
+            .querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+              "input, select",
+            )
+            .forEach((input) => {
+              input.disabled = false;
+            });
+          saveButton.disabled = false;
+        }
       }
-      game.updateLobbyMusic(true);
-    }
-    if (graphicsAvailable) applyGraphics?.();
-    close(true);
-  });
+      if (graphicsAvailable) {
+        saveGraphics(quality.value as GraphicsTier);
+        saveResolution(Number(resolution.value) as RenderResolution);
+      }
+      const controls = dialog.querySelector<HTMLInputElement>(
+        '[name="settings-controls"]:checked',
+      )!.value as ControlScheme;
+      saveControlScheme(controls);
+      game?.setControlScheme(controls === "aim", false);
+      if (game) {
+        game.sound = true;
+        game.lobbyMuted = false;
+        try {
+          localStorage.setItem("officeCore.lobbyMuted", "false");
+        } catch {
+          /* Optional persistence. */
+        }
+        game.updateLobbyMusic(true);
+      }
+      if (graphicsAvailable) applyGraphics?.();
+      close(true);
+    });
   if (document.documentElement.dataset.client === "mobile") {
     dialog.querySelector(".settings-key-guide")?.remove();
     const tools = document.createElement("div");

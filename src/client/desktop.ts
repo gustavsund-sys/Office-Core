@@ -1,6 +1,11 @@
 declare global {
   interface Window {
-    officeCoreDesktop?: { quit(): void };
+    officeCoreDesktop?: {
+      quit(): void;
+      setResolution?(
+        height: 720 | 1080 | 1440,
+      ): Promise<{ ok: boolean; error?: string }>;
+    };
   }
 }
 

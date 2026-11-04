@@ -411,3 +411,12 @@ html[data-client="mobile"] .pause-card > .settings-trigger {
   font-size: 10px;
   text-decoration: none;
 }
+.settings-page .settings-footer [role="status"] a {
+  color: #edc98f;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.settings-page .settings-save:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}

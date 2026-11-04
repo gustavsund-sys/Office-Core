@@ -1,7 +1,7 @@
 {
   "name": "office-core-desktop",
   "productName": "Office Core",
-  "version": "0.1.0",
+  "version": "0.2.0-beta.2",
   "description": "Office Core multiplayer desktop client",
   "author": "Office Core",
   "private": true,
@@ -33,7 +33,8 @@
       "build/icon.png",
       "package.json",
       "display-mode.cjs",
-      "preload.cjs"
+      "preload.cjs",
+      "display-controller.cjs"
     ],
     "mac": {
       "category": "public.app-category.action-games",

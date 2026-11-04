@@ -1,9 +1,14 @@
 const { app, BrowserWindow, Menu, shell, session, screen, dialog, ipcMain } = require('electron');
 const path = require('node:path');
+const fs = require('node:fs/promises');
+const { DisplayController, validResolution } = require('./display-controller.cjs');
 const { GAME_URL, isGameURL, isExternalURL, allowPermission } = require('./policy.cjs');
 const { startDisplayMode } = require('./display-mode.cjs');
 let window;
 let displayMode;
+let selectedResolution = 1080;
+let resolutionRequests = 0;
+let saveDisplaySettings = Promise.resolve();
 let restoringForQuit = false;
 let failing = false;
 async function loadGame() {
@@ -18,7 +23,16 @@ async function showOffline() {
   await window.loadFile(path.join(__dirname, 'offline.html')).catch(() => {});
 }
 async function createWindow() {
-  displayMode = await startDisplayMode({ resourcesPath: app.isPackaged ? process.resourcesPath : __dirname, displayId: screen.getPrimaryDisplay().id });
+  try {
+    const saved = JSON.parse(await fs.readFile(path.join(app.getPath('userData'), 'display-settings.json'), 'utf8'));
+    if (validResolution(saved.height)) selectedResolution = saved.height;
+  } catch { /* First launch keeps the default resolution. */ }
+  displayMode = new DisplayController(size => startDisplayMode({
+    resourcesPath: app.isPackaged ? process.resourcesPath : __dirname,
+    displayId: window ? screen.getDisplayMatching(window.getBounds()).id : screen.getPrimaryDisplay().id,
+    ...size,
+  }));
+  const initialMode = await displayMode.change(selectedResolution);
   window = new BrowserWindow({
     title: 'Office Core', width: 1920, height: 1080, minWidth: 960, minHeight: 600,
     backgroundColor: '#102630', show: false, fullscreen: true, icon: path.join(__dirname, 'build/icon.png'),
@@ -26,9 +40,10 @@ async function createWindow() {
   });
   window.once('ready-to-show', () => {
     window.show();
-    if (!displayMode.ok) void dialog.showMessageBox(window, { type: 'warning', message: 'Skärmen kunde inte växla till 1920 × 1080.', detail: 'Spelet körs i fullskärm med skärmens nuvarande upplösning.\n' + displayMode.reason });
+    if (!initialMode.ok) void dialog.showMessageBox(window, { type: 'warning', message: 'Skärmen kunde inte växla till den sparade upplösningen.', detail: 'Spelet körs i fullskärm med skärmens nuvarande upplösning.\n' + initialMode.error });
   });
-  window.on('closed', () => { window = undefined; void displayMode.restore(); });
+  window.on('closed', () => { window = undefined; void displayMode.restore(true); });
+  window.on('enter-full-screen', () => { if (!resolutionRequests) void displayMode.change(selectedResolution); });
   window.on('leave-full-screen', () => { void displayMode.restore(); });
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (isExternalURL(url)) void shell.openExternal(url);
@@ -51,6 +66,23 @@ async function createWindow() {
 }
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
+  ipcMain.handle('office-core:set-resolution', async (event, height) => {
+    if (!window || event.sender !== window.webContents ||
+        event.senderFrame !== window.webContents.mainFrame ||
+        !isGameURL(event.senderFrame.url) || !validResolution(height)) {
+      return { ok: false, error: 'Upplösningen kunde inte ändras.' };
+    }
+    resolutionRequests++;
+    try {
+      const result = await displayMode.change(height);
+      if (result.ok) {
+        selectedResolution = height;
+        saveDisplaySettings = saveDisplaySettings.then(() => fs.writeFile(path.join(app.getPath('userData'), 'display-settings.json'), JSON.stringify({ height }))).catch(() => {});
+        await saveDisplaySettings;
+      }
+      return result;
+    } finally { resolutionRequests--; }
+  });
   ipcMain.on('office-core:quit', event => {
     if (window && event.sender === window.webContents &&
         event.senderFrame === window.webContents.mainFrame &&
@@ -60,7 +92,7 @@ else {
     if (!displayMode || restoringForQuit) return;
     event.preventDefault();
     restoringForQuit = true;
-    void displayMode.restore().finally(() => app.quit());
+    void displayMode.restore(true).finally(() => app.quit());
   });
   app.on('second-instance', () => { if (window) { if (window.isMinimized()) window.restore(); window.focus(); } });
   app.whenReady().then(() => {
