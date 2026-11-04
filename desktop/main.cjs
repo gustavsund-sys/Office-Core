@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell, session, screen, dialog } = require('electron');
+const { app, BrowserWindow, Menu, shell, session, screen, dialog, ipcMain } = require('electron');
 const path = require('node:path');
 const { GAME_URL, isGameURL, isExternalURL, allowPermission } = require('./policy.cjs');
 const { startDisplayMode } = require('./display-mode.cjs');
@@ -22,7 +22,7 @@ async function createWindow() {
   window = new BrowserWindow({
     title: 'Office Core', width: 1920, height: 1080, minWidth: 960, minHeight: 600,
     backgroundColor: '#102630', show: false, fullscreen: true, icon: path.join(__dirname, 'build/icon.png'),
-    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, partition: 'persist:office-core' },
+    webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, partition: 'persist:office-core' },
   });
   window.once('ready-to-show', () => {
     window.show();
@@ -51,6 +51,11 @@ async function createWindow() {
 }
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
+  ipcMain.on('office-core:quit', event => {
+    if (window && event.sender === window.webContents &&
+        event.senderFrame === window.webContents.mainFrame &&
+        isGameURL(event.senderFrame.url)) app.quit();
+  });
   app.on('before-quit', event => {
     if (!displayMode || restoringForQuit) return;
     event.preventDefault();

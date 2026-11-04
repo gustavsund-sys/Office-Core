@@ -1,3 +1,4 @@
+import { chooseClient } from "./client/chooseClient";
 import { installGameCache } from "./network/cache";
 import { checkStartupVersion } from "./network/startupVersion";
 
@@ -31,6 +32,12 @@ async function boot() {
     });
     if (!ready) return;
     try { sessionStorage.removeItem("officeCore.startupRedirect"); } catch { /* Storage is optional. */ }
+
+  }
+  gate.style.display = "none";
+  await chooseClient();
+  gate.style.display = "grid";
+  if (import.meta.env.PROD) {
     status.textContent = "Förbereder senaste spelversionen…";
     await installGameCache(true);
   }

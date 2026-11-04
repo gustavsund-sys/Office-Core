@@ -1,3 +1,4 @@
+import { gameAudio } from "./mixer";
 import { preparedMediaUrl } from "../network/preloadedMedia";
 
 /** Loop the supplied recording during the descent, respecting the game's sound setting. */
@@ -5,7 +6,7 @@ export class SupplyDropAudio {
   private audio: HTMLAudioElement;
   private pending = false;
   private desired = false;
-  constructor(audio = new Audio(preparedMediaUrl("/audio/effects/supply-drop.mp3"))) {
+  constructor(audio = gameAudio(preparedMediaUrl("/audio/effects/supply-drop.mp3"))) {
     this.audio = audio;
     audio.loop = true;
     audio.volume = 0.3;

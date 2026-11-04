@@ -1,3 +1,4 @@
+import { gameAudio, mixMedia } from "../audio/mixer";
 import { preparedMediaUrl } from "../network/preloadedMedia";
 import type { Team } from "../config/game";
 
@@ -12,8 +13,8 @@ export function coreEndingVideo(
 }
 
 export class RoundMedia {
-  private music = new Audio(
-    preparedMediaUrl("/audio/music/core-under-attack-v3.mp3"),
+  private music = gameAudio(
+    preparedMediaUrl("/audio/music/core-under-attack-v3.mp3"), "music",
   );
   private round?: number;
   private played = false;
@@ -89,7 +90,9 @@ export class RoundMedia {
     overlay.setAttribute("role", "dialog");
     overlay.setAttribute("aria-label", `${team} Core destroyed`);
     const video = document.createElement("video");
+    video.crossOrigin = "anonymous";
     video.src = preparedMediaUrl(coreEndingVideo(team));
+    mixMedia(video, "effects");
     video.preload = "auto";
     video.playsInline = true;
     video.muted = !this.sound;

@@ -1,3 +1,4 @@
+import { gameAudio } from "./mixer";
 import { preparedMediaUrl } from "../network/preloadedMedia";
 import type { Team } from "../config/game";
 
@@ -5,8 +6,8 @@ import type { Team } from "../config/game";
 export class RoundSpawnAudio {
   private heardRound?: number;
   constructor(private sounds: Record<Team, HTMLAudioElement> = {
-    RED: new Audio(preparedMediaUrl("/audio/effects/red-team-core.mp3")),
-    BLUE: new Audio(preparedMediaUrl("/audio/effects/blue-team-core.mp3")),
+    RED: gameAudio(preparedMediaUrl("/audio/effects/red-team-core.mp3")),
+    BLUE: gameAudio(preparedMediaUrl("/audio/effects/blue-team-core.mp3")),
   }) {}
   update(started: boolean, round: number, team: Team | undefined, alive: boolean, audible: boolean) {
     if (!started) { this.heardRound = undefined; return; }

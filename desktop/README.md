@@ -27,7 +27,7 @@ Unsigned local test installers can be built without developer accounts. General 
 
 ## Runtime boundaries
 
-The game renderer has sandboxing, context isolation and no Node.js integration. No preload bridge is exposed. The game window accepts top-level navigation only to its production HTTPS origin. Other HTTPS links open in the normal browser. Permission requests are denied except pointer lock, fullscreen and keyboard lock from the game origin.
+The game renderer has sandboxing, context isolation and no Node.js integration. A sandboxed preload exposes only `officeCoreDesktop.quit()`. The main process accepts this request only from the trusted game origin in the main frame. The pause/menu exit button uses this action to quit the entire application and restore the display mode. The game window accepts top-level navigation only to its production HTTPS origin. Other HTTPS links open in the normal browser. Permission requests are denied except pointer lock, fullscreen and keyboard lock from the game origin.
 
 `Spel → Återanslut / ladda om` reloads the hosted game. If it cannot load, a local error page describes how to retry.
 

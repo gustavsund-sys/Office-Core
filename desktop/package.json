@@ -32,7 +32,8 @@
       "offline.html",
       "build/icon.png",
       "package.json",
-      "display-mode.cjs"
+      "display-mode.cjs",
+      "preload.cjs"
     ],
     "mac": {
       "category": "public.app-category.action-games",

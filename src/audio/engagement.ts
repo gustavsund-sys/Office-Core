@@ -1,3 +1,4 @@
+import { audioOutput } from "./mixer";
 import { office01 } from "../maps/office01";
 export class EngagementAudio {
   private mix: GainNode;
@@ -10,7 +11,7 @@ export class EngagementAudio {
   constructor(private context: AudioContext) {
     this.mix = context.createGain();
     this.mix.gain.value = 0;
-    this.mix.connect(context.destination);
+    this.mix.connect(audioOutput(context));
     this.noise = context.createBuffer(
       1,
       context.sampleRate * 2,

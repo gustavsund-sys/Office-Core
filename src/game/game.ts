@@ -1,3 +1,5 @@
+import { readControlScheme } from "./controlSettings";
+import { gameAudio, audioOutput } from "../audio/mixer";
 import { spectatorTarget } from "./spectator";
 import { heldWeapon, rocketModel } from "../weapons/models";
 import { releaseEffect } from "./effectPool";
@@ -31,7 +33,7 @@ import { RifleScope, SniperGlints } from "./rifleScope";
 import { BossLookout, lookoutPose, LOOKOUT } from "./bossLookout";
 import type { DeathSource } from "../ui/combatFeed";
 import { RoundMedia } from "./roundMedia";
-import { GRAPHICS, readGraphics, renderSize } from "./graphicsSettings";
+import { GRAPHICS, readGraphics, renderSize, readResolution } from "./graphicsSettings";
 import { RCSession } from "./rcSession";
 import { advanceCountdown, finishLocalRound } from "./roundFlow";
 import { applyOnline as applyOnlineImpl } from "./snapshotReconciliation";
@@ -228,13 +230,13 @@ export class Game {
   localKills = 0;
   currentRound = 1;
   teamWins = { RED: 0, BLUE: 0 };
-  disarmAudio = new Audio(preparedMediaUrl("/audio/disarm.mp3"));
-  lobbyMuted = localStorage.getItem("officeCore.lobbyMuted") === "true";
+  disarmAudio = gameAudio(preparedMediaUrl("/audio/disarm.mp3"));
+  lobbyMuted = false;
   updateDisarm(progress?: number) {
     return updateDisarmImpl.call(this, progress);
   }
   roundMedia = new RoundMedia();
-  lobbyMusic = new Audio(preparedMediaUrl("/audio/music/tactical-pulse.mp3"));
+  lobbyMusic = gameAudio(preparedMediaUrl("/audio/music/tactical-pulse.mp3"), "music");
   lobbyMusicBlocked = false;
   lobbyMusicPending = false;
   updateLobbyMusic(unlock = false) {
@@ -260,6 +262,7 @@ export class Game {
       canvas.clientWidth,
       canvas.clientHeight,
       readGraphics() ?? "standard",
+      readResolution(),
     );
     this.engine.setHardwareScalingLevel(1 / render.scale);
     this.scene = new Scene(this.engine);
@@ -369,21 +372,8 @@ export class Game {
       this.hud.toast("CORE BUSTER DISARMED · ROUND SAVED");
       this.engagementAudio?.hit(true);
     };
-    let preferred = true;
-    try {
-      const saved = localStorage.getItem("office-wars-controls");
-      if (saved === "classic" || saved === "aim") preferred = saved === "aim";
-    } catch {
-      /* Storage may be unavailable in private browsers. */
-    }
+    const preferred = readControlScheme() === "aim";
     this.setControlScheme(preferred, false);
-    document
-      .querySelectorAll<HTMLInputElement>('input[name="controls"]')
-      .forEach((radio) => {
-        radio.addEventListener("change", () => {
-          if (radio.checked) this.setControlScheme(radio.value === "aim");
-        });
-      });
     document.body.classList.remove("third-person", "capture-fallback");
     this.weapons = new Weapons(
       this.player,
@@ -2192,7 +2182,7 @@ export class Game {
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.32 * strength, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
-    noise.connect(filter).connect(gain).connect(ctx.destination);
+    noise.connect(filter).connect(gain).connect(audioOutput(ctx));
     noise.start();
     const bass = ctx.createOscillator(),
       bg = ctx.createGain();
@@ -2200,7 +2190,7 @@ export class Game {
     bass.frequency.exponentialRampToValueAtTime(28, t + 0.35);
     bg.gain.setValueAtTime(0.35 * strength, t);
     bg.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
-    bass.connect(bg).connect(ctx.destination);
+    bass.connect(bg).connect(audioOutput(ctx));
     bass.start();
     bass.stop(t + 0.4);
   }

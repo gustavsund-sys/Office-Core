@@ -3,6 +3,7 @@ import { gpuInvestigation } from "./game/gpuInvestigation";
 import { showRuntimeError } from "./ui/runtimeError";
 import { chooseClient } from "./client/chooseClient";
 import { StartupLoading } from "./ui/startupLoading";
+import { installDesktopExit } from "./client/desktop";
 let activeLoading: StartupLoading | undefined;
 import gameAssets from "virtual:game-assets";
 import { preloadResources } from "./network/preload";
@@ -146,13 +147,10 @@ async function start() {
       stencil: true,
       powerPreference: "high-performance",
     });
-    const { readGraphics, saveGraphics, GRAPHICS } =
+    const { readGraphics, GRAPHICS } =
       await import("./game/graphicsSettings");
-    const { testGraphics, applyGraphics } =
-      await import("./game/graphicsBenchmark");
-    loading.hidden = true;
-    if (mobile) saveGraphics("standard");
-    else if (!readGraphics()) await testGraphics(engine);
+    const { applyGraphics } =
+      await import("./game/graphicsRendering");
     applyGraphics(engine, readGraphics() ?? "standard");
     loading.hidden = false;
     const game = new Game(canvas, engine, mobile?.mobilePresentation());
@@ -231,89 +229,21 @@ async function start() {
     const resizeGraphics = () =>
       applyGraphics(engine!, readGraphics() ?? "standard");
     window.addEventListener("resize", resizeGraphics);
-    if (!mobile) {
-    const graphicsButton = document.createElement("button");
-    graphicsButton.className = "graphics-display-icon";
-    graphicsButton.title = "Grafikinställningar";
-    graphicsButton.setAttribute("aria-label", "Grafikinställningar");
-    graphicsButton.setAttribute("aria-expanded", "false");
-    graphicsButton.setAttribute("aria-controls", "graphics-menu");
-    graphicsButton.innerHTML =
-      '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 17v3M8 20h8"/></svg>';
-    const graphicsMenu = document.createElement("section");
-    graphicsMenu.id = "graphics-menu";
-    graphicsMenu.className = "graphics-menu";
-    graphicsMenu.hidden = true;
-    graphicsMenu.setAttribute("aria-label", "Grafikinställningar");
-    graphicsMenu.innerHTML =
-      '<header><strong>GRAFIK</strong><button class="graphics-close" aria-label="Stäng grafikinställningar">×</button></header><label>Grafiknivå<select aria-label="Välj grafiknivå"></select></label><p class="graphics-details"></p><button class="graphics-apply">Använd grafiknivå</button><button class="graphics-retest">Testa grafik igen</button><small>Testet tar drygt en minut. Dina val sparas på denna enhet.</small>';
-    const select = graphicsMenu.querySelector("select")!;
-    for (const [tier, quality] of Object.entries(GRAPHICS)) {
-      const option = document.createElement("option");
-      option.value = tier;
-      option.textContent = quality.name;
-      select.append(option);
-    }
-    const describe = () => {
-      const quality = GRAPHICS[select.value as keyof typeof GRAPHICS];
-      graphicsMenu.querySelector(".graphics-details")!.textContent =
-        `Max ${quality.height}p · ${quality.shadow === 0 ? "skuggor av" : quality.shadow === 512 ? "enklare skuggor" : "detaljerade skuggor"} · ${quality.effects === 1 ? "fulla effekter" : "reducerade effekter"}`;
-    };
-    select.onchange = describe;
-    const closeGraphics = () => {
-      graphicsMenu.hidden = true;
-      graphicsButton.setAttribute("aria-expanded", "false");
-    };
-    graphicsButton.onclick = () => {
-      if (!graphicsMenu.hidden) {
-        closeGraphics();
-        return;
-      }
-      select.value = readGraphics() ?? "standard";
-      describe();
-      graphicsMenu.hidden = false;
-      graphicsButton.setAttribute("aria-expanded", "true");
-    };
-    graphicsMenu.querySelector<HTMLButtonElement>(".graphics-close")!.onclick =
-      closeGraphics;
-    const updateQuality = (tier: keyof typeof GRAPHICS) => {
-      saveGraphics(tier);
+    const { installSettings } = await import("./ui/settings");
+    installSettings(game, () => {
+      const tier = readGraphics() ?? "standard";
       applyGraphics(engine!, tier);
       const quality = GRAPHICS[tier];
       game.scene.shadowsEnabled = quality.shadow > 0;
-      if (quality.shadow)
-        game.world.shadows.getShadowMap()?.resize(quality.shadow);
+      if (quality.shadow) game.world.shadows.getShadowMap()?.resize(quality.shadow);
       game.world.shadows.filteringQuality = quality.shadow === 512 ? 0 : 2;
       game.world.explosions.amount = quality.effects;
+      game.warzone.quality = quality.effects;
       for (const layer of game.scene.effectLayers)
         if (layer.name === "subtle glow")
-          (layer as import("@babylonjs/core").GlowLayer).intensity =
-            quality.glow;
-      game.scene.imageProcessingConfiguration.vignetteEnabled =
-        quality.effects === 1;
-    };
-    graphicsMenu.querySelector<HTMLButtonElement>(".graphics-apply")!.onclick =
-      () => {
-        updateQuality(select.value as keyof typeof GRAPHICS);
-        closeGraphics();
-      };
-    graphicsMenu.querySelector<HTMLButtonElement>(".graphics-retest")!.onclick =
-      async () => {
-        closeGraphics();
-        graphicsButton.disabled = true;
-        const loops = [...engine!.activeRenderLoops];
-        engine!.stopRenderLoop();
-        try {
-          updateQuality(
-            await testGraphics(engine!, game.world.explosions.spriteMode),
-          );
-        } finally {
-          loops.forEach((loop) => engine!.runRenderLoop(loop));
-          graphicsButton.disabled = false;
-        }
-      };
-    document.querySelector("#overlay")!.append(graphicsButton, graphicsMenu);
-    }
+          (layer as import("@babylonjs/core").GlowLayer).intensity = quality.glow;
+      game.scene.imageProcessingConfiguration.vignetteEnabled = quality.effects === 1;
+    });
     const guide = document.createElement("button");
     guide.className = "open-field-guide";
     guide.textContent = "Tutorial";
@@ -323,15 +253,7 @@ async function start() {
       void showTutorial();
     };
     document.querySelector("#overlay")!.append(guide);
-    if (!mobile) {
-      const badge = document.createElement("div");
-      badge.textContent = engine.isWebGPU
-        ? "RENDERER · WEBGPU"
-        : "RENDERER · WEBGL";
-      badge.style.cssText =
-        "position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:200;color:#b7f5ef;background:#10232be8;padding:5px 10px;border-radius:4px;font:12px monospace;pointer-events:none";
-      document.body.append(badge);
-    }
+    installDesktopExit();
   }
   loading.remove();
   activeLoading = undefined;

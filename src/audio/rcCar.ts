@@ -1,3 +1,4 @@
+import { audioOutput } from "./mixer";
 import { preparedAudioData } from "../network/preloadedMedia";
 export class RCAudio {
   private context?: AudioContext;
@@ -37,7 +38,7 @@ export class RCAudio {
     this.stopVoices();
     const gain = context.createGain();
     gain.gain.value = 0.0001;
-    gain.connect(context.destination);
+    gain.connect(audioOutput(context));
     this.gain = gain;
     gain.gain.exponentialRampToValueAtTime(1.088, context.currentTime + 0.06);
     const ramp = context.createBufferSource();
@@ -100,7 +101,7 @@ export class RCAudio {
     }
     this.loop = undefined;
     const gain = context.createGain();
-    gain.connect(context.destination);
+    gain.connect(audioOutput(context));
     const duration = this.deceleration.duration;
     gain.gain.setValueAtTime(0.0001, now);
     gain.gain.exponentialRampToValueAtTime(

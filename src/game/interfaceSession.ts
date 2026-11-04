@@ -1,3 +1,4 @@
+import { saveControlScheme } from "./controlSettings";
 import type { Game } from "./game";
 type Context = Pick<
   Game,
@@ -78,15 +79,7 @@ export function setControlScheme(
       (radio) =>
         (radio.checked = radio.value === (aimRelative ? "aim" : "classic")),
     );
-  if (save)
-    try {
-      localStorage.setItem(
-        "office-wars-controls",
-        aimRelative ? "aim" : "classic",
-      );
-    } catch {
-      /* Keep the choice for this session even without storage. */
-    }
+  if (save) saveControlScheme(aimRelative ? "aim" : "classic");
 }
 
 export function setPaused(this: Context, value: boolean) {

@@ -1,7 +1,6 @@
 import { bindMobilePress } from "./press";
 import { mountMobileStatus } from "./statusHud";
 import { mobileInteraction, type MobileInteraction } from "./interaction";
-import { rendererLabel } from "../game/rendererSelection";
 import { installMobileApp, openMobileFullscreen } from "./platform";
 import { Matrix, Vector3 } from "@babylonjs/core";
 import type { Game } from "../game/game";
@@ -175,6 +174,7 @@ export class MobileControls {
       button.textContent = title;
       button.setAttribute("aria-pressed", String(tab === "play"));
       button.onclick = () => {
+        if (tab === "settings") { void import("../ui/settings").then(m => m.openSettings()); return; }
         card.dataset.mobileTab = tab;
         nav
           .querySelectorAll("button")
@@ -185,10 +185,6 @@ export class MobileControls {
     card.querySelector(".game-logo")!.after(nav);
     const settings = document.createElement("section");
     settings.className = "mobile-settings";
-    const renderer = document.createElement("p");
-    renderer.className = "mobile-renderer-info";
-    renderer.textContent = `Grafikmotor: ${rendererLabel(this.game.engine)}`;
-    settings.append(renderer);
     settings.append(document.querySelector<HTMLButtonElement>("#sound")!);
     const make = (label: string, action: () => void) => {
       const button = document.createElement("button");

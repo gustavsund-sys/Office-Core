@@ -53,7 +53,7 @@ export class Input {
   remoteDrivingStarted = false;
   remoteSteer = 0;
   mode: ViewMode = "topDown";
-  aimRelativeMovement = true;
+  aimRelativeMovement = false;
   yaw = Math.PI;
   pitch = CONFIG.thirdPerson.initialPitch;
   active = false;

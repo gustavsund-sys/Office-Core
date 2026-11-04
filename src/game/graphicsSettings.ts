@@ -9,7 +9,7 @@ export const GRAPHICS = {
     glow: 0.1,
   },
   standard: {
-    name: "Standard",
+    name: "Hög",
     height: 1080,
     shadow: 1024,
     effects: 1,
@@ -42,9 +42,27 @@ export function saveGraphics(tier: GraphicsTier) {
     localStorage.setItem(storageKey(), tier);
   } catch {}
 }
-export function renderSize(width: number, height: number, tier: GraphicsTier) {
-  const max = GRAPHICS[tier].height;
-  const scale = Math.min(1, max / height, (max * 16) / 9 / width);
+export type RenderResolution = 720 | 1080 | 1440;
+export const RESOLUTION_KEY = "officeCore.resolution.v1";
+function resolutionKey() {
+  return typeof document !== "undefined" && document.documentElement.dataset.client === "mobile"
+    ? `${RESOLUTION_KEY}.mobile` : RESOLUTION_KEY;
+}
+export function readResolution(): RenderResolution {
+  try {
+    const value = Number(localStorage.getItem(resolutionKey()));
+    if (value === 720 || value === 1080 || value === 1440) return value;
+  } catch { /* Use the default. */ }
+  return 1080;
+}
+export function saveResolution(value: RenderResolution) {
+  try { localStorage.setItem(resolutionKey(), String(value)); } catch { /* Session only. */ }
+}
+export function renderSize(width: number, height: number, tier: GraphicsTier, resolution?: RenderResolution) {
+  const max = resolution ?? GRAPHICS[tier].height;
+  const scale = resolution === undefined
+    ? Math.min(1, max / height, (max * 16) / 9 / width)
+    : Math.min(max / height, (max * 16) / 9 / width);
   return {
     width: Math.max(1, Math.floor(width * scale)),
     height: Math.max(1, Math.floor(height * scale)),

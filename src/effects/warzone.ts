@@ -32,7 +32,7 @@ export class Warzone {
   }[] = [];
   constructor(
     private world: World,
-    private quality: number,
+    public quality: number,
   ) {
     const scene = world.scene;
     const material = new StandardMaterial("warzone flame", scene);

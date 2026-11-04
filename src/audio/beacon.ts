@@ -1,3 +1,4 @@
+import { gameAudio } from "./mixer";
 import { preparedMediaUrl } from "../network/preloadedMedia";
 import { BEACON, type BeaconState } from "../game/beacon";
 import { BEACON_MOVEMENT_CLIPS } from "./beaconClips";
@@ -14,7 +15,7 @@ export class BeaconAudio {
       a?.pause();
       if (a) this.playing.delete(a);
     }
-    const audio = new Audio(preparedMediaUrl(`/audio/beacon-${kind}.mp3`));
+    const audio = gameAudio(preparedMediaUrl(`/audio/beacon-${kind}.mp3`));
     audio.volume = Math.min(0.7, 0.7 / (1 + (distance / 15) ** 2));
     this.playing.add(audio);
     audio.onended = () => this.playing.delete(audio);
@@ -53,7 +54,7 @@ export class BeaconAudio {
       }
       const clip = BEACON_MOVEMENT_CLIPS[r.movementClip];
       if (!clip) continue;
-      const audio = new Audio(preparedMediaUrl(clip.src));
+      const audio = gameAudio(preparedMediaUrl(clip.src));
       audio.playbackRate = r.target ? BEACON.trackingSpeed : 1;
       audio.currentTime = Math.min(
         r.motionElapsed ?? 0,

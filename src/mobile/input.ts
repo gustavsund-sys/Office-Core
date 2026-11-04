@@ -1,3 +1,4 @@
+import { relativeMovement } from "../player/look";
 import { WEAPONS } from "../config/weapons";
 import type { Weapons } from "../weapons/system";
 import { mobileDirection, mobileSpeed, aimStickFires } from "./controlMath";
@@ -49,7 +50,10 @@ export class MobileInput extends Input {
       return command;
     }
     const strength = Math.hypot(this.movement.x, this.movement.y);
-    const direction = mobileDirection(this.movement.x, this.movement.y);
+    let direction = mobileDirection(this.movement.x, this.movement.y);
+    if (this.aimRelativeMovement) {
+      direction = relativeMovement(direction.x, direction.z, Math.atan2(this.aim.x, -this.aim.y));
+    }
     const speed = mobileSpeed(this.remote ? 0 : strength);
     const pressed = this.pressed;
     this.pressed = false;

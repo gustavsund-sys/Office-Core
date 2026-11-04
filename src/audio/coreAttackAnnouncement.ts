@@ -1,3 +1,4 @@
+import { gameAudio } from "./mixer";
 import { preparedMediaUrl } from "../network/preloadedMedia";
 import type { Team } from "../config/game";
 
@@ -6,8 +7,8 @@ export class CoreAttackAnnouncement {
   private round?: number;
   private announced = new Set<Team>();
   constructor(private sounds: Record<Team, HTMLAudioElement> = {
-    RED: new Audio(preparedMediaUrl("/audio/effects/red-core-under-attack.mp3")),
-    BLUE: new Audio(preparedMediaUrl("/audio/effects/blue-core-under-attack.mp3")),
+    RED: gameAudio(preparedMediaUrl("/audio/effects/red-core-under-attack.mp3")),
+    BLUE: gameAudio(preparedMediaUrl("/audio/effects/blue-core-under-attack.mp3")),
   }) {}
   update(started: boolean, round: number, cores: readonly { team?: Team; hp: number; active: boolean }[], audible: boolean, listenerTeam?: Team) {
     if (!started) { this.round = undefined; this.announced.clear(); return; }

@@ -1,3 +1,4 @@
+import { gameAudio } from "./mixer";
 import { preparedMediaUrl } from "../network/preloadedMedia";
 
 type Cue = "hurt" | "spree" | "first";
@@ -8,9 +9,9 @@ export class CombatAnnouncements {
   private low = false;
   private lowEntries = 0;
   constructor(private sounds: Record<Cue, HTMLAudioElement> = {
-    hurt: new Audio(preparedMediaUrl("/audio/effects/shit-im-hurt.mp3")),
-    spree: new Audio(preparedMediaUrl("/audio/effects/killing-spree.mp3")),
-    first: new Audio(preparedMediaUrl("/audio/effects/first-blood.mp3")),
+    hurt: gameAudio(preparedMediaUrl("/audio/effects/shit-im-hurt.mp3")),
+    spree: gameAudio(preparedMediaUrl("/audio/effects/killing-spree.mp3")),
+    first: gameAudio(preparedMediaUrl("/audio/effects/first-blood.mp3")),
   }) {}
   private play(cue: Cue, audible: boolean, distance = 0) {
     if (!audible) return;

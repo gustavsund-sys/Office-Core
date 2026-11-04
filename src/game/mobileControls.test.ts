@@ -341,3 +341,17 @@ test("scoped mobile hold also repeats fire and stops when leaving the firing rin
   input.setAimStick(0, 0, 0);
   assert.equal(input.command(world, Vector3.Zero()).pressed, false);
 });
+
+test("aim-relative mobile controls rotate movement toward the aiming stick", () => {
+  const input = new MobileInput({} as HTMLCanvasElement);
+  input.movement = { x: 0, y: -0.8 };
+  input.aim = { x: 1, y: 0 };
+  const classic = input.command({} as World, Vector3.Zero());
+  assert.equal(classic.moveX, 0);
+  assert.ok(classic.moveZ > 0);
+  input.aimRelativeMovement = true;
+  const aimed = input.command({} as World, Vector3.Zero());
+  assert.ok(aimed.moveX > 0);
+  assert.ok(Math.abs(aimed.moveZ) < 1e-8);
+  assert.ok(Math.abs(Math.hypot(aimed.moveX, aimed.moveZ) - Math.hypot(classic.moveX, classic.moveZ)) < 1e-8);
+});

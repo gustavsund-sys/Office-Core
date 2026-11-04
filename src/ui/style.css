@@ -3312,6 +3312,21 @@ footer {
   box-shadow: none;
   font-size: 10px;
 }
+.pause-card .desktop-exit {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 16px;
+  color: #f1c5c5;
+  background: #592f3855;
+  border: 1px solid #b46b7580;
+  box-shadow: none;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+.pause-card .desktop-exit:hover {
+  background: #743d49;
+  border-color: #df929d;
+}
 
 /* Equipment sits beside the vitals instead of covering the playfield above them. */
 footer {

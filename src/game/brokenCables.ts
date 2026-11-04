@@ -1,3 +1,4 @@
+import { gameAudio } from "../audio/mixer";
 import { Color3, MeshBuilder, PointLight, TransformNode, Vector3 } from "@babylonjs/core";
 import type { World } from "../map/builder";
 import { office01 } from "../maps/office01";
@@ -11,7 +12,7 @@ import { preparedMediaUrl } from "../network/preloadedMedia";
 export class BrokenCables {
   private sites: { x: number; z: number; sparks: TransformNode; next: number; active: number }[] = [];
   private light: PointLight;
-  private audio = new Audio(preparedMediaUrl("/audio/effects/electric-sparks.mp3"));
+  private audio = gameAudio(preparedMediaUrl("/audio/effects/electric-sparks.mp3"));
   private pending = false;
   private desired = false;
   private lastSite = -1;

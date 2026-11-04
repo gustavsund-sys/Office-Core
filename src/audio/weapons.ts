@@ -1,3 +1,4 @@
+import { audioOutput } from "./mixer";
 import { preparedAudioData } from "../network/preloadedMedia";
 import { shotAudibility } from "./spatial";
 import { machineGunRegions } from "./machineGun";
@@ -217,7 +218,7 @@ export class WeaponAudio {
     const compressor = context.createDynamicsCompressor();
     compressor.threshold.value = -12;
     compressor.ratio.value = 5;
-    this.master.connect(compressor).connect(context.destination);
+    this.master.connect(compressor).connect(audioOutput(context));
     this.noise = context.createBuffer(
       1,
       context.sampleRate * 0.3,
