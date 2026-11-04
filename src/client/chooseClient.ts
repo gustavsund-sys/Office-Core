@@ -1,3 +1,4 @@
+import { installDownloadGuides } from "./installGuide";
 import "./launcher.css";
 import { DESKTOP_DOWNLOADS } from "./downloads";
 
@@ -32,9 +33,9 @@ export async function chooseClient(): Promise<ClientMode> {
       </section>
       <section class="launcher-play" aria-labelledby="launcher-title"><span class="launcher-eyebrow">DAGS ATT STÄMPLA IN</span><h2 id="launcher-title">Kontoret kallar.</h2><p class="launcher-lead">Installera Office Core på din dator.<br>Välj din plattform och kliv in i matchen.</p>
         <div class="launcher-downloads">
-          <a class="launcher-download launcher-windows" href="${DESKTOP_DOWNLOADS.windows}"><span class="launcher-platform-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 4 9-1v8H2zm11-1 9-1v9h-9zM2 13h9v8l-9-1zm11 0h9v9l-9-1z"/></svg></span><span><strong>Ladda ner för Windows</strong><small>Windows 10 / 11 · 64-bit · EXE</small></span>${downloadIcon}</a>
-          <a class="launcher-download launcher-mac" href="${DESKTOP_DOWNLOADS.mac}"><span class="launcher-platform-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="13" rx="2"/><path d="M9 21h6m-3-5v5"/></svg></span><span><strong>Ladda ner för Mac</strong><small>Apple Silicon · M1 eller senare · DMG</small></span>${downloadIcon}</a>
-          <a class="launcher-intel" href="${DESKTOP_DOWNLOADS.macIntel}">Har du en Mac med Intel? <span>Ladda ner Intel-versionen ↗</span></a>
+          <a class="launcher-download launcher-windows" data-installer="windows" data-install-variant="Windows 10 / 11 · 64-bit" href="${DESKTOP_DOWNLOADS.windows}"><span class="launcher-platform-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m2 4 9-1v8H2zm11-1 9-1v9h-9zM2 13h9v8l-9-1zm11 0h9v9l-9-1z"/></svg></span><span><strong>Ladda ner för Windows</strong><small>Windows 10 / 11 · 64-bit · EXE</small></span>${downloadIcon}</a>
+          <a class="launcher-download launcher-mac" data-installer="mac" data-install-variant="Mac · Apple Silicon" href="${DESKTOP_DOWNLOADS.mac}"><span class="launcher-platform-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="13" rx="2"/><path d="M9 21h6m-3-5v5"/></svg></span><span><strong>Ladda ner för Mac</strong><small>Apple Silicon · M1 eller senare · DMG</small></span>${downloadIcon}</a>
+          <a class="launcher-intel" data-installer="mac" data-install-variant="Mac · Intel" href="${DESKTOP_DOWNLOADS.macIntel}">Har du en Mac med Intel? <span>Ladda ner Intel-versionen ↗</span></a>
         </div>
         <p class="launcher-download-note">Gratis att spela <span>·</span> Internetanslutning krävs</p>
         <div class="launcher-divider"><span>ELLER HOPPA IN DIREKT</span></div>
@@ -44,6 +45,9 @@ export async function chooseClient(): Promise<ClientMode> {
     </main>
     <footer class="launcher-footer"><span>OFFICE CORE <i>/</i> FIRST TO THREE</span><span>Inga möten. Bara matcher.</span></footer>
   </div>`;
+  installDownloadGuides(screen, () => {
+    screen.querySelector<HTMLButtonElement>('[data-client="desktop"]')!.click();
+  });
   document.body.append(screen);
   const choice = await new Promise<ClientMode>((resolve) => {
     screen
