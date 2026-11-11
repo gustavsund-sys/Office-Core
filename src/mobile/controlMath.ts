@@ -44,7 +44,7 @@ export function mobileSpeed(strength: number) {
   // Shared physics supplies 1.5x while sprinting. Encode the remaining analog magnitude.
   return {
     sprint,
-    magnitude: sprint ? (1 + ((value - 0.9) / 0.1) * 0.5) / 1.5 : value / 0.9,
+    magnitude: sprint ? (0.9 + ((value - 0.9) / 0.1) * 0.6) / 1.5 : value / 0.9,
   };
 }
 

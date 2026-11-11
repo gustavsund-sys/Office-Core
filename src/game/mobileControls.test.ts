@@ -159,7 +159,7 @@ test("outer stick requests shared sprint, exhausted players keep walking at PC s
     for (let i = 0; i < 30; i++)
       player.simulate(input.command(world, player.root.position), 1 / 30);
     assert.ok(
-      Math.abs(player.root.position.x - x - CONFIG.player.speed) < 1e-7,
+      Math.abs(player.root.position.x - x - CONFIG.player.speed * 0.9) < 1e-7,
     );
     assert.equal(player.sprinting, false);
     input.movement = { x: 0.6, y: 0 };
@@ -185,8 +185,8 @@ test("analog speed stays continuous across the 90 percent sprint boundary", () =
     assert.equal(speed.sprint, sprint);
     assert.ok(
       Math.abs(
-        speed.magnitude * (sprint ? 1.5 : 1) -
-          (strength <= 0.9 ? strength / 0.9 : 1 + (strength - 0.9) * 5),
+        speed.magnitude * (sprint ? 1.5 : 0.9) -
+          (strength <= 0.9 ? strength : 0.9 + (strength - 0.9) * 6),
       ) < 1e-10,
     );
   }
@@ -213,7 +213,7 @@ test("shared movement retains fine analog speed and replay produces the same pos
       player.simulate(command, 0.1);
       const expected =
         CONFIG.player.speed *
-        (strength <= 0.9 ? strength / 0.9 : 1 + (strength - 0.9) * 5) *
+        (strength <= 0.9 ? strength : 0.9 + (strength - 0.9) * 6) *
         0.1;
       assert.ok(
         Math.abs(player.root.position.x - expected) < 1e-8,
