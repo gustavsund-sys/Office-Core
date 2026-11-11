@@ -32,6 +32,8 @@ interface Flash {
   age: number;
   life: number;
   size: number;
+  anchor?: TransformNode;
+  awaitingFirstRender?: boolean;
 }
 /** Two crossed axial flames plus a face-on core: readable from every camera angle. */
 export class MuzzleFlashes {
@@ -40,6 +42,20 @@ export class MuzzleFlashes {
   private materials = new Map<string, StandardMaterial>();
   private textures = new Map<string, Texture>();
   constructor(private scene: Scene) {
+    scene.onBeforeRenderObservable.add(() => {
+      for (const flash of this.pool) {
+        const anchor = flash.anchor;
+        if (!anchor || !flash.root.isEnabled()) continue;
+        if (anchor.isDisposed() || !anchor.isEnabled()) {
+          flash.anchor = undefined;
+          flash.awaitingFirstRender = false;
+          flash.root.setEnabled(false);
+          continue;
+        }
+        this.align(flash, anchor.computeWorldMatrix(true).getTranslation(), anchor.forward);
+        flash.awaitingFirstRender = false;
+      }
+    });
     // Warm the shared textures once so the first shot can display immediately.
     for (const energy of [false, true]) {
       this.material(energy, false, muzzleTexture(undefined, 0));
@@ -85,12 +101,24 @@ export class MuzzleFlashes {
     ] as const)
       this.emit(position, Vector3.Forward(), weapon === "pulseGun", 1, weapon);
   }
+  private align(flash: Flash, position: Vector3, direction: Vector3, roll = 0) {
+    const forward = direction.lengthSquared() > 1e-8
+      ? direction.normalizeToNew()
+      : Vector3.Forward();
+    flash.root.position.copyFrom(position);
+    flash.root.rotationQuaternion = Quaternion.RotationYawPitchRoll(
+      Math.atan2(forward.x, forward.z),
+      -Math.asin(Math.max(-1, Math.min(1, forward.y))),
+      roll,
+    );
+  }
   emit(
     position: Vector3,
     direction: Vector3,
     energy = false,
     size = 1,
     weapon?: MuzzleWeapon,
+    anchor?: TransformNode,
   ) {
     let flash = this.pool.find((f) => !f.root.isEnabled());
     if (!flash && this.pool.length >= 32)
@@ -132,18 +160,13 @@ export class MuzzleFlashes {
       flash = { root, planes, age: 0, life: 0.06, size: 1 };
       this.pool.push(flash);
     }
-    const forward =
-      direction.lengthSquared() > 1e-8
-        ? direction.normalizeToNew()
-        : Vector3.Forward();
-    flash.root.position.copyFrom(position);
+    flash.anchor = anchor;
+    // A shot can be emitted and aged in the same simulation tick, before
+    // the renderer has sampled the firing pose and updated the muzzle.
+    flash.awaitingFirstRender = !!anchor;
     if (weapon === "turret")
       this.turretRoll = (this.turretRoll - Math.PI / 36) % (Math.PI * 2);
-    flash.root.rotationQuaternion = Quaternion.RotationYawPitchRoll(
-      Math.atan2(forward.x, forward.z),
-      -Math.asin(Math.max(-1, Math.min(1, forward.y))),
-      weapon === "turret" ? this.turretRoll : 0,
-    );
+    this.align(flash, position, anchor?.forward ?? direction, weapon === "turret" ? this.turretRoll : 0);
     flash.age = 0;
     flash.life = 0.045 + Math.random() * 0.025;
     flash.size = size * (0.9 + Math.random() * 0.2);
@@ -161,9 +184,10 @@ export class MuzzleFlashes {
   }
   update(dt: number) {
     for (const f of this.pool)
-      if (f.root.isEnabled()) {
+      if (f.root.isEnabled() && !f.awaitingFirstRender) {
         f.age += dt;
         if (f.age >= f.life) {
+          f.anchor = undefined;
           f.root.setEnabled(false);
           continue;
         }

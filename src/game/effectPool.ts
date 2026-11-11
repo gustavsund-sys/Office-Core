@@ -1,6 +1,7 @@
-import { Mesh, MeshBuilder, Quaternion, Scene, Vector3 } from "@babylonjs/core";
+import { Mesh, MeshBuilder, Quaternion, Scene, Vector3, type TransformNode } from "@babylonjs/core";
 const pools = new WeakMap<Scene, Map<string, Mesh[]>>();
 const keys = new WeakMap<Mesh, string>();
+const stopFollowing = new WeakMap<Mesh, () => void>();
 function acquire(scene: Scene, key: string, create: () => Mesh) {
   let pool = pools.get(scene);
   if (!pool) {
@@ -16,6 +17,8 @@ function acquire(scene: Scene, key: string, create: () => Mesh) {
   return mesh;
 }
 export function releaseEffect(mesh: Mesh) {
+  stopFollowing.get(mesh)?.();
+  stopFollowing.delete(mesh);
   const key = keys.get(mesh);
   if (!key) {
     mesh.dispose();
@@ -37,6 +40,7 @@ export function beam(
   start: Vector3,
   end: Vector3,
   width: number,
+  muzzle?: TransformNode,
 ) {
   const mesh = acquire(scene, "beam", () =>
     MeshBuilder.CreateCylinder(
@@ -45,14 +49,30 @@ export function beam(
       scene,
     ),
   );
-  const delta = end.subtract(start);
-  mesh.position.copyFrom(start.add(end).scale(0.5));
-  mesh.scaling.set(width, Math.max(0.001, delta.length()), width);
-  mesh.rotationQuaternion = Quaternion.FromUnitVectorsToRef(
-    Vector3.Up(),
-    delta.normalize(),
-    new Quaternion(),
-  );
+  const align = (origin: Vector3) => {
+    const delta = end.subtract(origin);
+    mesh.position.copyFrom(origin.add(end).scale(0.5));
+    mesh.scaling.set(width, Math.max(0.001, delta.length()), width);
+    mesh.rotationQuaternion = Quaternion.FromUnitVectorsToRef(
+      Vector3.Up(),
+      delta.normalize(),
+      mesh.rotationQuaternion ?? new Quaternion(),
+    );
+  };
+  align(start);
+  if (muzzle) {
+    const observer = scene.onBeforeRenderObservable.add(() => {
+      if (!muzzle.isDisposed() && muzzle.isEnabled())
+        align(muzzle.computeWorldMatrix(true).getTranslation());
+    });
+    const disposeObserver = mesh.onDisposeObservable.addOnce(() => {
+      scene.onBeforeRenderObservable.remove(observer);
+    });
+    stopFollowing.set(mesh, () => {
+      scene.onBeforeRenderObservable.remove(observer);
+      mesh.onDisposeObservable.remove(disposeObserver);
+    });
+  }
   return mesh;
 }
 export function flash(scene: Scene, diameter: number) {

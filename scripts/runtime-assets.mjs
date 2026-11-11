@@ -27,6 +27,9 @@ export function runtimeAssets(root = "public") {
       withFileTypes: true,
     })) {
       const path = `${dir}/${item.name}`;
+      // Experimental wardrobe models are loaded only when opening the character lab.
+      // Keep them out of the match's mandatory startup downloads.
+      if (path === "models/quaternius-modular") continue;
       if (item.isDirectory()) walk(path);
       else if (
         !SOURCE_ONLY_ASSETS.has(path) &&

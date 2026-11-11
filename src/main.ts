@@ -15,6 +15,11 @@ import { applyMap, parseMap, STORAGE_KEY } from "./maps/layout";
 
 async function start() {
   const params = new URLSearchParams(location.search);
+  if (params.get("characterLab") === "1") {
+    const { openCharacterLab } = await import("./ui/characterLab");
+    openCharacterLab(true);
+    return;
+  }
   const { showIntro, showTutorial } = await import("./ui/intro");
   if (params.get("builder") !== "1" &&
       (params.get("playtest") !== "1" || params.get("intro") === "1")) {

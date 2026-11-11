@@ -1,15 +1,27 @@
+import { APPEARANCE_KEY, OUTFITS, readAppearance } from "../player/appearance";
 import { START_WEAPONS, type Loadout } from "../game/loadout";
 import { WEAPONS } from "../config/weapons";
 export class LoadoutUI {
   el = document.createElement("section");
-  choice: Loadout = { weapon: "machineGun", skill: "pulseTrap" };
+  choice: Loadout = { weapon: "machineGun", skill: "pulseTrap", appearance: readAppearance() };
   confirmed = false;
   constructor(public onConfirm: (choice: Loadout | null) => void) {
     this.el.setAttribute("aria-label", "Utrustning före spawn");
     this.el.className = "loadout-panel deployment-screen";
     this.el.hidden = true;
-    this.el.innerHTML = `<div class="loadout-heading"><small>PREPARE FOR DEPLOYMENT</small><h2>VÄLJ DIN UTRUSTNING</h2><p>Pistol ingår alltid. Välj specialvapen och två färdighetsföremål.</p></div><div class="loadout-art"><figure><img class="loadout-weapon-art" alt="" decoding="async"><figcaption class="weapon-art-caption"></figcaption></figure><figure><img class="loadout-skill-art" alt="" decoding="async"><figcaption class="skill-art-caption"></figcaption></figure></div><div class="loadout-options"><fieldset><legend>2 · SPECIAL WEAPON</legend>${START_WEAPONS.map((id) => `<button type="button" data-weapon="${id}">${WEAPONS[id].name}<small>${WEAPONS[id].damage} DMG</small></button>`).join("")}</fieldset><fieldset><legend>3 · SKILL · 2 ST</legend><button type="button" data-skill="pulseTrap">OFFENSIVE · PULSE TRAP<small>Närhetsmina · 5 m · 50 HP max</small></button><button type="button" data-skill="rcCar">OFFENSIVE · RC BOMBER<small>Fjärrstyrd kamerabil · WASD · E: detonera · 2 st</small></button><button type="button" data-skill="superMedkit">DEFENSIVE · SUPER MED-KIT<small>Placera en hälsostation · återställer till 100 HP</small></button></fieldset></div><button type="button" class="loadout-confirm">REDO ATT SPAWNA</button><p class="loadout-status" aria-live="polite">Välj din utrustning och gör dig redo att spawna.</p>`;
+    this.el.innerHTML = `<div class="loadout-heading"><small>PREPARE FOR DEPLOYMENT</small><h2>VÄLJ DIN UTRUSTNING</h2><p>Pistol ingår alltid. Välj karaktär, specialvapen och två färdighetsföremål.</p></div><button type="button" class="loadout-character">1 · VÄLJ KARAKTÄR <small></small></button><div class="loadout-art"><figure><img class="loadout-weapon-art" alt="" decoding="async"><figcaption class="weapon-art-caption"></figcaption></figure><figure><img class="loadout-skill-art" alt="" decoding="async"><figcaption class="skill-art-caption"></figcaption></figure></div><div class="loadout-options"><fieldset><legend>2 · SPECIAL WEAPON</legend>${START_WEAPONS.map((id) => `<button type="button" data-weapon="${id}">${WEAPONS[id].name}<small>${WEAPONS[id].damage} DMG</small></button>`).join("")}</fieldset><fieldset><legend>3 · SKILL · 2 ST</legend><button type="button" data-skill="pulseTrap">OFFENSIVE · PULSE TRAP<small>Närhetsmina · 5 m · 50 HP max</small></button><button type="button" data-skill="rcCar">OFFENSIVE · RC BOMBER<small>Fjärrstyrd kamerabil · WASD · E: detonera · 2 st</small></button><button type="button" data-skill="superMedkit">DEFENSIVE · SUPER MED-KIT<small>Placera en hälsostation · återställer till 100 HP</small></button></fieldset></div><button type="button" class="loadout-confirm">REDO ATT SPAWNA</button><p class="loadout-status" aria-live="polite">Välj din utrustning och gör dig redo att spawna.</p>`;
+    const characterButton = this.el.querySelector<HTMLButtonElement>(".loadout-character")!;
+    const confirmButton = this.el.querySelector<HTMLButtonElement>(".loadout-confirm")!;
+    const markChanged = () => {
+      this.confirmed = false;
+      confirmButton.disabled = false;
+      this.onConfirm(null);
+      this.el.querySelector(".loadout-status")!.textContent = "Bekräfta ditt nya val.";
+    };
     const refresh = () => {
+      const body = this.choice.appearance?.body;
+      characterButton.querySelector("small")!.textContent =
+        OUTFITS.find(([id]) => id === body)?.[1] ?? "Kostym";
       const weaponArt = this.el.querySelector<HTMLImageElement>(
         ".loadout-weapon-art",
       )!;
@@ -51,15 +63,26 @@ export class LoadoutUI {
       else if (button.dataset.skill)
         this.choice.skill = button.dataset.skill as Loadout["skill"];
       else return;
-      this.confirmed = false;
-      this.el.querySelector<HTMLButtonElement>(".loadout-confirm")!.disabled =
-        false;
-      this.onConfirm(null);
-      this.el.querySelector(".loadout-status")!.textContent =
-        "Bekräfta ditt nya val.";
+      markChanged();
       refresh();
     });
-    this.el.querySelector(".loadout-confirm")!.addEventListener("click", () => {
+    characterButton.addEventListener("click", async () => {
+      const { openCharacterLab } = await import("./characterLab");
+      if (this.el.hidden) return;
+      openCharacterLab(false, {
+        appearance: this.choice.appearance ?? readAppearance(),
+        onSelect: appearance => {
+          if (this.el.hidden) return;
+          this.choice.appearance = appearance;
+          markChanged();
+          refresh();
+        },
+      });
+    });
+    confirmButton.addEventListener("click", () => {
+      try {
+        localStorage.setItem(APPEARANCE_KEY, JSON.stringify(this.choice.appearance));
+      } catch { /* The match choice still works without local storage. */ }
       this.confirmed = true;
       this.el.querySelector<HTMLButtonElement>(".loadout-confirm")!.disabled =
         true;

@@ -1,3 +1,4 @@
+import type { Appearance } from "../src/player/appearance";
 import type { CombatDeath } from "../src/ui/combatFeed";
 import type { Team } from "../src/config/game";
 import type { WeaponId } from "../src/config/weapons";
@@ -91,6 +92,7 @@ export interface NetPlayer {
   z: number;
   yaw: number;
   gunPitch?: number;
+  appearance?: Appearance;
   scoped?: boolean;
   crouched?: boolean;
   stamina?: number;

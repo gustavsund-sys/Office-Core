@@ -1,11 +1,48 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { FreeCamera, NullEngine, Scene, TransformNode, Vector3 } from "@babylonjs/core";
+import { beam, releaseEffect } from "./effectPool";
 import {
   MuzzleFlashes,
   muzzleTexture,
   WEAPON_FLASHES,
 } from "../effects/muzzleFlash";
+
+test("a stationary pistol shot survives its first tick and follows the firing pose", () => {
+  const engine = new NullEngine();
+  const scene = new Scene(engine);
+  try {
+    new FreeCamera("camera", new Vector3(0, 2, -4), scene);
+    const pistol = new TransformNode("pistol", scene);
+    const muzzle = new TransformNode("muzzle", scene);
+    muzzle.parent = pistol;
+    muzzle.position.z = 0.385;
+    const effects = new MuzzleFlashes(scene);
+    effects.emit(muzzle.getAbsolutePosition(), Vector3.Forward(), false, 1, "pistol", muzzle);
+    const hitPoint = new Vector3(0, 1.1, 8);
+    const tracer = beam(scene, Vector3.Zero(), hitPoint, 0.025, muzzle);
+    effects.update(0.08);
+    scene.onAfterAnimationsObservable.addOnce(() => {
+      pistol.position.set(0.2, 1.3, -0.08);
+    });
+    scene.render();
+    const flash = scene.getTransformNodeByName("crossed muzzle flash")!;
+    assert.ok(flash.isEnabled());
+    assert.ok(Vector3.Distance(flash.position, muzzle.getAbsolutePosition()) < 1e-6);
+    assert.ok(flash.getChildMeshes().every(mesh => mesh.visibility === 1));
+    const tracerStart = Vector3.TransformCoordinates(
+      new Vector3(0, -0.5, 0),
+      tracer.computeWorldMatrix(true),
+    );
+    assert.ok(Vector3.Distance(tracerStart, flash.position) < 1e-6);
+    releaseEffect(tracer);
+    effects.update(0.08);
+    assert.ok(!flash.isEnabled());
+  } finally {
+    scene.dispose();
+    engine.dispose();
+  }
+});
 test("muzzle flame follows barrel axis, uses crossed non-pickable planes and expires in bounded pool", () => {
   const engine = new NullEngine();
   const scene = new Scene(engine);

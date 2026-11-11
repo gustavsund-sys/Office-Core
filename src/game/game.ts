@@ -1,3 +1,4 @@
+import { DEFAULT_APPEARANCE, readAppearance } from "../player/appearance";
 import { readControlScheme } from "./controlSettings";
 import { gameAudio, audioOutput } from "../audio/mixer";
 import { spectatorTarget } from "./spectator";
@@ -1127,6 +1128,7 @@ export class Game {
     document.body.classList.add("shooting-range-mode");
     document.querySelector<HTMLElement>(".range-controls")!.hidden = false;
     this.match.start("RED");
+    this.player.useCharacterModel(readAppearance(), TEAMS.RED);
     CONFIG.player.team = "RED";
     this.player.root.position.set(RANGE_X, 0, -10);
     this.player.hp = 100;
@@ -1179,15 +1181,25 @@ export class Game {
       const interpolate = previous && next && previous.hp > 0 && next.hp > 0 && Math.hypot(previous.x - next.x, previous.z - next.z) < 8;
       let player = this.onlinePlayers.get(state.id);
       if (!player) { player = new Player(this.world); this.onlinePlayers.set(state.id, player); }
-      player.root.setEnabled(state.hp > 0);
+      if (state.hp > 0 && (state.hp < player.hp || (state.shield ?? 0) < player.shield))
+        player.reactToHit();
+      player.hp = state.hp;
+      const respawned = player.showLifeState(state.hp > 0);
+      player.sprinting = state.sprinting ?? false;
+      player.interacting = (state.disarm ?? 0) > 0;
+      player.scoped = state.scoped ?? false;
+      player.verticalVelocity = state.verticalVelocity;
+      player.crouched = state.lookout?.crouched ?? state.crouched ?? false;
+      player.root.scaling.y = player.crouched ? (state.lookout ? 0.48 : 0.65) : 1;
       const oldX = player.root.position.x, oldZ = player.root.position.z;
       player.root.position.set(interpolate ? previous.x + (next.x - previous.x) * fraction : state.x,
         interpolate ? previous.y + (next.y - previous.y) * fraction : state.y,
         interpolate ? previous.z + (next.z - previous.z) * fraction : state.z);
       player.root.rotation.y = interpolate ? interpolateYaw(previous.yaw, next.yaw, fraction) : state.yaw;
-      player.animate(Math.hypot(player.root.position.x - oldX, player.root.position.z - oldZ) > 0.002, dt);
+      player.animate(!respawned && Math.hypot(player.root.position.x - oldX, player.root.position.z - oldZ) > 0.002, dt);
       player.gun.rotation.x = state.gunPitch ?? 0;
-      player.hp = state.hp; player.shield = state.shield ?? 0;
+      player.shield = state.shield ?? 0;
+      player.useCharacterModel(state.appearance ?? DEFAULT_APPEARANCE, TEAMS[state.team]);
       player.torso.material = this.world.finish(TEAMS[state.team], "fabric");
       if (this.onlineModels.get(state.id) !== state.weapon) {
         player.setWeaponModel(state.weapon); this.onlineModels.set(state.id, state.weapon);
@@ -1404,17 +1416,13 @@ export class Game {
       this.time += dt;
       if (this.player.hp <= 0 && this.respawnRemaining === 0) {
         if (this.sound) this.weaponAudio?.playDeath();
-        this.world.explosions.playerDeath(
-          this.player.root.position,
-          TEAMS[CONFIG.player.team as Team],
-        );
         this.weapons.dropCoreBuster();
         this.weapons.utilityCount = 0;
         this.weapons.pulseTrapSelected = false;
         this.respawnRemaining = 5;
-        this.player.root.setEnabled(false);
       }
       if (this.respawnRemaining > 0) {
+        this.player.showLifeState(false);
         this.respawnRemaining = Math.max(0, this.respawnRemaining - dt);
         if (this.respawnRemaining === 0) {
           this.weaponAudio?.resetPlayerHits("local");
@@ -1529,10 +1537,6 @@ export class Game {
 
       if (this.testPlayer && this.testPlayer.hp <= 0) {
         if (!this.botRespawn) {
-          this.world.explosions.playerDeath(
-            this.testPlayer.root.position,
-            TEAMS[this.match.members[1]?.team ?? "BLUE"],
-          );
           if (this.sound)
             this.weaponAudio?.playDeath(
               Vector3.Distance(
@@ -1543,8 +1547,8 @@ export class Game {
                 10,
             );
           this.botRespawn = 5;
-          this.testPlayer.root.setEnabled(false);
         }
+        this.testPlayer.showLifeState(false);
         this.botRespawn = Math.max(0.00001, this.botRespawn - dt);
         if (this.botRespawn <= 0.00001) {
           this.botRespawn = 0;
@@ -1627,6 +1631,7 @@ export class Game {
         command.fire,
         dt,
       );
+      this.player.interacting = disarming;
       if (disarming) this.pickup.chooseRequested = false;
       const beaconActor = {
         id: "local",

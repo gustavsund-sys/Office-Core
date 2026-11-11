@@ -1,5 +1,6 @@
 import { WEAPONS, type WeaponId } from "../config/weapons";
 import type { Weapons } from "../weapons/system";
+import type { Appearance } from "../player/appearance";
 export const START_WEAPONS = [
   "huntingRifle",
   "machineGun",
@@ -11,12 +12,13 @@ export const START_WEAPONS = [
 export interface Loadout {
   weapon: WeaponId;
   skill: "pulseTrap" | "superMedkit" | "rcCar";
+  appearance?: Appearance;
 }
 export function validLoadout(value: unknown): value is Loadout {
   if (!value || typeof value !== "object") return false;
   const v = value as Loadout;
   return (
-    Object.keys(v).every((k) => k === "weapon" || k === "skill") &&
+    Object.keys(v).every((k) => k === "weapon" || k === "skill" || k === "appearance") &&
     START_WEAPONS.some((w) => w === v.weapon) &&
     ["pulseTrap", "superMedkit", "rcCar"].includes(v.skill)
   );

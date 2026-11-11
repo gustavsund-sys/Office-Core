@@ -1,3 +1,4 @@
+import { normalizeAppearance } from "../src/player/appearance";
 import { SupplyDrop } from "../src/game/supplyDrop";
 import { ServerLookout } from "./lookout";
 import type { CombatDeath } from "../src/ui/combatFeed";
@@ -496,7 +497,7 @@ export class OfficeRoom extends Room {
       if (!this.permit(client) || !p || (this.started && !p.awaitingLoadout))
         return;
       if (choice !== null && !validLoadout(choice)) return;
-      p.loadout = choice === null ? undefined : { ...choice };
+      p.loadout = choice === null ? undefined : { ...choice, appearance: normalizeAppearance(choice.appearance) };
       if (this.started && p.awaitingLoadout && p.loadout) {
         p.awaitingLoadout = false;
         this.spawn(p);
@@ -1300,6 +1301,7 @@ export class OfficeRoom extends Room {
         ack: p.ack,
         verticalVelocity: p.player.verticalVelocity,
         name: p.name,
+        appearance: p.loadout?.appearance,
         ...this.ledger.totals.get(id),
         kills: p.kills,
         disarm: p.disarm.target ? p.disarm.elapsed : undefined,

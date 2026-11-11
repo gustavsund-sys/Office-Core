@@ -35,6 +35,11 @@ async function boot() {
 
   }
   gate.style.display = "none";
+  if (new URLSearchParams(location.search).get("characterLab") === "1") {
+    const { openCharacterLab } = await import("./ui/characterLab");
+    openCharacterLab(true);
+    return;
+  }
   await chooseClient();
   gate.style.display = "grid";
   if (import.meta.env.PROD) {

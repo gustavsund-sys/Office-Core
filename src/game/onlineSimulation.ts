@@ -1,3 +1,4 @@
+import { DEFAULT_APPEARANCE } from "../player/appearance";
 import { updateEnvironmentEffects } from "./environmentEffects";
 import { updateBombCountdowns } from "../ui/bombCountdowns";
 import { predictionBlocked } from "./predictionWindow";
@@ -287,24 +288,27 @@ export function tickOnline(this: Context, dt: number) {
       !this.boss?.active,
   );
   if (predictedShot) {
-    this.player.recoil = 1;
+    this.player.fireAnimation();
     this.player.animate(!!(command.moveX || command.moveZ), 0);
     if (predictedShot.audio && this.sound)
       this.weaponAudio?.play(this.weapons.id);
     const start = this.player.shotOrigin;
     const direction = this.player.shotDirection(command, start);
     if (this.weapons.id === "huntingRifle") this.player.kickBack(direction);
+    const muzzleAnchor = this.player.weaponMuzzle;
+    const muzzlePosition = muzzleAnchor?.computeWorldMatrix(true).getTranslation() ?? start;
     if (
       !this.world.explosions.muzzle(
-        start,
+        muzzlePosition,
         this.weapons.id === "pulseGun",
         direction,
         this.weapons.id === "huntingRifle" ? 1.75 : 1.3,
         this.weapons.id,
+        muzzleAnchor,
       )
     ) {
       const muzzle = pooledFlash(this.scene, 0.23);
-      muzzle.position.copyFrom(start);
+      muzzle.position.copyFrom(muzzlePosition);
       muzzle.material = this.world.mat("#ffe8a1", true);
       muzzle.isPickable = false;
       this.onlineTraces.push({ mesh: muzzle, life: 0.045 });
@@ -331,9 +335,10 @@ export function tickOnline(this: Context, dt: number) {
       );
       const tracer = beam(
         this.scene,
-        start,
+        muzzlePosition,
         end,
         this.weapons.id === "pulseGun" ? 0.14 : 0.025,
+        muzzleAnchor,
       );
       tracer.material = this.world.mat(
         this.weapons.id === "pulseGun" ? "#ff263e" : "#ffe4a5",
@@ -496,8 +501,11 @@ export function tickOnline(this: Context, dt: number) {
         player.root.position.set(state.x, state.y, state.z);
         this.onlinePlayers.set(state.id, player);
       }
-      player.root.setEnabled(state.hp > 0);
+      if (state.hp > 0 && (state.hp < player.hp || (state.shield ?? 0) < player.shield))
+        player.reactToHit();
       player.hp = state.hp;
+      const respawned = player.showLifeState(state.hp > 0);
+      player.interacting = (state.disarm ?? 0) > 0;
       player.bossLookoutActive = !!state.lookout;
       if (!own) {
         player.crouched = state.lookout?.crouched ?? state.crouched ?? false;
@@ -515,6 +523,7 @@ export function tickOnline(this: Context, dt: number) {
         player.sprintExhausted = state.sprintExhausted ?? false;
         player.verticalVelocity = state.verticalVelocity;
         player.reloadPose = state.reload;
+        player.scoped = state.scoped ?? false;
       }
       player.showTacticalShield();
       player.invulnerable = state.invulnerable ?? 0;
@@ -534,10 +543,12 @@ export function tickOnline(this: Context, dt: number) {
       else if (own) player.faceAim(command);
       else {
         player.root.rotation.y = state.yaw;
-        player.animate(moving, dt);
+        player.animate(!respawned && moving, dt);
       }
-      if (newSnapshot)
+      if (newSnapshot) {
+        player.useCharacterModel(state.appearance ?? DEFAULT_APPEARANCE, TEAMS[state.team]);
         player.torso.material = this.world.finish(TEAMS[state.team], "fabric");
+      }
       if (this.onlineModels.get(state.id) !== state.weapon) {
         player.setWeaponModel(state.weapon);
         this.onlineModels.set(state.id, state.weapon);
@@ -545,7 +556,6 @@ export function tickOnline(this: Context, dt: number) {
       }
       if (!own) {
         player.gun.rotation.x = state.gunPitch ?? 0;
-        player.scoped = state.scoped ?? false;
       }
       if (own && newSnapshot) {
         this.weapons.remoteControlled = state.rcRemote ?? false;

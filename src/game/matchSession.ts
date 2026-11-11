@@ -1,3 +1,4 @@
+import { DEFAULT_APPEARANCE } from "../player/appearance";
 import { setGameUpdateAllowed } from "../network/cache";
 import { markGPUStartup } from "./webgpuDiagnostics";
 
@@ -44,6 +45,7 @@ export function startMatch(this: Context, team: Team) {
   CONFIG.player.team = team;
   const base = office01.bases.find((base) => base.team === team)!;
   this.player.root.position.set(this.rangeMode ? 0 : base.spawn.x, 0, this.rangeMode ? -10 : base.spawn.z);
+  this.player.useCharacterModel(this.loadout.choice.appearance ?? DEFAULT_APPEARANCE, TEAMS[team]);
   this.player.torso.material = this.world.finish(TEAMS[team], "fabric");
   this.world.explosions.playerSpawn(this.player.root.position, TEAMS[team]);
   this.cores.forEach((core) => core.setActive(this.match.isActive(core.team!)));
@@ -51,6 +53,7 @@ export function startMatch(this: Context, team: Team) {
     const other = this.match.members[1];
     const otherBase = office01.bases.find((base) => base.team === other.team)!;
     this.testPlayer = new Player(this.world);
+    this.testPlayer.useCharacterModel(DEFAULT_APPEARANCE, TEAMS[other.team]);
     this.testPlayer.root.position.set(this.rangeMode ? 0 : otherBase.spawn.x, 0, this.rangeMode ? 6 : otherBase.spawn.z);
     this.testPlayer.torso.material = this.world.finish(
       TEAMS[other.team],

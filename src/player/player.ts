@@ -1,3 +1,5 @@
+import { CHARACTER_SIZE_MULTIPLIER, createCharacterModel, loadCharacterAsset } from "./characterModel";
+import type { Appearance } from "./appearance";
 import { loseLookoutOnDeath } from "../game/lookoutReward";
 import { tacticalShieldModel } from "./tacticalShield";
 import { motionPose } from "./locomotion";
@@ -25,6 +27,15 @@ import { CONFIG } from "../config/game";
 import { move } from "../game/collision";
 import { office01 } from "../maps/office01";
 const AIM_HEIGHT = 1.1;
+const MUZZLE_DEPTH: Record<WeaponId, number> = {
+  pistol: 0.385,
+  huntingRifle: 1.05,
+  pulseGun: 0.48,
+  burstGun: 0.8,
+  machineGun: 0.9,
+  bazooka: 0.87,
+  coreBuster: 0,
+};
 export interface PlayerCommand {
   moveX: number;
   moveZ: number;
@@ -370,10 +381,13 @@ export class Player {
     this.shield -= absorbed;
     const damage = Math.min(this.hp, Math.max(0, amount - absorbed));
     this.hp -= damage;
+    if ((damage > 0 || absorbed > 0) && this.hp > 0) this.reactToHit();
     loseLookoutOnDeath(this, this.hp);
     return damage;
   }
   resetVitals() {
+    this.resetLifeAnimation();
+    this.interacting = false;
     this.crouched = false;
     this.root.scaling.y = 1;
     this.shield = 0;
@@ -427,6 +441,7 @@ export class Player {
   legs: TransformNode[] = [];
   torso: Mesh;
   gun: Mesh;
+  weaponMuzzle?: TransformNode;
   weaponZ = 0.56;
   weaponId: WeaponId = "pistol";
   private aimTarget?: Vector3;
@@ -718,20 +733,32 @@ export class Player {
     this.gun?.dispose();
     this.gun = heldWeapon(this.world, id);
     this.gun.parent = this.root;
+    this.weaponMuzzle = id !== "coreBuster" && !this.world.authoritative
+      ? new TransformNode("weapon muzzle anchor", this.world.scene)
+      : undefined;
+    if (this.weaponMuzzle) {
+      this.weaponMuzzle.parent = this.gun;
+      this.weaponMuzzle.position.z = MUZZLE_DEPTH[id];
+    }
     const overhead = id === "coreBuster";
     const shoulder = id === "bazooka";
-    this.weaponZ = overhead
+    const sidearm = id === "pistol" || id === "pulseGun";
+    const weaponScale = overhead ? 1 : shoulder || sidearm ? 0.9 : 0.83;
+    this.gun.scaling.setAll(weaponScale * CHARACTER_SIZE_MULTIPLIER);
+    const gripDepth = overhead
       ? 0
       : shoulder
         ? 0.12
-        : id === "pistol" || id === "pulseGun"
+        : sidearm
           ? 0.55
           : 0.52;
     this.gun.position.set(
       overhead ? 0 : shoulder ? 0.43 : 0.26,
       overhead ? 2.2 : shoulder ? 1.55 : 1.12,
-      this.weaponZ,
-    );
+      gripDepth,
+    ).scaleInPlace(CHARACTER_SIZE_MULTIPLIER);
+    this.weaponZ = this.gun.position.z;
+    this.attachWeaponToHand();
     this.armRest.clear();
     for (const mesh of this.bodyMeshes) {
       if (mesh.name.endsWith(" arm")) mesh.rotation.setAll(0);
@@ -764,7 +791,160 @@ export class Player {
         });
     }
   }
+  private characterModel?: ReturnType<typeof createCharacterModel>;
+  private characterRequested = false;
+  private viewVisibility = 1;
+  private characterOutfit?: Appearance;
+
+  interacting = false;
+  private falling = false;
+
+  fireAnimation() {
+    this.recoil = 1;
+    if (this.hp <= 0 || this.interacting) return;
+    if (this.stride <= 0.25) {
+      this.characterModel?.playAction("Idle_Gun_Shoot");
+    } else if (this.sprinting) {
+      this.characterModel?.playAction("Run_Shoot");
+    }
+  }
+
+  reactToHit() {
+    this.characterModel?.playAction("HitRecieve");
+  }
+
+  private resetLifeAnimation() {
+    this.falling = false;
+    this.recoil = this.stride = this.sprintBlend = this.landingBlend = 0;
+    this.wasAirborne = false;
+    this.lastAnimatedPosition = undefined;
+    this.characterModel?.resetAction();
+    this.characterModel?.play("Idle_Gun");
+  }
+
+  showLifeState(alive: boolean) {
+    if (alive) {
+      const respawned = this.falling;
+      if (respawned) this.resetLifeAnimation();
+      this.root.setEnabled(true);
+      return respawned;
+    }
+    if (!this.falling) {
+      this.falling = true;
+      this.characterModel?.playAction("Death");
+    }
+    this.root.setEnabled(this.characterModel?.actionPlaying ?? false);
+    return false;
+  }
+
+  private attachWeaponToHand() {
+    const character = this.characterModel;
+    const grip = character?.grip;
+    const gun = this.gun;
+    if (!character || !grip || this.weaponId === "coreBuster") return;
+    const weaponVisual = new TransformNode("handheld weapon", this.world.scene);
+    weaponVisual.parent = this.root;
+    weaponVisual.scaling.copyFrom(gun.scaling);
+    const gripCenter = {
+      pistol: [0, -0.14, -0.04],
+      pulseGun: [0, -0.16, -0.04],
+      huntingRifle: [0, -0.07, -0.095],
+      burstGun: [0, -0.19, -0.08],
+      machineGun: [0, -0.19, -0.08],
+      bazooka: [0, -0.23, 0.35],
+    }[this.weaponId];
+    const gripOffset = new Vector3(-gripCenter[0], -gripCenter[1], -gripCenter[2]);
+    gripOffset.multiplyInPlace(weaponVisual.scaling);
+    gripOffset.z += 0.12;
+    if (this.weaponId === "huntingRifle" || this.weaponId === "burstGun" || this.weaponId === "machineGun") {
+      gripOffset.z += 0.14;
+    }
+    const inversePlayer = Matrix.Identity();
+    const palmForward = new Vector3(-0.98155, 0.09042, 0.16847);
+    const barrel = Vector3.Zero();
+    const rotatedOffset = Vector3.Zero();
+    const weaponRotation = Matrix.Identity();
+    const isPistol = this.weaponId === "pistol";
+    let handInfluence = 0;
+    let loweredBlend = 0;
+    const followHand = () => {
+      if (!weaponVisual.isEnabled()) return;
+      this.root.computeWorldMatrix(true).invertToRef(inversePlayer);
+      const palmWorld = grip.computeWorldMatrix(true);
+      Vector3.TransformCoordinatesToRef(
+        grip.getAbsolutePosition(),
+        inversePlayer,
+        weaponVisual.position,
+      );
+      // Keep the barrel forward through the firing animation and its recoil.
+      const firing = this.recoil > 0 || character.firing;
+      if (firing) handInfluence = 0;
+      else {
+        const blend = 1 - Math.exp(-this.world.scene.getEngine().getDeltaTime() / 85);
+        handInfluence += (this.stride - handInfluence) * blend;
+      }
+      Vector3.TransformNormalToRef(palmForward, palmWorld, barrel);
+      Vector3.TransformNormalToRef(barrel, inversePlayer, barrel);
+      const yaw = Math.atan2(barrel.x, barrel.z);
+      const pitch = -Math.atan2(barrel.y, Math.hypot(barrel.x, barrel.z));
+      const useLoweredPose = !this.sprinting && !firing && character.carryingWeapon;
+      const lowerStep = this.world.scene.getEngine().getDeltaTime() / 260;
+      loweredBlend = firing ? 0 : useLoweredPose
+        ? Math.min(1, loweredBlend + lowerStep)
+        : Math.max(0, loweredBlend - lowerStep);
+      const loweredWeight = loweredBlend * loweredBlend * (3 - 2 * loweredBlend);
+      const loweredPitch = 40 * Math.PI / 180;
+      weaponVisual.rotation.set(
+        loweredPitch * loweredWeight + Math.max(-0.6, Math.min(0.6, pitch)) * handInfluence * (1 - loweredWeight),
+        Math.max(-0.5, Math.min(0.5, yaw)) * handInfluence,
+        0,
+      );
+      Matrix.RotationYawPitchRollToRef(
+        weaponVisual.rotation.y, weaponVisual.rotation.x, 0, weaponRotation,
+      );
+      Vector3.TransformNormalToRef(gripOffset, weaponRotation, rotatedOffset);
+      weaponVisual.position.addInPlace(rotatedOffset);
+      if (isPistol && this.stride <= 0.25) {
+        weaponVisual.position.y -= 0.05 * loweredWeight;
+      }
+      weaponVisual.position.z -= this.recoil * 0.08;
+    };
+    for (const child of gun.getChildren()) child.parent = weaponVisual;
+    weaponVisual.setEnabled(gun.isEnabled(false));
+    followHand();
+    const handObserver = this.world.scene.onAfterAnimationsObservable.add(followHand);
+    gun.onEnabledStateChangedObservable.add(enabled => weaponVisual.setEnabled(enabled));
+    gun.onDisposeObservable.addOnce(() => {
+      this.world.scene.onAfterAnimationsObservable.remove(handObserver);
+      if (!weaponVisual.isDisposed()) weaponVisual.dispose();
+    });
+    for (const mesh of weaponVisual.getChildMeshes()) mesh.visibility = this.viewVisibility;
+  }
+
+  useCharacterModel(outfit: Appearance, teamColor: string) {
+    if (this.groundRing)
+      this.groundRing.material = this.world.mat(teamColor, true);
+    if (this.characterOutfit !== outfit) {
+      this.characterOutfit = outfit;
+      this.characterModel?.setOutfit(outfit);
+    }
+    if (this.characterRequested) return;
+    this.characterRequested = true;
+    void loadCharacterAsset(this.world.scene).then(asset => {
+      if (this.root.isDisposed()) return;
+      this.characterModel = createCharacterModel(asset, this.root, this.characterOutfit ?? outfit);
+      this.attachWeaponToHand();
+      for (const mesh of this.legacyMeshes) {
+        if (mesh !== this.groundRing && mesh !== this.gun && !mesh.isDescendantOf(this.gun))
+          mesh.isVisible = false;
+      }
+      this.setViewVisibility(this.viewVisibility);
+      this.characterModel.play("Idle_Gun");
+    }).catch(error => console.warn("Could not load player character", error));
+  }
+
   setViewVisibility(visibility: number) {
+    this.viewVisibility = visibility;
     for (const mesh of this.root.getChildMeshes()) {
       mesh.visibility = mesh.name === "player hitbox" ? 0 : visibility;
     }
@@ -961,7 +1141,7 @@ export class Player {
       ? dt * 0.55
       : this.injured
         ? dt * 0.6
-        : dt + sprintTime * 0.5;
+        : (dt - sprintTime) * 0.9 + sprintTime * 1.5;
     // Preserve sub-unit analog input; clamp diagonals and oversized inputs to normal speed.
     // Keyboard commands remain unchanged (unit cardinals / normalized diagonals).
     const l = Math.max(1, Math.hypot(c.moveX, c.moveZ));
@@ -1067,6 +1247,19 @@ export class Player {
       this.landingBlend,
     );
     this.motionState = pose.state;
+    if (this.hp > 0) {
+      const canRunDirectionally = moving && this.grounded && !this.crouched && !this.injured;
+      const strafing = canRunDirectionally && Math.abs(this.moveSide) > 0.7;
+      const sprintingBackward = canRunDirectionally && this.sprinting && this.moveForward < -0.55;
+      this.characterModel?.play(
+        this.interacting ? "Interact" :
+        strafing ? (this.moveSide > 0 ? "Run_Right" : "Run_Left") :
+        sprintingBackward ? "Run_Back" :
+        this.scoped ? "Idle_Gun_Pointing" :
+        !moving || !this.grounded ? "Idle_Gun" :
+        !this.sprinting || this.crouched || this.injured ? "Walk" : "Run",
+      );
+    }
     if (this.groundRing)
       this.groundRing.position.y = 0.06 - this.root.position.y;
     this.showTacticalShield();
@@ -1098,18 +1291,9 @@ export class Player {
   }
 
   get muzzlePosition() {
-    const tip: Record<WeaponId, number> = {
-      pistol: 0.385,
-      huntingRifle: 1.05,
-      pulseGun: 0.48,
-      burstGun: 0.8,
-      machineGun: 0.9,
-      bazooka: 0.87,
-      coreBuster: 0,
-    };
     this.root.computeWorldMatrix(true);
     return Vector3.TransformCoordinates(
-      new Vector3(0, 0, tip[this.weaponId]),
+      new Vector3(0, 0, MUZZLE_DEPTH[this.weaponId]),
       this.gun.computeWorldMatrix(true),
     );
   }

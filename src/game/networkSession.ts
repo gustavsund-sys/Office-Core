@@ -188,7 +188,11 @@ export function installMultiplayer(this: Context) {
         event.player !== net.room?.sessionId
       ) {
         const shooter = this.onlinePlayers.get(event.player);
-        if (shooter) shooter.recoil = 1;
+        shooter?.fireAnimation();
+        if (event.weapon === "bazooka" && shooter?.weaponId === "bazooka") {
+          const anchor = shooter.weaponMuzzle;
+          this.world.explosions.muzzle(position, false, anchor?.forward ?? shooter.direction, 1.3, event.weapon, anchor);
+        }
       }
       if (event.kind === "reload" && this.sound) {
         if (
@@ -326,19 +330,23 @@ export function installMultiplayer(this: Context) {
       if (event.kind === "land" && this.sound)
         this.weaponAudio?.playMovement("land");
       if (event.kind === "trace") {
+        const shooter = event.player ? this.onlinePlayers.get(event.player) : undefined;
+        const muzzleAnchor = shooter?.weaponId === event.weapon ? shooter?.weaponMuzzle : undefined;
+        const muzzlePosition = muzzleAnchor?.computeWorldMatrix(true).getTranslation() ?? position;
         if (
           !this.world.explosions.muzzle(
-            position,
+            muzzlePosition,
             event.weapon === "pulseGun",
             new Vector3(event.endX!, event.endY!, event.endZ!).subtract(
               position,
             ),
             event.weapon === "huntingRifle" ? 1.75 : 1.3,
             event.weapon,
+            muzzleAnchor,
           )
         ) {
           const muzzle = pooledFlash(this.scene, 0.23);
-          muzzle.position.copyFrom(position);
+          muzzle.position.copyFrom(muzzlePosition);
           muzzle.material = this.world.mat("#ffe8a1", true);
           muzzle.isPickable = false;
           this.onlineTraces.push({ mesh: muzzle, life: 0.045 });
@@ -346,9 +354,10 @@ export function installMultiplayer(this: Context) {
         const end = new Vector3(event.endX!, event.endY!, event.endZ!);
         const mesh = beam(
           this.scene,
-          position,
+          muzzlePosition,
           end,
           event.weapon === "pulseGun" ? 0.14 : 0.025,
+          muzzleAnchor,
         );
         mesh.material = this.world.mat(
           event.weapon === "pulseGun" ? "#ff263e" : "#ffe4a5",
@@ -383,7 +392,6 @@ export function installMultiplayer(this: Context) {
         if (event.player === net.room?.sessionId) this.combatAnnouncements.death();
         else if (event.player) this.remoteCombatAnnouncements.get(event.player)?.death();
         if (event.death) this.hud.combatDeath(event.death);
-        this.world.explosions.playerDeath(position, TEAMS[event.team ?? "RED"]);
         if (this.sound)
           this.weaponAudio?.playDeath(
             event.player === net.room?.sessionId ? 0 : distance,

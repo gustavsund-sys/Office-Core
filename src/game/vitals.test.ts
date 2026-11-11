@@ -56,7 +56,7 @@ test("sprint lasts four seconds at 150%, exhausts and fully recharges in eight",
     const start = s.player.root.position.x;
     for (let i = 0; i < 240; i++) s.player.simulate(command, 1 / 30);
     assert.ok(
-      Math.abs(s.player.root.position.x - start - CONFIG.player.speed * 8) <
+      Math.abs(s.player.root.position.x - start - CONFIG.player.speed * 0.9 * 8) <
         1e-7,
     );
     assert.equal(s.player.stamina, 4);

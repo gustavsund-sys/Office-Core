@@ -340,11 +340,13 @@ export class Weapons {
       this.burstRemaining--;
       if (this.burstRemaining === 0) this.cooldown = 1;
     }
-    this.player.recoil = 1;
+    this.player.fireAnimation();
     const scene = this.player.world.scene;
     const origin = this.player.shotOrigin;
     const direction = this.player.shotDirection(c, origin);
     if (this.id === "bazooka") {
+      if (this.visuals)
+        this.player.world.explosions.muzzle(origin, false, direction, 1.3, this.id, this.player.weaponMuzzle);
       const mesh = rocketModel(this.player.world);
       const start = origin.clone();
       mesh.position.copyFrom(start);
@@ -383,11 +385,14 @@ export class Weapons {
     const start = origin.clone();
     this.onTrace(start, end);
     if (this.visuals) {
+      const muzzleAnchor = this.player.weaponMuzzle;
+      const muzzlePosition = muzzleAnchor?.computeWorldMatrix(true).getTranslation() ?? start;
       const tracer = beam(
         scene,
-        start,
+        muzzlePosition,
         end,
         this.id === "pulseGun" ? 0.14 : 0.025,
+        muzzleAnchor,
       );
       tracer.name = this.id === "pulseGun" ? "pulse beam" : "tracer";
       tracer.material = this.player.world.mat(
@@ -398,15 +403,16 @@ export class Weapons {
       this.effects.push({ mesh: tracer, life: 0.065 });
       if (
         !this.player.world.explosions.muzzle(
-          start,
+          muzzlePosition,
           this.id === "pulseGun",
           end.subtract(start),
           this.id === "huntingRifle" ? 1.75 : 1.3,
           this.id,
+          muzzleAnchor,
         )
       ) {
         const flash = pooledFlash(scene, 0.23);
-        flash.position.copyFrom(start);
+        flash.position.copyFrom(muzzlePosition);
         flash.material = this.player.world.mat("#ffe8a1", true);
         flash.isPickable = false;
         this.effects.push({ mesh: flash, life: 0.045 });

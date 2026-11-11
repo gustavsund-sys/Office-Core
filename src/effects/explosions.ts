@@ -1,3 +1,4 @@
+import type { TransformNode } from "@babylonjs/core";
 import { FilmedImpacts, type FilmedImpactKind } from "./filmedImpacts";
 
 import type { MuzzleWeapon } from "./muzzleFlash";
@@ -135,10 +136,12 @@ export class Explosions {
     direction?: Vector3,
     size = 1,
     weapon?: MuzzleWeapon,
+    anchor?: TransformNode,
   ) {
+    if (anchor) position = anchor.computeWorldMatrix(true).getTranslation();
     if (this.visuals && direction) {
       this.muzzleFlashes ??= new MuzzleFlashes(this.world.scene);
-      this.muzzleFlashes.emit(position, direction, energy, size, weapon);
+      this.muzzleFlashes.emit(position, direction, energy, size, weapon, anchor);
       this.world.lighting?.pulse(position, weapon === "huntingRifle", energy);
       return true;
     }
@@ -307,46 +310,6 @@ export class Explosions {
     }
     this.light(position, plasma, 0.18, 5, 8);
     this.onBurst(position, power, sound, style);
-  }
-  playerDeath(position: Vector3, teamColor: string) {
-    while (this.particles.length > 220) this.remove(this.particles.shift()!);
-    for (let i = 0; i < Math.ceil(30 * this.amount); i++) {
-      const mesh = MeshBuilder.CreateBox(
-        "player fragment",
-        { size: 0.12 + this.random() * 0.18 },
-        this.world.scene,
-      );
-      mesh.position.copyFrom(
-        position.add(
-          new Vector3(
-            (this.random() - 0.5) * 0.55,
-            0.3 + this.random() * 1.4,
-            (this.random() - 0.5) * 0.4,
-          ),
-        ),
-      );
-      mesh.material = this.world
-        .mat(i % 3 === 0 ? teamColor : i % 3 === 1 ? "#efdfbd" : "#253a4c")
-        .clone("player fragment fade");
-      mesh.isPickable = false;
-      const life = 1.4 + this.random() * 0.8;
-      this.particles.push({
-        mesh,
-        kind: "debris",
-        life,
-        maxLife: life,
-        velocity: new Vector3(
-          (this.random() - 0.5) * 7,
-          2 + this.random() * 4,
-          (this.random() - 0.5) * 7,
-        ),
-        spin: new Vector3(
-          this.random() * 8,
-          this.random() * 8,
-          this.random() * 8,
-        ),
-      });
-    }
   }
   playerSpawn(position: Vector3, color: string) {
     const ring = MeshBuilder.CreateTorus(
