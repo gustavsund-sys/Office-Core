@@ -3,19 +3,15 @@
 .client-choice *{box-sizing:border-box}
 .client-choice::before{content:'';position:fixed;inset:0;pointer-events:none;background:linear-gradient(90deg,transparent 49.9%,#ffffff03 50%,transparent 50.1%);background-size:80px 80px;z-index:-1}
 .client-choice .launcher-shell{width:min(1280px,calc(100% - 96px));margin:0 auto}
-.client-choice .launcher-top{position:static;display:flex;justify-content:space-between;align-items:center;height:100px;gap:16px;border-bottom:1px solid #71909b28}
 .client-choice a{color:inherit;text-decoration:none}
-.client-choice .launcher-brand{display:flex;align-items:center;gap:12px;font-size:15px;font-weight:800;letter-spacing:2.5px}
-.client-choice .launcher-mark{display:grid;place-items:center;width:32px;height:32px;border:1px solid #d5ad68;color:#efc588;font-size:19px;box-shadow:inset 0 0 12px #f2bd6920}
-.client-choice .launcher-alpha{font-size:10px;letter-spacing:1.8px;color:#91aab4;display:flex;align-items:center;gap:9px}
-.client-choice .launcher-alpha i,.client-choice .launcher-art-tag i{width:5px;height:5px;display:inline-block;border-radius:50%;background:#9bd8bd;box-shadow:0 0 8px #9bd8bd55}
-.client-choice .launcher-main{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(370px,1fr);gap:64px;padding:58px 0 52px;align-items:center}
+.client-choice .launcher-art-tag i{width:5px;height:5px;display:inline-block;border-radius:50%;background:#9bd8bd;box-shadow:0 0 8px #9bd8bd55}
+.client-choice .launcher-main{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(370px,1fr);gap:32px 64px;padding:12px 0 52px;align-items:center}
 .client-choice .launcher-world{min-width:0}
-.client-choice .launcher-art{position:relative;margin-right:-16px;overflow:hidden;border:1px solid #637a8440;border-radius:6px;background:#122532;box-shadow:0 24px 70px #0005}
+.client-choice .launcher-art{position:relative;grid-column:1 / -1;overflow:hidden;border:1px solid #637a8440;border-radius:6px;background:#122532;box-shadow:0 24px 70px #0005}
 .client-choice .launcher-art img{display:block;width:100%;height:auto;opacity:.96}
 .client-choice .launcher-art::after{position:absolute;content:'';inset:0;background:linear-gradient(0deg,#07131fe6,transparent 30%);pointer-events:none}
 .client-choice .launcher-art-tag{position:absolute;left:22px;bottom:18px;z-index:1;display:flex;align-items:center;gap:9px;color:#c8d8df;font-size:9px;font-weight:600;letter-spacing:2px}
-.client-choice .launcher-story{padding:34px 0 0 0}
+.client-choice .launcher-story{padding:0}
 .client-choice .launcher-eyebrow{display:block;color:#e5bc82;letter-spacing:2.1px;font-size:10px;font-weight:700}
 .client-choice h1{margin:12px 0 15px;font:700 clamp(38px,4.1vw,62px)/.99 'Barlow Condensed',Impact,sans-serif;letter-spacing:-.5px;text-transform:uppercase;color:#f2eee6}
 .client-choice h1 em{font-style:normal;color:#edc386}
@@ -59,8 +55,7 @@
 .client-choice .launcher-shared p{font-size:10px;line-height:1.8;color:#859faa;margin:0}
 .client-choice .launcher-shared strong{font-weight:500;color:#b2c6cf}
 .client-choice .launcher-footer{position:static;width:auto;height:auto;max-width:none;display:flex;justify-content:space-between;align-items:center;gap:16px;border-top:1px solid #71909b28;background:none;padding:20px 0 24px;color:#77929f;font-size:9px;letter-spacing:1px}
-.client-choice .launcher-footer i{font-style:normal;color:#d5b17b;padding:0 10px}
-@media(min-width:1500px){.client-choice .launcher-shell{width:min(1380px,calc(100% - 120px))}.client-choice .launcher-main{gap:90px;padding:72px 0}.client-choice .launcher-play{padding-left:42px}.client-choice .launcher-download{min-height:94px}}
-@media(max-width:1080px){.client-choice .launcher-shell{width:calc(100% - 48px)}.client-choice .launcher-main{gap:32px;grid-template-columns:minmax(0,1fr) minmax(330px,1fr);padding:38px 0}.client-choice .launcher-play{padding-left:24px}.client-choice .launcher-art{margin-right:0}.client-choice .launcher-facts{gap:23px}.client-choice .launcher-alternatives{grid-template-columns:1fr}.client-choice .launcher-alternatives button{min-height:58px}}
-@media(max-width:740px){.client-choice .launcher-shell{width:calc(100% - 36px)}.client-choice .launcher-top{height:75px}.client-choice .launcher-brand{font-size:12px;letter-spacing:1.5px}.client-choice .launcher-alpha{font-size:8px;letter-spacing:.8px}.client-choice .launcher-main{grid-template-columns:1fr;gap:28px;padding:24px 0}.client-choice .launcher-story{padding-top:23px}.client-choice h1{font-size:42px}.client-choice .launcher-story>p{font-size:12px}.client-choice .launcher-facts{padding-top:17px;margin-top:18px}.client-choice .launcher-play{border-left:0;border-top:1px solid #71909b28;padding:27px 0 0}.client-choice h2{font-size:40px}.client-choice .launcher-alternatives{grid-template-columns:1fr 1fr}.client-choice .launcher-alternatives button{min-height:74px}.client-choice .launcher-footer{font-size:8px;letter-spacing:.5px}.client-choice .launcher-lead br{display:none}}
+@media(min-width:1500px){.client-choice .launcher-shell{width:min(1380px,calc(100% - 120px))}.client-choice .launcher-main{gap:36px 90px;padding:12px 0 56px}.client-choice .launcher-play{padding-left:42px}.client-choice .launcher-download{min-height:94px}}
+@media(max-width:1080px){.client-choice .launcher-shell{width:calc(100% - 48px)}.client-choice .launcher-main{gap:32px;grid-template-columns:minmax(0,1fr) minmax(330px,1fr);padding:12px 0 38px}.client-choice .launcher-play{padding-left:24px}.client-choice .launcher-facts{gap:23px}.client-choice .launcher-alternatives{grid-template-columns:1fr}.client-choice .launcher-alternatives button{min-height:58px}}
+@media(max-width:740px){.client-choice .launcher-shell{width:calc(100% - 36px)}.client-choice .launcher-main{grid-template-columns:1fr;gap:28px;padding:10px 0 24px}.client-choice h1{font-size:42px}.client-choice .launcher-story>p{font-size:12px}.client-choice .launcher-facts{padding-top:17px;margin-top:18px}.client-choice .launcher-play{border-left:0;border-top:1px solid #71909b28;padding:27px 0 0}.client-choice h2{font-size:40px}.client-choice .launcher-alternatives{grid-template-columns:1fr 1fr}.client-choice .launcher-alternatives button{min-height:74px}.client-choice .launcher-footer{font-size:8px;letter-spacing:.5px}.client-choice .launcher-lead br{display:none}}
 @media(prefers-reduced-motion:reduce){.client-choice *{transition:none!important}}

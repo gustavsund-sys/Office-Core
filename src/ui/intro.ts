@@ -1,4 +1,4 @@
-import { headerArtwork } from "./headerArtwork";
+import { lobbyArtwork } from "./headerArtwork";
 export interface TutorialInputGuide {
   movement: string; movementTips: string[]; plant: string; disarm: string; skill: string; rc: string;
 }
@@ -21,7 +21,7 @@ export function showTutorial(): Promise<void> {
     {
       title: "Skydda er Core. Slå ut deras.",
       text: "Två lag, högst fyra spelare i varje. Förstör motståndarnas Core för att vinna en runda. Först till tre rundvinster vinner matchen. Alla väljer Ready inför nästa runda.",
-      image: headerArtwork,
+      image: lobbyArtwork,
       tips: [
         "Välj namn och anslut till lobbyn.",
         "Välj lag. När matchen startar väljer du specialvapen och skill före spawn.",
