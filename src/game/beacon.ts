@@ -920,9 +920,10 @@ export class Beacons {
       if (carrying && !this.carryModels.has(a.id)) {
         const m = beaconModel(this.world, a.team).root;
         m.parent = a.player.root;
-        m.position.set(0, 1.4, 0.45);
+        m.position.set(0, 1.1, 0.82);
         m.scaling.setAll(0.6);
         this.carryModels.set(a.id, m);
+        a.player.showCarriedUtility(m, "beacon");
       }
     }
     const planes = this.world.scene.activeCamera

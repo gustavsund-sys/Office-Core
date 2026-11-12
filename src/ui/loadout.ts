@@ -1,4 +1,4 @@
-import { APPEARANCE_KEY, OUTFITS, readAppearance } from "../player/appearance";
+import { APPEARANCE_KEY, readAppearance } from "../player/appearance";
 import { START_WEAPONS, type Loadout } from "../game/loadout";
 import { WEAPONS } from "../config/weapons";
 export class LoadoutUI {
@@ -9,8 +9,8 @@ export class LoadoutUI {
     this.el.setAttribute("aria-label", "Utrustning före spawn");
     this.el.className = "loadout-panel deployment-screen";
     this.el.hidden = true;
-    this.el.innerHTML = `<div class="loadout-heading"><small>PREPARE FOR DEPLOYMENT</small><h2>VÄLJ DIN UTRUSTNING</h2><p>Pistol ingår alltid. Välj karaktär, specialvapen och två färdighetsföremål.</p></div><button type="button" class="loadout-character">1 · VÄLJ KARAKTÄR <small></small></button><div class="loadout-art"><figure><img class="loadout-weapon-art" alt="" decoding="async"><figcaption class="weapon-art-caption"></figcaption></figure><figure><img class="loadout-skill-art" alt="" decoding="async"><figcaption class="skill-art-caption"></figcaption></figure></div><div class="loadout-options"><fieldset><legend>2 · SPECIAL WEAPON</legend>${START_WEAPONS.map((id) => `<button type="button" data-weapon="${id}">${WEAPONS[id].name}<small>${WEAPONS[id].damage} DMG</small></button>`).join("")}</fieldset><fieldset><legend>3 · SKILL · 2 ST</legend><button type="button" data-skill="pulseTrap">OFFENSIVE · PULSE TRAP<small>Närhetsmina · 5 m · 50 HP max</small></button><button type="button" data-skill="rcCar">OFFENSIVE · RC BOMBER<small>Fjärrstyrd kamerabil · WASD · E: detonera · 2 st</small></button><button type="button" data-skill="superMedkit">DEFENSIVE · SUPER MED-KIT<small>Placera en hälsostation · återställer till 100 HP</small></button></fieldset></div><button type="button" class="loadout-confirm">REDO ATT SPAWNA</button><p class="loadout-status" aria-live="polite">Välj din utrustning och gör dig redo att spawna.</p>`;
-    const characterButton = this.el.querySelector<HTMLButtonElement>(".loadout-character")!;
+    this.el.innerHTML = `<div class="loadout-heading"><small>STEG 1 AV 2</small><h2>VÄLJ DIN UTRUSTNING</h2><p>Pistol ingår alltid. Välj specialvapen och skill. Därefter väljer du karaktär.</p></div><div class="loadout-art"><figure><img class="loadout-weapon-art" alt="" decoding="async"><figcaption class="weapon-art-caption"></figcaption></figure><figure><img class="loadout-skill-art" alt="" decoding="async"><figcaption class="skill-art-caption"></figcaption></figure></div><div class="loadout-options"><fieldset><legend>1 · SPECIAL WEAPON</legend>${START_WEAPONS.map((id) => `<button type="button" data-weapon="${id}">${WEAPONS[id].name}<small>${WEAPONS[id].damage} DMG</small></button>`).join("")}</fieldset><fieldset><legend>2 · SKILL · 2 ST</legend><button type="button" data-skill="pulseTrap">OFFENSIVE · PULSE TRAP<small>Närhetsmina · 5 m · 50 HP max</small></button><button type="button" data-skill="rcCar">OFFENSIVE · RC BOMBER<small>Fjärrstyrd kamerabil · WASD · E: detonera · 2 st</small></button><button type="button" data-skill="superMedkit">DEFENSIVE · SUPER MED-KIT<small>Placera en hälsostation · återställer till 100 HP</small></button></fieldset></div><button type="button" class="loadout-confirm">NÄSTA · VÄLJ KARAKTÄR →</button><p class="loadout-status" aria-live="polite">Välj utrustning och fortsätt till karaktärsvalet.</p>`;
+    const status = this.el.querySelector<HTMLElement>(".loadout-status")!;
     const confirmButton = this.el.querySelector<HTMLButtonElement>(".loadout-confirm")!;
     const markChanged = () => {
       this.confirmed = false;
@@ -19,9 +19,6 @@ export class LoadoutUI {
       this.el.querySelector(".loadout-status")!.textContent = "Bekräfta ditt nya val.";
     };
     const refresh = () => {
-      const body = this.choice.appearance?.body;
-      characterButton.querySelector("small")!.textContent =
-        OUTFITS.find(([id]) => id === body)?.[1] ?? "Kostym";
       const weaponArt = this.el.querySelector<HTMLImageElement>(
         ".loadout-weapon-art",
       )!;
@@ -66,29 +63,35 @@ export class LoadoutUI {
       markChanged();
       refresh();
     });
-    characterButton.addEventListener("click", async () => {
-      const { openCharacterLab } = await import("./characterLab");
-      if (this.el.hidden) return;
-      openCharacterLab(false, {
-        appearance: this.choice.appearance ?? readAppearance(),
-        onSelect: appearance => {
-          if (this.el.hidden) return;
-          this.choice.appearance = appearance;
-          markChanged();
-          refresh();
-        },
-      });
-    });
-    confirmButton.addEventListener("click", () => {
+    let openingCharacterSelection = false;
+    confirmButton.addEventListener("click", async () => {
+      if (openingCharacterSelection || this.confirmed) return;
+      openingCharacterSelection = true;
+      confirmButton.disabled = true;
       try {
-        localStorage.setItem(APPEARANCE_KEY, JSON.stringify(this.choice.appearance));
-      } catch { /* The match choice still works without local storage. */ }
-      this.confirmed = true;
-      this.el.querySelector<HTMLButtonElement>(".loadout-confirm")!.disabled =
-        true;
-      this.onConfirm({ ...this.choice });
-      this.el.querySelector(".loadout-status")!.textContent =
-        `REDO · ${WEAPONS[this.choice.weapon].name} + 2 ${this.choice.skill === "rcCar" ? "RC BOMBERS" : this.choice.skill === "pulseTrap" ? "PULSE TRAPS" : "SUPER MED-KITS"}`;
+        const { openCharacterLab } = await import("./characterLab");
+        if (this.el.hidden) return;
+        openCharacterLab(false, {
+          appearance: this.choice.appearance ?? readAppearance(),
+          onSelect: appearance => {
+            if (this.el.hidden) return;
+            this.choice.appearance = appearance;
+            try {
+              localStorage.setItem(APPEARANCE_KEY, JSON.stringify(appearance));
+            } catch { /* The match choice still works without local storage. */ }
+            this.confirmed = true;
+            confirmButton.disabled = true;
+            status.textContent = "REDO · Utrustning och karaktär bekräftade.";
+            this.onConfirm({ ...this.choice });
+          },
+        });
+      } catch (error) {
+        console.error("Could not open character selection", error);
+        status.textContent = "Karaktärsvalet kunde inte öppnas. Tryck på Nästa för att försöka igen.";
+      } finally {
+        openingCharacterSelection = false;
+        confirmButton.disabled = this.confirmed;
+      }
     });
     refresh();
   }

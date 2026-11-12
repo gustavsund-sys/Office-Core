@@ -1,4 +1,4 @@
-import { Mesh, MeshBuilder, VertexData, TransformNode } from "@babylonjs/core";
+import { Mesh, MeshBuilder, VertexData } from "@babylonjs/core";
 import type { World } from "../map/builder";
 import { cachedStaticModel, finishStaticModel } from "../weapons/staticModel";
 
@@ -30,28 +30,35 @@ export function tacticalShieldModel(world: World): Mesh {
     height: number,
     color: string,
   ) => {
-    const outline = [
-      [-0.5, -0.34],
-      [-0.38, -0.5],
-      [0.38, -0.5],
-      [0.5, -0.34],
-      [0.5, 0.28],
-      [0.29, 0.5],
-      [-0.29, 0.5],
-      [-0.5, 0.28],
-    ];
-    const positions: number[] = [],
-      indices: number[] = [],
-      normals: number[] = [];
-    for (const depth of [-0.045, 0.045])
-      for (const [x, y] of outline)
-        positions.push(x * width, y * height + 0.05, z + depth);
-    for (let i = 1; i < 7; i++) {
-      indices.push(0, i + 1, i, 8, 8 + i, 9 + i);
+    // Rounded panel with enough horizontal segments to wrap around the ribs.
+    const columns = 16, rows = 10;
+    const positions: number[] = [], indices: number[] = [], normals: number[] = [];
+    const stride = columns + 1, layer = stride * (rows + 1);
+    const radius = Math.min(width, height) * 0.18;
+    for (const depth of [-0.022, 0.022]) {
+      for (let row = 0; row <= rows; row++) {
+        const y = (row / rows - 0.5) * height;
+        const corner = Math.max(0, Math.abs(y) - (height / 2 - radius));
+        const halfWidth = width / 2 - radius + Math.sqrt(radius ** 2 - corner ** 2);
+        for (let col = 0; col <= columns; col++)
+          positions.push((col / columns * 2 - 1) * halfWidth, y + 0.05, z + depth);
+      }
     }
-    for (let i = 0; i < 8; i++) {
-      const j = (i + 1) % 8;
-      indices.push(i, j, 8 + j, i, 8 + j, 8 + i);
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < columns; col++) {
+        const a = row * stride + col, b = a + 1, c = a + stride, d = c + 1;
+        indices.push(a, b, c, b, d, c);
+        indices.push(a + layer, c + layer, b + layer, b + layer, c + layer, d + layer);
+      }
+    }
+    const edge = (a: number, b: number) => indices.push(a, a + layer, b, b, a + layer, b + layer);
+    for (let col = 0; col < columns; col++) {
+      edge(col + 1, col);
+      edge(rows * stride + col, rows * stride + col + 1);
+    }
+    for (let row = 0; row < rows; row++) {
+      edge(row * stride, (row + 1) * stride);
+      edge((row + 1) * stride + columns, row * stride + columns);
     }
     VertexData.ComputeNormals(positions, indices, normals);
     const mesh = new Mesh(name, world.scene),
@@ -73,12 +80,12 @@ export function tacticalShieldModel(world: World): Mesh {
       side * 0.235,
       0.32,
       0,
-      0.13,
-      0.065,
+      0.11,
+      0.045,
       0.68,
       "#343e40",
     );
-    box("side cummerbund", side * 0.34, -0.1, 0, 0.085, 0.22, 0.56, "#343e40");
+    box("side cummerbund", side * 0.34, -0.1, 0, 0.06, 0.20, 0.56, "#343e40");
     box(
       "steel shoulder buckle",
       side * 0.235,
@@ -87,7 +94,7 @@ export function tacticalShieldModel(world: World): Mesh {
       0.135,
       0.085,
       0.035,
-      "#8c9696",
+      "#657176",
     );
     box(
       "buckle inset",
@@ -99,15 +106,21 @@ export function tacticalShieldModel(world: World): Mesh {
       0.015,
       "#202a30",
     );
-    box("utility pouch", side * 0.17, -0.15, 0.42, 0.23, 0.22, 0.11, "#303d43");
+    const pouch = MeshBuilder.CreateSphere("rounded utility pouch", {
+      diameterX: 0.23, diameterY: 0.22, diameterZ: 0.075, segments: 8,
+    }, world.scene);
+    pouch.parent = root;
+    pouch.position.set(side * 0.17, -0.15, 0.407);
+    pouch.material = world.mat("#303d43");
+    pouch.isPickable = false;
     box(
       "pouch flap",
       side * 0.17,
-      -0.045,
-      0.48,
-      0.235,
-      0.045,
-      0.025,
+      -0.055,
+      0.444,
+      0.215,
+      0.035,
+      0.015,
       "#59656a",
     );
     for (const y of [0.02, 0.09])
@@ -119,17 +132,17 @@ export function tacticalShieldModel(world: World): Mesh {
         0.24,
         0.025,
         0.025,
-        "#626d6c",
+        "#4c595e",
       );
     for (const y of [-0.23, 0.23]) {
       const rivet = MeshBuilder.CreateSphere(
         "plate fastener",
-        { diameter: 0.035, segments: 4 },
+        { diameter: 0.025, segments: 4 },
         world.scene,
       );
       rivet.parent = root;
       rivet.position.set(side * 0.25, y, 0.397);
-      rivet.material = world.mat("#929fa2");
+      rivet.material = world.mat("#657176");
       rivet.isPickable = false;
     }
   }
@@ -145,5 +158,28 @@ export function tacticalShieldModel(world: World): Mesh {
   );
   box("shield patch stripe", 0, 0.18, 0.419, 0.035, 0.065, 0.008, "#cae3e9");
   box("rear blue identification", 0, 0.16, -0.34, 0.26, 0.07, 0.02, "#4294c0");
+  // Bend panels AND their fittings together, keeping patches and pouches seated.
+  for (const mesh of root.getChildMeshes()) {
+    if (!(mesh instanceof Mesh)) continue;
+    mesh.bakeCurrentTransformIntoVertices();
+    const positions = mesh.getVerticesData("position");
+    const indices = mesh.getIndices();
+    if (!positions || !indices) continue;
+    for (let i = 0; i < positions.length; i += 3) {
+      const x = positions[i];
+      const z = positions[i + 2];
+      positions[i + 2] *= Math.sqrt(Math.max(0.12, 1 - (x / 0.43) ** 2));
+      // Narrow both panels and their fittings; blend through the side straps.
+      const panel = Math.min(1, Math.abs(z) / 0.26);
+      const front = Math.max(0, Math.min(1, z / 0.26));
+      positions[i] *= 1 - 0.14 * panel;
+      positions[i + 2] -= 0.035 * front;
+    }
+    const normals: number[] = [];
+    VertexData.ComputeNormals(positions, indices, normals);
+    mesh.setVerticesData("position", positions);
+    mesh.setVerticesData("normal", normals);
+    mesh.refreshBoundingInfo();
+  }
   return finishStaticModel(world, "tactical plate carrier", root);
 }

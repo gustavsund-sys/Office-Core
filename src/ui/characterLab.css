@@ -9,6 +9,7 @@
 .character-lab button { font:inherit; cursor:pointer; }
 .character-lab button:focus-visible,.character-lab select:focus-visible,.character-lab input:focus-visible,.character-lab a:focus-visible { outline:2px solid #edc28c; outline-offset:4px; }
 .character-lab .cl-close { border:1px solid #ffffff26; border-radius:6px; width:38px; height:38px; background:transparent; color:#c6d5dc; font-size:26px; }
+.character-lab.cl-selection .cl-close { width:auto; padding:0 10px; font-size:13px; white-space:nowrap; }
 .cl-layout { display:grid; grid-template-columns:minmax(0,1fr) 330px; }
 .cl-stage { position:relative; min-height:580px; overflow:hidden; background:#112029; }
 .character-lab .cl-canvas { display:block; position:absolute; inset:0; width:100%; height:100%; touch-action:none; outline:none; }

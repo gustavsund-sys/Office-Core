@@ -1,4 +1,5 @@
 import { CleaningCarts } from "./cleaningCarts";
+import { WALL_CAP_OFFSET, WALL_CAP_THICKNESS } from "./surfaceHeights";
 import { buildOfficeLife, dressOfficeProp } from "./officeLife";
 import { batchBuildingTrim, batchWallVisuals, batchFixedMapDetails } from "./buildingBatch";
 import { installOfficeDetailLOD } from "./detailLOD";
@@ -37,7 +38,7 @@ import {
   materialLightLimit,
   type CombatLighting,
 } from "../effects/combatLighting";
-import { BURNING_BINS, office01 } from "../maps/office01";
+import { BURNING_BINS, OFFICE_OBJECT_SCALE, OFFICE_WALL_HEIGHT, office01 } from "../maps/office01";
 import { Explosions } from "../effects/explosions";
 import { Destructible } from "../core/destructible";
 import { TEAMS, type Team } from "../config/game";
@@ -282,6 +283,23 @@ export class World {
       m.metadata = { solid: true };
     }
     return m;
+  }
+  scaleOfficeObject(x: number, z: number, meshes: readonly Mesh[], obstacles: readonly Obstacle[] = []) {
+    for (const mesh of meshes) {
+      mesh.position.set(
+        x + (mesh.position.x - x) * OFFICE_OBJECT_SCALE,
+        mesh.position.y * OFFICE_OBJECT_SCALE,
+        z + (mesh.position.z - z) * OFFICE_OBJECT_SCALE,
+      );
+      mesh.scaling.scaleInPlace(OFFICE_OBJECT_SCALE);
+      mesh.computeWorldMatrix(true);
+    }
+    for (const obstacle of obstacles) {
+      obstacle.x = x + (obstacle.x - x) * OFFICE_OBJECT_SCALE;
+      obstacle.z = z + (obstacle.z - z) * OFFICE_OBJECT_SCALE;
+      obstacle.w *= OFFICE_OBJECT_SCALE;
+      obstacle.d *= OFFICE_OBJECT_SCALE;
+    }
   }
   label(text: string, x: number, z: number, color = "#c0ced4", size = 3, fontSize = 48) {
     const tex = new DynamicTexture(
@@ -594,6 +612,7 @@ export class World {
     office01.walls.forEach((b) => this.wall(b.x, b.z, b.w, b.d));
     for (const bin of BURNING_BINS) {
       const start = this.scene.meshes.length;
+      const obstacleStart = this.obstacles.length;
       this.box(
         "burning steel bin",
         bin.x,
@@ -647,7 +666,9 @@ export class World {
           "#484e49",
         );
       }
-      mergeStaticParts(this, this.scene.meshes.slice(start) as Mesh[]);
+      const parts = this.scene.meshes.slice(start) as Mesh[];
+      this.scaleOfficeObject(bin.x, bin.z, parts, this.obstacles.slice(obstacleStart));
+      mergeStaticParts(this, parts);
     }
     for (const p of office01.props) {
       const meshStart = this.scene.meshes.length;
@@ -764,6 +785,7 @@ export class World {
             [obstacle.w, obstacle.d] = [obstacle.d, obstacle.w];
         }
       }
+      this.scaleOfficeObject(x, z, this.scene.meshes.slice(meshStart) as Mesh[], this.obstacles.slice(obstacleStart));
       if (p.destructible)
         this.destructibles.push(
           new Destructible(
@@ -827,9 +849,9 @@ export class World {
         minY = Math.min(minY, bounds.minimumWorld.y);
         maxY = Math.max(maxY, bounds.maximumWorld.y);
       }
-      const scale = 1.65 / Math.max(0.01, maxY - minY);
+      const scale = 1.65 * OFFICE_OBJECT_SCALE / Math.max(0.01, maxY - minY);
       root.scaling.scaleInPlace(scale);
-      root.position.set(x, 0.68 - minY * scale, z);
+      root.position.set(x, 0.68 * OFFICE_OBJECT_SCALE - minY * scale, z);
       root.rotation.y = Math.sin(x * 17 + z * 11) * Math.PI;
       for (const mesh of meshes) {
         if (
@@ -1216,8 +1238,8 @@ export class World {
     }
   }
   wall(x: number, z: number, w: number, d: number) {
-    this.box("wall", x, 0.95, z, w, 1.9, d, "#b8b5a2", true);
-    this.box("wall cap", x, 1.94, z, w + 0.04, 0.1, d + 0.04, "#e3dcc6");
+    this.box("wall", x, OFFICE_WALL_HEIGHT / 2, z, w, OFFICE_WALL_HEIGHT, d, "#b8b5a2", true);
+    this.box("wall cap", x, OFFICE_WALL_HEIGHT + WALL_CAP_OFFSET, z, w + 0.04, WALL_CAP_THICKNESS, d + 0.04, "#e3dcc6");
     this.box("skirting", x, 0.13, z, w + 0.04, 0.18, d + 0.04, "#334b55");
   }
   coreDoor(team: Team, x: number, z: number, w: number, d: number) {
@@ -1226,10 +1248,10 @@ export class World {
     this.box(
       `${team} core security door`,
       x,
-      0.95,
+      OFFICE_WALL_HEIGHT / 2,
       z,
       w,
-      1.9,
+      OFFICE_WALL_HEIGHT,
       d,
       "#33444e",
       true,

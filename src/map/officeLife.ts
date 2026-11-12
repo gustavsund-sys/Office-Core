@@ -2,7 +2,7 @@ import { detailedOfficeModel, officeModelTools } from "./officeLifeModels";
 import { Mesh, MeshBuilder, Vector3 } from "@babylonjs/core";
 import type { World } from "./builder";
 import { blocked } from "../game/collision";
-import { office01 } from "../maps/office01";
+import { OFFICE_OBJECT_SCALE, office01 } from "../maps/office01";
 import { mergeStaticParts } from "../weapons/staticModel";
 
 /** Small desktop dressing joins the existing per-prop batches and damage lifecycle. */
@@ -317,16 +317,16 @@ export function buildOfficeLife(world: World) {
     ]) {
       const x = px + dx,
         z = pz + dz;
-      if (room && (Math.abs(x-room.x) + w/2 + .5 > room.w/2 || Math.abs(z-room.z) + d/2 + .5 > room.d/2)) continue;
-      if (!clear(x, z, Math.max(w, d) / 2 + 0.25)) continue;
+      if (room && (Math.abs(x-room.x) + w * OFFICE_OBJECT_SCALE / 2 + .5 > room.w/2 || Math.abs(z-room.z) + d * OFFICE_OBJECT_SCALE / 2 + .5 > room.d/2)) continue;
+      if (!clear(x, z, Math.max(w, d) * OFFICE_OBJECT_SCALE / 2 + 0.25)) continue;
       const collider = world.box(
         `office life ${kind} collider`,
         x,
-        0.6,
+        0.6 * OFFICE_OBJECT_SCALE,
         z,
-        w,
-        1.2,
-        d,
+        w * OFFICE_OBJECT_SCALE,
+        1.2 * OFFICE_OBJECT_SCALE,
+        d * OFFICE_OBJECT_SCALE,
         "#526b71",
         true,
       );
@@ -348,6 +348,7 @@ export function buildOfficeLife(world: World) {
       // Existing office models create their own solid bases. The explicit collider is sufficient.
       world.solids = world.solids.filter((m) => !parts.includes(m));
       world.obstacles.splice(obstacleCount);
+      world.scaleOfficeObject(x, z, parts);
       mergeStaticParts(world, parts, new Vector3(x, 0, z));
       return;
     }

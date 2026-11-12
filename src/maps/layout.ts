@@ -1,4 +1,4 @@
-import { office01, type Prop } from "./office01";
+import { OFFICE_OBJECT_SCALE, office01, type Prop } from "./office01";
 import { WEAPONS, type WeaponId } from "../config/weapons";
 
 export const OBJECTS = {
@@ -112,8 +112,8 @@ export function applyMap(document: MapDocument) {
 }
 export function objectBounds(object: MapObject) {
   const spec = OBJECTS[object.kind];
-  const w = object.w ?? spec[1],
-    d = object.d ?? spec[2];
+  const w = (object.w ?? spec[1]) * OFFICE_OBJECT_SCALE,
+    d = (object.d ?? spec[2]) * OFFICE_OBJECT_SCALE;
   return object.rotation % 180 === 0 ? { w, d } : { w: d, d: w };
 }
 export function onFloor(x: number, z: number, margin = 0) {

@@ -174,8 +174,8 @@ test("all palette objects build and rotated cover keeps its collision orientatio
     const wall = s.world.destructibles.find(
       (p) => p.prop.kind === "partition",
     )!;
-    assert.equal(wall.obstacles[0].w, 0.3);
-    assert.equal(wall.obstacles[0].d, 3);
+    assert.equal(wall.obstacles[0].w, 0.33);
+    assert.ok(Math.abs(wall.obstacles[0].d - 3.3) < 1e-9);
     const count = s.world.obstacles.length;
     wall.damage(500);
     assert.ok(s.world.obstacles.length < count);

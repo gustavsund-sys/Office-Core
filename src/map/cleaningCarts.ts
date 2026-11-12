@@ -1,3 +1,4 @@
+import { OFFICE_OBJECT_SCALE } from "../maps/office01";
 import { officeModelTools } from "./officeLifeModels";
 import { Mesh, MeshBuilder, TransformNode, Vector3 } from "@babylonjs/core";
 import type { World } from "./builder";
@@ -24,14 +25,15 @@ export class CleaningCarts {
       scene = world.scene;
     const root = new TransformNode("pushable cleaning cart", scene);
     root.position.set(x, 0, z);
+    root.scaling.setAll(OFFICE_OBJECT_SCALE);
     const body = world.box(
       "cleaning cart collider",
       x,
-      0.58,
+      0.58 * OFFICE_OBJECT_SCALE,
       z,
-      1.1,
-      1.16,
-      0.7,
+      1.1 * OFFICE_OBJECT_SCALE,
+      1.16 * OFFICE_OBJECT_SCALE,
+      0.7 * OFFICE_OBJECT_SCALE,
       "#3c6267",
       true,
     );
@@ -100,7 +102,7 @@ export class CleaningCarts {
         candidate,
         dx,
         dz,
-        0.67,
+        0.67 * OFFICE_OBJECT_SCALE,
         this.world.obstacles.filter((b) => b !== o),
       );
       const onFloor = office01.footprint.some(

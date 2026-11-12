@@ -1,4 +1,7 @@
 import type { Team } from "../config/game";
+export const OFFICE_OBJECT_SCALE = 1.1;
+export const OFFICE_WALL_HEIGHT = 2.9;
+
 export interface Prop {
   kind:
     | "partition"

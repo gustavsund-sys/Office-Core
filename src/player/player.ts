@@ -405,6 +405,7 @@ export class Player {
       root.parent = this.torso;
       const carrier = tacticalShieldModel(this.world);
       carrier.parent = root;
+      this.characterModel?.attachArmor(root);
     }
     this.tacticalArmor?.setEnabled(this.shield > 0 && this.hp > 0);
   }
@@ -959,17 +960,20 @@ export class Player {
     }
     if (this.characterRequested) return;
     this.characterRequested = true;
+    // Hide the procedural body immediately, before the asynchronous asset load.
+    // Keep its invisible hitboxes and transforms for gameplay/weapon positioning.
+    for (const mesh of this.legacyMeshes) {
+      if (mesh !== this.groundRing && mesh !== this.gun && !mesh.isDescendantOf(this.gun))
+        mesh.isVisible = false;
+    }
     void loadCharacterAsset(this.world.scene).then(asset => {
       if (this.root.isDisposed()) return;
       this.characterModel = createCharacterModel(asset, this.root, this.characterOutfit ?? outfit);
       this.attachWeaponToHand();
+      if (this.tacticalArmor) this.characterModel.attachArmor(this.tacticalArmor);
       const utility = this.carriedUtility;
       if (utility)
         utility.model.onDisposeObservable.addOnce(this.characterModel.attachCarriedItem(utility.model, utility.kind));
-      for (const mesh of this.legacyMeshes) {
-        if (mesh !== this.groundRing && mesh !== this.gun && !mesh.isDescendantOf(this.gun))
-          mesh.isVisible = false;
-      }
       this.setViewVisibility(this.viewVisibility);
       if (this.falling) {
         this.characterModel.playAction("Death");
@@ -1286,8 +1290,13 @@ export class Player {
       const canRunDirectionally = moving && this.grounded && !this.crouched && !this.injured;
       const strafing = canRunDirectionally && Math.abs(this.moveSide) > 0.7;
       const sprintingBackward = canRunDirectionally && this.sprinting && this.moveForward < -0.55;
+      // Time to ground under the same gravity as movement, including remote descent.
+      const landingSoon = !this.grounded && this.verticalVelocity < 0 &&
+        (this.verticalVelocity + Math.sqrt(this.verticalVelocity ** 2 + 28 * Math.max(0, this.root.position.y))) / 14 < 0.18;
       this.characterModel?.play(
+        !this.grounded ? (landingSoon ? "JumpLanding" : "Jump") :
         this.interacting ? "Interact" :
+        moving && this.grounded && this.injured ? "Limp" :
         strafing ? (this.moveSide > 0 ? "Run_Right" : "Run_Left") :
         sprintingBackward ? "Run_Back" :
         this.scoped ? "Idle_Gun_Pointing" :

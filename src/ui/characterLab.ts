@@ -51,8 +51,13 @@ export function openCharacterLab(standalone = false, selection?: {
   const loading = dialog.querySelector<HTMLElement>(".cl-loading")!;
   const save = dialog.querySelector<HTMLButtonElement>(".cl-save")!;
   if (selection) {
-    save.textContent = "VÄLJ KARAKTÄR";
-    status.textContent = "Karaktären låses när du går in i matchen.";
+    dialog.classList.add("cl-selection");
+    save.textContent = "SPARA KARAKTÄR OCH BLI REDO";
+    dialog.querySelector(".cl-eyebrow")!.textContent = "STEG 2 AV 2";
+    dialog.querySelector("#character-lab-title")!.textContent = "Välj din karaktär";
+    dialog.querySelector(".cl-close")!.textContent = "← Tillbaka";
+    dialog.querySelector(".cl-close")!.setAttribute("aria-label", "Tillbaka till utrustningen");
+    status.textContent = "Bekräfta karaktären för att bli redo. Ditt val sparas i webbläsaren.";
     dialog.querySelector(".cl-note p")!.textContent = "Välj en outfit eller kombinera delarna själv. Karaktären följer med ditt utrustningsval.";
   }
   let closed = false;
@@ -78,6 +83,7 @@ export function openCharacterLab(standalone = false, selection?: {
     dialog.querySelector<HTMLSelectElement>("[name=preset]")!.value = preset;
   };
   const load = async () => {
+    if (!scene) return;
     const current = ++generation;
     save.disabled = true;
     loading.hidden = false;
@@ -94,20 +100,15 @@ export function openCharacterLab(standalone = false, selection?: {
       console.error("Character lab could not load model", error);
       loading.textContent = "Modellen kunde inte laddas. Välj en outfit igen för att försöka på nytt.";
       status.textContent = "Kunde inte ladda förhandsvisningen.";
+      if (selection) save.disabled = false;
     }
   };
-  try { scene = new CharacterLabScene(dialog.querySelector("canvas")!); }
-  catch (error) {
-    console.error(error);
-    loading.textContent = "3D-förhandsvisningen kunde inte starta i den här webbläsaren.";
-    return;
-  }
   dialog.addEventListener("change", event => {
     const input = event.target;
     if (!(input instanceof HTMLInputElement || input instanceof HTMLSelectElement)) return;
     if (input.name === "animation") {
       animation = input.value as CharacterAnimation;
-      scene.play(animation);
+      scene?.play(animation);
       return;
     }
     if (input.name === "preset") {
@@ -123,12 +124,14 @@ export function openCharacterLab(standalone = false, selection?: {
     void load();
   });
   const frame = (face = false) => {
+    if (!scene) return;
     scene.frame(face);
     for (const button of Array.from(dialog.querySelectorAll<HTMLButtonElement>("[data-view]")))
       button.setAttribute("aria-pressed", String((button.dataset.view === "face") === face));
   };
   dialog.querySelectorAll<HTMLButtonElement>("[data-view]").forEach(button => button.addEventListener("click", () => frame(button.dataset.view === "face")));
   dialog.querySelector(".cl-rotate")!.addEventListener("click", event => {
+    if (!scene) return;
     scene.rotate = !scene.rotate;
     (event.currentTarget as HTMLElement).setAttribute("aria-pressed", String(scene.rotate));
   });
@@ -150,8 +153,8 @@ export function openCharacterLab(standalone = false, selection?: {
   });
   save.addEventListener("click", () => {
     if (selection) {
-      selection.onSelect(draft);
       close();
+      selection.onSelect(draft);
       return;
     }
     try {
@@ -160,5 +163,13 @@ export function openCharacterLab(standalone = false, selection?: {
     } catch { status.textContent = "Kunde inte spara. Kontrollera att webbläsaren tillåter lokal lagring."; }
   });
   sync();
+  try {
+    scene = new CharacterLabScene(dialog.querySelector("canvas")!);
+  } catch (error) {
+    console.error(error);
+    loading.textContent = "3D-förhandsvisningen kunde inte starta i den här webbläsaren.";
+    if (selection) save.disabled = false;
+    return;
+  }
   void load();
 }
