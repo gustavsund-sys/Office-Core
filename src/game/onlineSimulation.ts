@@ -238,13 +238,15 @@ export function tickOnline(this: Context, dt: number) {
   }
   this.networkElapsed += dt;
   const command = this.input.command(this.world, this.player.root.position);
-  const rcInput = this.rc.control(command.pressed, dt);
-  if (this.rc.locked || this.boss?.active || this.boss?.selected) {
+  const dead = this.player.hp <= 0;
+  const rcInput = dead ? undefined : this.rc.control(command.pressed, dt);
+  if (dead) command.pressed = false;
+  if (dead || this.rc.locked || this.boss?.active || this.boss?.selected) {
     command.moveX = 0;
     command.moveZ = 0;
     command.fire = false;
   }
-  this.onlinePressed ||= command.pressed;
+  this.onlinePressed = !dead && (this.onlinePressed || command.pressed);
   if (
     command.pressed &&
     !this.paused &&
@@ -395,7 +397,8 @@ export function tickOnline(this: Context, dt: number) {
       sprint: !this.paused && !this.rc.locked && command.sprint,
       fire: !this.paused && command.fire,
       pressed: !this.paused && this.onlinePressed,
-      ...(this.rc.locked || this.boss?.active
+      ...(dead ? { useMedkit: false, scoped: false, crouched: false, sprint: false } : {}),
+      ...(dead || this.rc.locked || this.boss?.active
         ? {
             moveX: 0,
             moveZ: 0,

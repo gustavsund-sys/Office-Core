@@ -29,7 +29,6 @@ import { preparedMediaUrl } from "../network/preloadedMedia";
 import { prepareStartupGraphics } from "./startupGraphics";
 import { CombatLighting } from "../effects/combatLighting";
 import { Warzone } from "../effects/warzone";
-import { LookoutEntryFilm } from "./lookoutEntryFilm";
 import { RifleScope, SniperGlints } from "./rifleScope";
 import { BossLookout, lookoutPose, LOOKOUT } from "./bossLookout";
 import type { DeathSource } from "../ui/combatFeed";
@@ -127,7 +126,6 @@ export class Game {
   private rangeMeshes: import("@babylonjs/core").AbstractMesh[] = [];
   rc!: RCSession;
   boss?: BossLookout;
-  private lookoutEntryFilm = new LookoutEntryFilm();
   rifleScope?: RifleScope;
   sniperGlints?: SniperGlints;
   loadout!: LoadoutUI;
@@ -930,11 +928,6 @@ export class Game {
           tail && this.sound,
         ),
     );
-    this.boss.onEnter = () =>
-      this.lookoutEntryFilm.play(this.sound, () =>
-        this.boss?.resumeAfterEntryFilm(),
-      );
-    this.boss.onExit = () => this.lookoutEntryFilm.cancel();
     this.rifleScope = new RifleScope(
       this.player,
       this.input,
@@ -1360,7 +1353,6 @@ export class Game {
       this.boss.update(
         dt,
         this.paused ||
-          this.lookoutEntryFilm.active ||
           !net.snapshot?.started ||
           !!net.snapshot?.winner,
       );
@@ -1368,7 +1360,7 @@ export class Game {
       this.boss.online = undefined;
       if (this.match.winner) this.boss?.exit();
       this.boss?.syncRound(this.currentRound);
-      this.boss?.update(dt, this.paused || this.lookoutEntryFilm.active);
+      this.boss?.update(dt, this.paused);
     }
     this.brokenCables?.update(this.paused ? 0 : dt, this.player.root.position, this.sound && !this.paused);
     const supplySnapshot = this.multiplayer?.room ? this.multiplayer.snapshot : undefined;
@@ -2111,7 +2103,7 @@ export class Game {
         }
       },
     };
-    for (const mesh of player.bodyMeshes) {
+    for (const mesh of player.hitboxes) {
       mesh.metadata = { damageable: target };
       mesh.isPickable = true;
     }

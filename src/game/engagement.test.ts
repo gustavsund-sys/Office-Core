@@ -86,7 +86,7 @@ test("server sends pings only to teammates, rate-limits spam and cancels countdo
     room.handleTeamPing(clients[0], { kind: "enemy", x: 0, z: 0 });
     assert.equal(messages.length, 2);
     const victim =
-      room.participants.get("bob")!.player.bodyMeshes[0].metadata.damageable;
+      room.participants.get("bob")!.player.hitboxes[0].metadata.damageable;
     victim.damage(30);
     room.participants.get("eve")!.weapons.onHit(victim, 30);
     victim.damage(70);

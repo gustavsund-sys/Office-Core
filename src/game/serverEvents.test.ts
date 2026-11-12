@@ -39,7 +39,7 @@ test("server attributes planted bombs, broadcasts one carrier scream and reports
     p.input.warcry = true;
     room.tick(1 / 30);
     assert.equal(events.filter((e) => e.kind === "scream").length, 1);
-    const carrierTarget = p.player.bodyMeshes[0].metadata.damageable;
+    const carrierTarget = p.player.hitboxes[0].metadata.damageable;
     carrierTarget.damage(500);
     assert.equal(p.player.hp, 100);
     p.input.warcry = true;
@@ -63,7 +63,7 @@ test("server attributes planted bombs, broadcasts one carrier scream and reports
     assert.equal(bomb.owner, "alice");
     assert.ok(bomb.timer > 24);
     const target =
-      room.participants.get("bob")!.player.bodyMeshes[0].metadata.damageable;
+      room.participants.get("bob")!.player.hitboxes[0].metadata.damageable;
     target.damage(25);
     const hit = events.find((e) => e.kind === "damage" && e.player === "bob")!;
     assert.equal(hit.player, "bob");
@@ -211,7 +211,7 @@ test("server shields absorb first, medkit key heals once and new lives reset vit
     await room.onJoin(client, { name: "Alice", team: "RED" }, { uid: "alice" });
     room.started = true;
     const p = room.participants.get("alice")!;
-    const target = p.player.bodyMeshes[0].metadata.damageable;
+    const target = p.player.hitboxes[0].metadata.damageable;
     p.player.shield = 100;
     target.damage(60);
     assert.equal(p.player.hp, 100);
@@ -265,7 +265,7 @@ test('death feed keeps the actual damage source after a weapon switch and broadc
     const attacker = room.participants.get('alice')!, victim = room.participants.get('bob')!;
     attacker.weapons.equip('pistol');
     victim.player.hp = 0;
-    const target = victim.player.bodyMeshes[0].metadata.damageable;
+    const target = victim.player.hitboxes[0].metadata.damageable;
     attacker.weapons.onHit(target,100,'beacon');
     room.tick(1/30);
     room.tick(1/30);

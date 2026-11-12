@@ -51,8 +51,6 @@ export function keyModel(world: World) {
 }
 /** Presentation shared by local playtests and server-authoritative matches. */
 export class BossLookout {
-  onEnter?: () => boolean;
-  onExit?: () => void;
   online?: { send: (action: string, controls?: object) => void };
   private networkClock = 0;
   testFireRemaining = 0;
@@ -302,16 +300,10 @@ export class BossLookout {
     );
     this.player.verticalVelocity = 0;
     this.input.clear();
-    if (!this.onEnter?.()) this.lockMouse();
-  }
-  resumeAfterEntryFilm() {
-    if (!this.active) return;
-    this.input.clear();
     this.lockMouse();
   }
   exit() {
     if (!this.active) return;
-    this.onExit?.();
     if (!this.online) {
       this.player.bossLookoutAmmo = this.player.bossLookoutKey ? this.ammo : 0;
       if (this.ammo <= 0) exhaustLookout(this.player);

@@ -424,7 +424,7 @@ export class Player {
     return this.root.position.y <= 0 && this.verticalVelocity === 0;
   }
   jump() {
-    if (!this.grounded || this.crouched) return false;
+    if (this.hp <= 0 || this.falling || !this.grounded || this.crouched) return false;
     this.verticalVelocity = 5;
     return true;
   }
@@ -449,6 +449,7 @@ export class Player {
   stride = 0;
   knees: TransformNode[] = [];
   bodyMeshes: Mesh[] = [];
+  readonly hitboxes: Mesh[];
   legacyMeshes: Mesh[] = [];
   animationGroups: {
     idle?: AnimationGroup;
@@ -711,23 +712,30 @@ export class Player {
     ring.material = world.mat("#f8e4ac", true);
     ring.isPickable = false;
     this.setWeaponModel("pistol");
-    // Invisible boxes follow each animated body part, with 10% aim tolerance.
-    const hitboxes = this.bodyMeshes.map((part) => {
-      const bounds = part.getBoundingInfo().boundingBox;
-      const size = bounds.maximum.subtract(bounds.minimum).scale(1.1);
+    // Envelope measured from the skinned modular outfits in their idle pose.
+    // Keep the same volumes on the server, which does not load render assets.
+    this.legacyMeshes = this.root.getChildMeshes() as Mesh[];
+    for (const part of this.bodyMeshes) part.isPickable = false;
+    const regions = [
+      { min: [-0.75, -0.03, -0.4], max: [0.39, 1.45, 1.06] },
+      { min: [-0.72, 1.45, -0.54], max: [0.65, 2.55, 0.68] },
+      { min: [-0.66, 2.55, -0.56], max: [0.63, 4.085, 0.89] },
+    ];
+    this.hitboxes = regions.map(({ min, max }) => {
+      const lower = Vector3.FromArray(min);
+      const upper = Vector3.FromArray(max);
+      const size = upper.subtract(lower);
       const box = MeshBuilder.CreateBox(
         "player hitbox",
         { width: size.x, height: size.y, depth: size.z },
         world.scene,
       );
-      box.parent = part;
-      box.position.copyFrom(bounds.center);
+      box.parent = this.root;
+      box.position.copyFrom(Vector3.Center(lower, upper));
       box.visibility = 0;
-      box.isPickable = true;
       return box;
     });
-    this.bodyMeshes.push(...hitboxes);
-    this.legacyMeshes = this.root.getChildMeshes() as Mesh[];
+    this.bodyMeshes.push(...this.hitboxes);
   }
   setWeaponModel(id: WeaponId) {
     this.weaponId = id;
@@ -1123,6 +1131,7 @@ export class Player {
   }
   simulate(c: PlayerCommand, dt: number, pushObjects = true) {
     this.landed = false;
+    if (this.hp <= 0 || this.falling) return;
     if (this.bossLookoutActive) {
       this.verticalVelocity = 0;
       return;
@@ -1201,6 +1210,7 @@ export class Player {
     this.faceAim(c);
   }
   faceAim(c: PlayerCommand) {
+    if (this.hp <= 0 || this.falling) return;
     this.scoped = !!c.scoped && this.weaponId === "huntingRifle";
     const dx = c.aimX - this.root.position.x;
     const dz = c.aimZ - this.root.position.z;

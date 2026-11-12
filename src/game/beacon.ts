@@ -768,8 +768,8 @@ export class Beacons {
     );
     const victim = hit?.pickedMesh?.metadata?.damageable as
       Hittable | undefined;
-    const actor = actors.find((a) =>
-      a.player.bodyMeshes.some((m) => m.metadata?.damageable === victim),
+    const actor = victim && actors.find((a) =>
+      a.player.hitboxes.some((m) => m.metadata?.damageable === victim),
     );
     if (
       victim &&

@@ -872,7 +872,7 @@ export class OfficeRoom extends Room {
         }
       },
     };
-    for (const mesh of player.bodyMeshes) {
+    for (const mesh of player.hitboxes) {
       mesh.isPickable = true;
       mesh.metadata = { damageable: target };
     }

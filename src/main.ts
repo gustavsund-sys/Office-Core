@@ -20,11 +20,7 @@ async function start() {
     openCharacterLab(true);
     return;
   }
-  const { showIntro, showTutorial } = await import("./ui/intro");
-  if (params.get("builder") !== "1" &&
-      (params.get("playtest") !== "1" || params.get("intro") === "1")) {
-    await showIntro(params.get("intro") === "1");
-  }
+  const { showTutorial } = await import("./ui/intro");
   const client = await chooseClient();
   const mobile =
     client === "mobile" ? await import("./mobile/presentation") : undefined;
@@ -92,10 +88,6 @@ async function start() {
       [
         coreEndingVideo("RED"),
         coreEndingVideo("BLUE"),
-        import.meta.env.VITE_LOOKOUT_ENTRY_VIDEO_URL ??
-          (import.meta.env.DEV
-            ? "/video/boss-lookout-entry.mp4"
-            : "https://gustavsund-sys.github.io/Office-Core/media/boss-lookout-entry-v1.mp4"),
       ],
       (complete, total) =>
         loading.update(
