@@ -1,3 +1,4 @@
+import { headerArtwork } from "./headerArtwork";
 import { mixMedia } from "../audio/mixer";
 export interface TutorialInputGuide {
   movement: string; movementTips: string[]; plant: string; disarm: string; skill: string; rc: string;
@@ -22,7 +23,7 @@ export function showTutorial(): Promise<void> {
     {
       title: "Skydda er Core. Slå ut deras.",
       text: "Två lag, högst fyra spelare i varje. Förstör motståndarnas Core för att vinna en runda. Först till tre rundvinster vinner matchen. Alla väljer Ready inför nästa runda.",
-      image: "/branding/office-core-lobby-wide.webp",
+      image: headerArtwork,
       tips: [
         "Välj namn och anslut till lobbyn.",
         "Välj lag. När matchen startar väljer du specialvapen och skill före spawn.",
@@ -112,7 +113,7 @@ export async function showIntro(force = false) {
     /* Storage may be unavailable. */
   }
   const el = modal("onboarding intro-screen", "Office Core intro");
-  el.innerHTML = `<video playsinline preload="metadata" poster="/branding/office-core-lobby-wide.webp" aria-label="Office Core introfilm"></video><div class="intro-shade"></div><div class="intro-launch"><div class="launch-core" aria-hidden="true"><i></i><i></i><span>◆</span></div><span class="onboarding-kicker">YOUR NEXT WORKDAY STARTS HERE</span><p>Två lag. En arbetsplats. Total kontorskaos.</p><button class="intro-start"><span class="launch-key" aria-hidden="true">▶</span><span>STARTA OFFICE CORE</span><span class="launch-arrow" aria-hidden="true">↗</span></button><div class="launch-ready"><i></i> SYSTEM READY · HEADQUARTERS / 01</div></div><div class="intro-brand"><span class="onboarding-kicker">WELCOME TO THE OFFICE</span><img src="/branding/office-core-primary.webp" alt="Office Core" /></div><button class="intro-sound" hidden>Stäng av ljud</button><div class="intro-actions"><p class="intro-status" role="status"></p><label class="intro-remember-label" hidden><input type="checkbox" class="intro-remember"> Visa inte igen</label><div><button class="intro-skip" hidden>Skip intro →</button><button class="intro-tutorial" hidden>Skip and show tutorial</button></div></div>`;
+  el.innerHTML = `<video playsinline preload="metadata" poster="${headerArtwork}" aria-label="Office Core introfilm"></video><div class="intro-shade"></div><div class="intro-launch"><div class="launch-core" aria-hidden="true"><i></i><i></i><span>◆</span></div><span class="onboarding-kicker">YOUR NEXT WORKDAY STARTS HERE</span><p>Två lag. En arbetsplats. Total kontorskaos.</p><button class="intro-start"><span class="launch-key" aria-hidden="true">▶</span><span>STARTA OFFICE CORE</span><span class="launch-arrow" aria-hidden="true">↗</span></button><div class="launch-ready"><i></i> SYSTEM READY · HEADQUARTERS / 01</div></div><div class="intro-brand"><span class="onboarding-kicker">WELCOME TO THE OFFICE</span><img src="/branding/office-core-primary.webp" alt="Office Core" /></div><button class="intro-sound" hidden>Stäng av ljud</button><div class="intro-actions"><p class="intro-status" role="status"></p><label class="intro-remember-label" hidden><input type="checkbox" class="intro-remember"> Visa inte igen</label><div><button class="intro-skip" hidden>Skip intro →</button><button class="intro-tutorial" hidden>Skip and show tutorial</button></div></div>`;
   const video = el.querySelector("video")!;
   video.crossOrigin = "anonymous";
   mixMedia(video, "music");

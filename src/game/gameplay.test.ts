@@ -13,6 +13,7 @@ import {
   Mesh,
   Matrix,
   Ray,
+  TransformNode,
 } from "@babylonjs/core";
 import { World } from "../map/builder";
 import { Input, Player, type PlayerCommand } from "../player/player";
@@ -728,6 +729,23 @@ test("replaying unacknowledged movement reproduces position and jumping", () => 
       Vector3.Distance(s.player.root.position, server.root.position) < 1e-8,
     );
     assert.equal(s.player.verticalVelocity, server.verticalVelocity);
+  } finally {
+    s.engine.dispose();
+  }
+});
+
+test("bazooka rockets start at the muzzle attached to the shoulder pose", () => {
+  const s = setup();
+  try {
+    s.weapon.equip("bazooka");
+    const shoulder = new TransformNode("shoulder weapon pose", s.scene);
+    shoulder.parent = s.player.root;
+    shoulder.position.set(0.35, 2.9, 0.32);
+    const muzzle = s.player.weaponMuzzle!;
+    muzzle.parent = shoulder;
+    const expected = muzzle.computeWorldMatrix(true).getTranslation();
+    s.weapon.update({ ...idle, pressed: true }, 0);
+    assert.ok(Vector3.Distance(s.weapon.rockets[0].start, expected) < 1e-6);
   } finally {
     s.engine.dispose();
   }

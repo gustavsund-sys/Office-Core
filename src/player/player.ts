@@ -1,4 +1,4 @@
-import { CHARACTER_SIZE_MULTIPLIER, createCharacterModel, loadCharacterAsset } from "./characterModel";
+import { CHARACTER_SIZE_MULTIPLIER, createCharacterModel, loadCharacterAsset, type CarriedUtility } from "./characterModel";
 import type { Appearance } from "./appearance";
 import { loseLookoutOnDeath } from "../game/lookoutReward";
 import { tacticalShieldModel } from "./tacticalShield";
@@ -798,10 +798,11 @@ export class Player {
 
   interacting = false;
   private falling = false;
+  private corpsePosition?: Vector3;
 
   fireAnimation() {
     this.recoil = 1;
-    if (this.hp <= 0 || this.interacting) return;
+    if (this.hp <= 0 || this.interacting || this.weaponId === "bazooka") return;
     if (this.stride <= 0.25) {
       this.characterModel?.playAction("Idle_Gun_Shoot");
     } else if (this.sprinting) {
@@ -815,6 +816,7 @@ export class Player {
 
   private resetLifeAnimation() {
     this.falling = false;
+    this.corpsePosition = undefined;
     this.recoil = this.stride = this.sprintBlend = this.landingBlend = 0;
     this.wasAirborne = false;
     this.lastAnimatedPosition = undefined;
@@ -822,18 +824,24 @@ export class Player {
     this.characterModel?.play("Idle_Gun");
   }
 
-  showLifeState(alive: boolean) {
+  showLifeState(alive: boolean, teamColor: string) {
     if (alive) {
       const respawned = this.falling;
-      if (respawned) this.resetLifeAnimation();
+      if (respawned) {
+        if (this.characterModel && this.corpsePosition)
+          this.world.explosions.playerSpawn(this.corpsePosition, teamColor);
+        this.resetLifeAnimation();
+      }
       this.root.setEnabled(true);
       return respawned;
     }
     if (!this.falling) {
       this.falling = true;
+      this.corpsePosition = this.root.position.clone();
       this.characterModel?.playAction("Death");
     }
-    this.root.setEnabled(this.characterModel?.actionPlaying ?? false);
+    this.corpsePosition?.copyFrom(this.root.position);
+    this.root.setEnabled(!!this.characterModel);
     return false;
   }
 
@@ -841,7 +849,11 @@ export class Player {
     const character = this.characterModel;
     const grip = character?.grip;
     const gun = this.gun;
-    if (!character || !grip || this.weaponId === "coreBuster") return;
+    if (!character || !grip) return;
+    if (this.weaponId === "coreBuster") {
+      gun.onDisposeObservable.addOnce(character.attachCarriedItem(gun, "coreBuster"));
+      return;
+    }
     const weaponVisual = new TransformNode("handheld weapon", this.world.scene);
     weaponVisual.parent = this.root;
     weaponVisual.scaling.copyFrom(gun.scaling);
@@ -911,14 +923,31 @@ export class Player {
     };
     for (const child of gun.getChildren()) child.parent = weaponVisual;
     weaponVisual.setEnabled(gun.isEnabled(false));
-    followHand();
-    const handObserver = this.world.scene.onAfterAnimationsObservable.add(followHand);
+    let stopFollowing: () => void;
+    if (this.weaponId === "bazooka") {
+      stopFollowing = character.attachCarriedItem(weaponVisual, "bazooka", () => this.recoil);
+    } else {
+      followHand();
+      const handObserver = this.world.scene.onAfterAnimationsObservable.add(followHand);
+      stopFollowing = () => this.world.scene.onAfterAnimationsObservable.remove(handObserver);
+    }
     gun.onEnabledStateChangedObservable.add(enabled => weaponVisual.setEnabled(enabled));
     gun.onDisposeObservable.addOnce(() => {
-      this.world.scene.onAfterAnimationsObservable.remove(handObserver);
+      stopFollowing();
       if (!weaponVisual.isDisposed()) weaponVisual.dispose();
     });
     for (const mesh of weaponVisual.getChildMeshes()) mesh.visibility = this.viewVisibility;
+  }
+
+  private carriedUtility?: { model: TransformNode; kind: CarriedUtility };
+
+  showCarriedUtility(model: TransformNode, kind: CarriedUtility) {
+    this.carriedUtility = { model, kind };
+    model.onDisposeObservable.addOnce(() => {
+      if (this.carriedUtility?.model === model) this.carriedUtility = undefined;
+    });
+    if (this.characterModel)
+      model.onDisposeObservable.addOnce(this.characterModel.attachCarriedItem(model, kind));
   }
 
   useCharacterModel(outfit: Appearance, teamColor: string) {
@@ -934,12 +963,18 @@ export class Player {
       if (this.root.isDisposed()) return;
       this.characterModel = createCharacterModel(asset, this.root, this.characterOutfit ?? outfit);
       this.attachWeaponToHand();
+      const utility = this.carriedUtility;
+      if (utility)
+        utility.model.onDisposeObservable.addOnce(this.characterModel.attachCarriedItem(utility.model, utility.kind));
       for (const mesh of this.legacyMeshes) {
         if (mesh !== this.groundRing && mesh !== this.gun && !mesh.isDescendantOf(this.gun))
           mesh.isVisible = false;
       }
       this.setViewVisibility(this.viewVisibility);
-      this.characterModel.play("Idle_Gun");
+      if (this.falling) {
+        this.characterModel.playAction("Death");
+        this.root.setEnabled(true);
+      } else this.characterModel.play("Idle_Gun");
     }).catch(error => console.warn("Could not load player character", error));
   }
 
@@ -1292,6 +1327,8 @@ export class Player {
 
   get muzzlePosition() {
     this.root.computeWorldMatrix(true);
+    if (this.weaponId === "bazooka" && this.weaponMuzzle)
+      return this.weaponMuzzle.computeWorldMatrix(true).getTranslation();
     return Vector3.TransformCoordinates(
       new Vector3(0, 0, MUZZLE_DEPTH[this.weaponId]),
       this.gun.computeWorldMatrix(true),
@@ -1347,9 +1384,10 @@ export class Player {
           : vehicle.getAbsolutePosition().y;
     }
     const delta = target.subtract(origin);
+    const barrelNode = this.weaponId === "bazooka" ? this.weaponMuzzle ?? this.gun : this.gun;
     const barrel = Vector3.TransformNormal(
       Vector3.Forward(),
-      this.gun.computeWorldMatrix(true),
+      barrelNode.computeWorldMatrix(true),
     ).normalize();
     // The cursor can enter the space between the body and the muzzle. Continue
     // out of the barrel there; converging on that point would reverse the shot.

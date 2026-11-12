@@ -1,0 +1,57 @@
+{
+  "tool": "built-in image_gen",
+  "base": "Use case: stylized-concept. Office Core game header alternative, panoramic 3:1. Reference 1 supplies ONLY the exact ivory metallic stacked OFFICE / CORE logo with red-blue glowing core inside O and dark red/blue lit office atmosphere. Do NOT copy its generic expression or lineup pose. Reference 2 defines current game's recognizable low-poly human characters and outfit colors; preserve identities, hairstyles and outfits, but accentuate each person's individual brow, face shape and personality. No old block/voxel figures. Cinematic polished low-poly 3D game key art, NOT photoreal humans. Close waist-up or chest-up framing, very prominent faces, cropped lower bodies, not distant full-length figures. Each character carries their own varied weapon naturally. Characters BEHIND foreground logo, logo cannot cover faces. No additional people, text, labels or watermarks. Exact logo text OFFICE CORE. Strong differentiated facial expressions and gestures, avoid everyone smirking or same heroic rifle-across-chest pose. ",
+  "variants": [
+    [
+      "01",
+      "Ensam – obekväm chef",
+      "Exactly ONE business suit character, waist-up. Leaning sideways on an office partition, loosened tie, one eyebrow raised with a crooked amused smile, eyes looking off-camera, pistol loosely held pointed downward. Three-quarter body, asymmetrical shoulders, a very individual expressive face. Logo left foreground, character right."
+    ],
+    [
+      "02",
+      "Fyra – kontorsteamet",
+      "Exactly FOUR: suit man half-turned toward the others with a skeptical raised eyebrow and pistol lowered; purple hoodie man laughing broadly with SMG loosely across his waist; gray T-shirt man hunched slightly forward, lips pressed and eyes narrowed, shotgun held diagonally down; mustached construction worker grinning proudly while resting bazooka on shoulder. All different gestures, head angles, gaze directions and facial expressions. Compact waist-up group behind low logo."
+    ],
+    [
+      "03",
+      "Fyra – insatsgruppen",
+      "Exactly FOUR: SWAT in a low forward braced pose aiming machine gun toward offscreen left, masked face; red mohawk punk leaning back with a rebellious broad grin and rifle upright by his shoulder; bearded adventurer turned three-quarter away looking back with worried furrowed brow, sniper held low; astronaut craning helmet toward punk with an inquisitive head tilt, futuristic rifle down across waist. Overlapping staggered waist-up group behind logo, no identical stances."
+    ],
+    [
+      "04",
+      "Fyra – udda kollegor",
+      "Exactly FOUR: older bearded crowned king lifting chin with haughty disdain, shotgun cradled low; cowboy-hatted farmer with a warm squinting smile, one hand tipping hat, hunting rifle supported diagonally in other arm; beach tank-top man startled with wide eyes and parted mouth clutching SMG close to chest; business suit man glancing sideways toward beach man with dry skeptical expression, pistol low. Distinct ages, brows and jaw shapes consistent with reference identities. Large waist-up group behind low logo."
+    ],
+    [
+      "05",
+      "Två – kostym och punk",
+      "Exactly TWO: suit man in profile turning face toward camera with one raised brow, tightly closed lips, pistol lowered, reserved composed posture; punk slouching dramatically opposite him, red mohawk and a wide mischievous laughing mouth, assault rifle balanced at a diagonal over shoulder. Strong contrasting angular silhouettes and gaze directions. Large waist-up characters flank low foreground logo."
+    ],
+    [
+      "06",
+      "Två – byggare och insatsstyrka",
+      "Exactly TWO: mustached construction worker laughing with eyes crinkled, chest out, bazooka balanced on shoulder and free hand on hip; SWAT crouched partly into frame with squared tense shoulders and machine gun braced diagonally across chest, looking offscreen for threats, visor conceals face. Clearly contrasted body heights and poses, big waist-up composition behind logo."
+    ],
+    [
+      "07",
+      "Två – hoodie och rymddräkt",
+      "Exactly TWO: purple hoodie young man leaning toward camera, playful smirk and raised eyebrow, SMG lowered in one hand with other hand giving casual two-finger salute; astronaut turned sideways leaning slightly away, head tilted curiously toward hoodie man, helmet visor opaque, rifle held across lower waist. Asymmetric close upper-body composition with logo low foreground."
+    ],
+    [
+      "08",
+      "Två – kungen och lantbrukaren",
+      "Exactly TWO: crowned older king with heavy brows and flowing white beard, stern frown, chin high, rigid regal posture, shotgun held vertically at side; cowboy-hatted farmer warmly chuckling with eyes almost closed and head tilted, relaxed shoulders, hunting rifle cradled across both forearms low. Both three-quarter views toward one another, contrasting personalities, waist-up behind logo."
+    ],
+    [
+      "09",
+      "Två – äventyr och semester",
+      "Exactly TWO: bearded adventurer with concerned intense eyes, furrowed brow, leaning forward with sniper rifle held ready down-left, glancing past camera; beach tank-top man leaning back casually with broad carefree grin and tousled hair, pistol safely lowered, free hand behind head. Strong serious versus relaxed personality contrast. Close waist-up, logo low center."
+    ],
+    [
+      "10",
+      "Två – vardag och kostym",
+      "Exactly TWO: gray T-shirt young man biting lower lip in determination, bent slightly forward in three-quarter profile aiming shotgun toward offscreen right; dark suit man behind and beside him twisted toward left, looking back over shoulder with surprised wide eyes, compact SMG held low. Dynamic back-to-back asymmetrical composition, faces large, logo low foreground."
+    ]
+  ],
+  "correction_pass": "Variants 01,05,06,07,09,10 edited with built-in image_gen to remove all extra background people, retaining only the named one or two subjects, original logo and empty red-blue office scenery. 06 and 09 reframed closer; 07 astronaut moved inward."
+}

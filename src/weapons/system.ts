@@ -15,7 +15,7 @@ import {
   StandardMaterial,
   Vector3,
 } from "@babylonjs/core";
-import { WEAPONS, type WeaponId } from "../config/weapons";
+import { BAZOOKA_ROCKET_SPEED, WEAPONS, type WeaponId } from "../config/weapons";
 import { Player, type PlayerCommand } from "../player/player";
 import { Destructible } from "../core/destructible";
 import { heldWeapon, rocketModel } from "./models";
@@ -540,7 +540,7 @@ export class Weapons {
       while (remaining > 0) {
         const step = Math.min(remaining, 0.025);
         remaining -= step;
-        rocket.distance = Math.min(40, rocket.distance + step * 9.9);
+        rocket.distance = Math.min(40, rocket.distance + step * BAZOOKA_ROCKET_SPEED);
         const next = rocket.start.add(rocket.direction.scale(rocket.distance));
         next.y += Math.sin((rocket.distance / 40) * Math.PI) * 0.75;
         const delta = next.subtract(rocket.mesh.position);

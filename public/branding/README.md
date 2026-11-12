@@ -11,3 +11,5 @@ Generated with the built-in imagegen tool. Prompts: primary — bold stacked OFF
 Film editing should use the primary logo for the main identity; the character treatment is the game/app identity. The 20-second film master is saved in the chat workspace under artifacts/runway-intro/Office-Core-Intro-20s.mp4. No production deployment is included in this change.
 
 - office-core-lobby-wide: expanded 3:1 office scene for the full-width lobby header. Generated with imagegen from the approved character logo, preserving the center and adding red/blue office corridors and furniture at the sides. Small screens retain the original character composition.
+
+- office-core-modular-lineup (2026-11-12): current header for launcher, lobby, pause and intro poster. All eleven Ultimate Modular Men outfits behind the original wordmark, each carrying a varied weapon. Generated with imagegen from the previous header and a Blender-rendered reference of the actual game GLB. Mobile preserves the full panoramic composition. Previous character artwork is retained only as an archived asset.

@@ -92,6 +92,7 @@ import {
   Ray,
   Matrix,
   Plane,
+  Quaternion,
 } from "@babylonjs/core";
 
 import { WEAPONS, type WeaponId } from "../config/weapons";
@@ -1184,7 +1185,10 @@ export class Game {
       if (state.hp > 0 && (state.hp < player.hp || (state.shield ?? 0) < player.shield))
         player.reactToHit();
       player.hp = state.hp;
-      const respawned = player.showLifeState(state.hp > 0);
+      const respawned = state.hp > 0 || state.loadout
+        ? player.showLifeState(state.hp > 0, TEAMS[state.team])
+        : false;
+      if (state.hp <= 0 && !state.loadout) player.root.setEnabled(false);
       player.sprinting = state.sprinting ?? false;
       player.interacting = (state.disarm ?? 0) > 0;
       player.scoped = state.scoped ?? false;
@@ -1232,8 +1236,24 @@ export class Game {
     const { visuals } = syncOnlineVisuals(this, snapshot, dt);
     for (const object of visuals.objects) {
       let mesh = this.onlineObjects.get(object.key);
-      if (!mesh) { mesh = object.weapon === "bazooka" ? rocketModel(this.world) : heldWeapon(this.world, object.weapon); this.onlineObjects.set(object.key, mesh); }
-      mesh.position.copyFrom(object.target);
+      if (!mesh) {
+        mesh = object.weapon === "bazooka" ? rocketModel(this.world) : heldWeapon(this.world, object.weapon);
+        this.onlineObjects.set(object.key, mesh);
+        const shooter = object.owner && this.onlinePlayers.get(object.owner);
+        if (object.weapon === "bazooka" && shooter && shooter.weaponId === "bazooka") {
+          mesh.position.copyFrom(shooter.muzzlePosition);
+          mesh.rotationQuaternion = Quaternion.FromLookDirectionLH(
+            shooter.weaponMuzzle?.forward ?? shooter.direction, Vector3.Up(),
+          );
+          continue;
+        }
+        mesh.position.copyFrom(object.target);
+      } else if (object.weapon === "bazooka") {
+        const direction = object.target.subtract(mesh.position);
+        if (direction.lengthSquared() > 0.0001)
+          mesh.rotationQuaternion = Quaternion.FromLookDirectionLH(direction.normalize(), Vector3.Up());
+        Vector3.LerpToRef(mesh.position, object.target, 1 - Math.exp(-25 * dt), mesh.position);
+      } else mesh.position.copyFrom(object.target);
     }
     for (const [key, mesh] of this.onlineObjects) if (!visuals.objectKeys.has(key)) { mesh.dispose(); this.onlineObjects.delete(key); }
     for (const trace of this.onlineTraces) trace.life -= dt;
@@ -1422,9 +1442,11 @@ export class Game {
         this.respawnRemaining = 5;
       }
       if (this.respawnRemaining > 0) {
-        this.player.showLifeState(false);
+        const teamColor = TEAMS[CONFIG.player.team as Team];
+        this.player.showLifeState(false, teamColor);
         this.respawnRemaining = Math.max(0, this.respawnRemaining - dt);
         if (this.respawnRemaining === 0) {
+          this.player.showLifeState(true, teamColor);
           this.weaponAudio?.resetPlayerHits("local");
           this.world.blood.cadence.resetPlayer("local");
           const base = office01.bases.find(
@@ -1548,9 +1570,11 @@ export class Game {
             );
           this.botRespawn = 5;
         }
-        this.testPlayer.showLifeState(false);
+        const teamColor = TEAMS[this.match.members[1]?.team ?? "BLUE"];
+        this.testPlayer.showLifeState(false, teamColor);
         this.botRespawn = Math.max(0.00001, this.botRespawn - dt);
         if (this.botRespawn <= 0.00001) {
+          this.testPlayer.showLifeState(true, teamColor);
           this.botRespawn = 0;
           this.testPlayer.hp = 100;
           this.testPlayer.resetVitals();

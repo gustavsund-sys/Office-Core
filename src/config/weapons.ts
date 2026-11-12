@@ -1,3 +1,5 @@
+export const BAZOOKA_ROCKET_SPEED = 11.88;
+
 export type WeaponId =
   | "pistol"
   | "machineGun"

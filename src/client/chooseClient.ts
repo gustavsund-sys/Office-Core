@@ -1,3 +1,4 @@
+import { headerArtwork } from "../ui/headerArtwork";
 import { installDownloadGuides } from "./installGuide";
 import "./launcher.css";
 import { DESKTOP_DOWNLOADS } from "./downloads";
@@ -28,7 +29,7 @@ export async function chooseClient(): Promise<ClientMode> {
     <header class="launcher-top"><a class="launcher-brand" href="/" aria-label="Office Core startsida"><span class="launcher-mark">◆</span> OFFICE CORE</a><span class="launcher-alpha"><i></i> MULTIPLAYER · BETA 0.2b</span></header>
     <main class="launcher-main">
       <section class="launcher-world" aria-label="Om spelet">
-        <div class="launcher-art"><img src="/branding/office-core-lobby-wide.webp" alt="Röda och blå kontorskrigare gör sig redo för Office Core" width="2172" height="724" fetchpriority="high"><span class="launcher-art-tag"><i></i> HEADQUARTERS / OFFICE01</span></div>
+        <div class="launcher-art"><img src="${headerArtwork}" alt="Röda och blå kontorskrigare gör sig redo för Office Core" width="2172" height="724" fetchpriority="high"><span class="launcher-art-tag"><i></i> HEADQUARTERS / OFFICE01</span></div>
         <div class="launcher-story"><span class="launcher-eyebrow">DAGENS AGENDA: TOTALT KAOS</span><h1>En arbetsplats.<br><em>Två sidor.</em> Ditt krig.</h1><p>Samla laget, skydda er Core och ta över kontoret. Vardagen kan vänta.</p><div class="launcher-facts"><span><b>02</b> LAG</span><span><b>08</b> SPELARE</span><span><b>03</b> VINSTER FÖR SEGER</span></div></div>
       </section>
       <section class="launcher-play" aria-labelledby="launcher-title"><span class="launcher-eyebrow">DAGS ATT STÄMPLA IN</span><h2 id="launcher-title">Kontoret kallar.</h2><p class="launcher-lead">Installera Office Core på din dator.<br>Välj din plattform och kliv in i matchen.</p>

@@ -7,7 +7,7 @@ import { beam, flash as pooledFlash, releaseEffect } from "./effectPool";
 
 import { Vector3, Ray, MeshBuilder, Quaternion } from "@babylonjs/core";
 
-import { WEAPONS, type WeaponId } from "../config/weapons";
+import { BAZOOKA_ROCKET_SPEED, WEAPONS, type WeaponId } from "../config/weapons";
 
 import { CONFIG, TEAMS, type Team } from "../config/game";
 
@@ -504,7 +504,10 @@ export function tickOnline(this: Context, dt: number) {
       if (state.hp > 0 && (state.hp < player.hp || (state.shield ?? 0) < player.shield))
         player.reactToHit();
       player.hp = state.hp;
-      const respawned = player.showLifeState(state.hp > 0);
+      const respawned = state.hp > 0 || state.loadout
+        ? player.showLifeState(state.hp > 0, TEAMS[state.team])
+        : false;
+      if (state.hp <= 0 && !state.loadout) player.root.setEnabled(false);
       player.interacting = (state.disarm ?? 0) > 0;
       player.bossLookoutActive = !!state.lookout;
       if (!own) {
@@ -614,6 +617,16 @@ export function tickOnline(this: Context, dt: number) {
             ? rocketModel(this.world)
             : heldWeapon(this.world, object.weapon));
         this.onlineObjects.set(object.key, mesh);
+        if (!prediction && object.weapon === "bazooka" && object.owner) {
+          const shooter = this.onlinePlayers.get(object.owner);
+          if (shooter?.weaponId === "bazooka") {
+            mesh.position.copyFrom(shooter.muzzlePosition);
+            mesh.rotationQuaternion = Quaternion.FromLookDirectionLH(
+              shooter.weaponMuzzle?.forward ?? shooter.direction, Vector3.Up(),
+            );
+            continue;
+          }
+        }
       }
       if (object.weapon === "bazooka") {
         const delta = object.target.subtract(mesh.position);
@@ -723,7 +736,7 @@ export function tickOnline(this: Context, dt: number) {
   }
   for (const rocket of this.predictedRockets) {
     rocket.age += dt;
-    const distance = rocket.age * 9.9;
+    const distance = rocket.age * BAZOOKA_ROCKET_SPEED;
     rocket.mesh.position.copyFrom(
       rocket.start.add(rocket.direction.scale(distance)),
     );

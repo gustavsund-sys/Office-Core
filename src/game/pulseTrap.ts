@@ -688,6 +688,7 @@ export class PulseTraps {
             0.55,
           );
           this.carryModels.set(a.id, m);
+          a.player.showCarriedUtility(m, a.weapons.utilityKind);
         }
       } else if (!a.weapons.carryingBeacon) a.player.gun.setEnabled(true);
     }
